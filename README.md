@@ -12,7 +12,13 @@ O Godot recria a pasta `.godot/` automaticamente. Compilações em `build/`, dep
 
 Para trabalhar em conjunto, crie uma branch no GitHub Desktop, faça seus commits e envie a branch com **Publish branch** ou **Push origin**. Abra um pull request para revisar e juntar as alterações.
 
-## Jornada (Single Player e Online)
+## Expedição (Single Player)
+
+O **Single Player** abre a Cidade-Farol, de onde a party parte para um mapa novo a cada expedição, sobe de nível, visita locais especiais e enfrenta o guardião do farol. O conceito está em [CONCEITO.md](CONCEITO.md); os números, em `scripts/expedition_data.gd`.
+
+Testes: `godot --headless --path . --script tests/test_expedition.gd` para as regras (com `SKIP_SIM=1` pula as partidas simuladas) e `godot --path . --script tests/expedition_smoke.gd -- <pasta>` para jogar pela tela e salvar capturas.
+
+## Jornada (Online)
 
 Uma party de até 4 heróis anda por um mapa sem fim, gerado a partir de uma semente em `scripts/world_gen.gd`. Fora de combate, cada herói anda livre, sem turnos; o botão **Em fila/Separados** (tecla G) decide se a party segue o herói selecionado em fila ou se só ele anda (Tab troca de herói). Quando o combate começa, a fila se abre: cada herói anda até uma casa próxima, longe dos outros. Segurar Q ou E, os botões da tela ou o botão do meio do mouse gira a câmera suavemente, e ela para em qualquer ângulo, sem mudar as regras.
 
@@ -28,4 +34,5 @@ Testes: `godot --headless --path . --script tests/test_world.gd` para as regras 
 
 - [Servidor e modo online](servidor/README.md)
 - [Atualizações e exportação](update/README.md)
+- [Conceito do jogo](CONCEITO.md)
 - [Balanceamento e árvores de skills](BALANCEAMENTO.md)

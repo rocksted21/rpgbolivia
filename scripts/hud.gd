@@ -86,6 +86,9 @@ var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magi
 
 
 var journey: Label
+var objective: Label
+var detail: Label
+var end_menu_button: Button
 var party_row: HBoxContainer
 var party_cards := {} # herói -> {panel, fill, status}
 var together_button: Button
@@ -609,6 +612,7 @@ func setup_exploration() -> void:
 		if child is Button and child != skills_button:
 			child.text = "Nova jornada"
 	var menu_button := Button.new()
+	end_menu_button = menu_button
 	menu_button.text = "Menu principal"
 	menu_button.custom_minimum_size.y = 56
 	sound_manager.bind_button(menu_button, &"click3")
@@ -740,6 +744,50 @@ func show_banner(text: String, color: Color) -> void:
 
 func set_hint(text: String) -> void:
 	hint.text = text
+
+
+## Linha da expedição, abaixo do progresso: nível, brasas e bússola.
+func set_objective(text: String) -> void:
+	if objective == null:
+		objective = _label("", 20, Color(0.95, 0.85, 0.55))
+		objective.position = Vector2(0, 48)
+		objective.custom_minimum_size = Vector2(SCREEN.x - 320, 0)
+		objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		objective.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		objective.add_theme_color_override("font_outline_color", Color.BLACK)
+		objective.add_theme_constant_override("outline_size", 6)
+		add_child(objective)
+	objective.text = text
+
+
+## Texto do que acabou de acontecer no mapa, como uma memória encontrada. Some sozinho.
+func show_detail(text: String) -> void:
+	if detail != null:
+		detail.queue_free()
+	detail = _label(text, 24, Color(1.0, 0.97, 0.88))
+	detail.position = Vector2(140, 196)
+	detail.custom_minimum_size = Vector2(SCREEN.x - 280, 0)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail.add_theme_color_override("font_outline_color", Color.BLACK)
+	detail.add_theme_constant_override("outline_size", 8)
+	add_child(detail)
+	var shown := detail
+	var tween := create_tween()
+	tween.tween_interval(4.5)
+	tween.tween_property(shown, "modulate:a", 0.0, 0.6)
+	tween.tween_callback(shown.queue_free)
+
+
+## Na expedição, o fim leva sempre de volta à cidade: um botão só.
+func use_town_exit() -> void:
+	var end_column: Node = end_label.get_parent()
+	for child in end_column.get_children():
+		if child is Button and child != skills_button:
+			child.text = "Voltar à Cidade-Farol"
+	if end_menu_button != null:
+		end_menu_button.visible = false
 
 
 func show_end(text: String, note := "") -> void:

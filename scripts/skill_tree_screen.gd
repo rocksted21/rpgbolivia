@@ -82,7 +82,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _back() -> void:
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	get_tree().change_scene_to_file(str(get_tree().root.get_meta("skills_back", "res://scenes/main_menu.tscn")))
 
 
 func _select_hero(type_id: String) -> void:
