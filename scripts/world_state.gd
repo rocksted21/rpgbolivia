@@ -1,6 +1,7 @@
 extends "res://scripts/battle_state.gd"
 ## Regras da exploração: mapa sem bordas, um herói e inimigos que surgem pelo caminho.
-## O combate em si continua sendo o de battle_state.gd.
+## Fora de combate o herói anda livre e não há fila. O combate começa quando um inimigo
+## vê o herói ou é atacado, e as ações dentro dele são as de battle_state.gd.
 
 const WorldGen = preload("res://scripts/world_gen.gd")
 
@@ -12,6 +13,7 @@ var kills := 0
 var farthest := 0
 var steps_until_spawn := 0
 var heading := Vector2.ZERO # direção da caminhada: os grupos surgem preferindo a frente
+var engaged := {} # inimigos em combate com o herói; os outros ainda não o viram
 
 
 func _init(hero_type: String, world_seed: int, build: Array = []) -> void:
@@ -91,23 +93,88 @@ func danger() -> int:
 	return mini(1 + farthest / int(Data.WORLD["danger_distance"]), Data.WORLD["danger_max"])
 
 
+# --- Exploração e combate ----------------------------------------------------
+
+func in_combat() -> bool:
+	return not engaged.is_empty()
+
+
+func takes_turns(unit) -> bool:
+	return unit.alive() and (unit == hero or engaged.has(unit))
+
+
+## Coloca inimigos em combate. O relógio de cada um parte do atual, para ninguém ganhar
+## uma fila de ações de graça. Se o herói foi visto (`surprised`), ele também espera a
+## sua vez: age primeiro quem for mais rápido. Se foi ele quem atacou, ele sai na frente.
+func engage(foes: Array, surprised: bool) -> Array:
+	var joining := foes.filter(func(u): return u.alive() and not engaged.has(u))
+	if joining.is_empty():
+		return []
+	var starting := not in_combat()
+	if starting and surprised:
+		hero.clock += time_for(Data.STEP_TIME, hero)
+	var base: int = hero.clock - (time_for(Data.STEP_TIME, hero) if starting and surprised else 0)
+	for unit in joining:
+		engaged[unit] = true
+		unit.clock = base + time_for(Data.STEP_TIME, unit)
+	return [{"type": "combat_start" if starting else "combat_join", "units": joining, "surprised": surprised}]
+
+
+## Quem vê o herói agora, junto com os companheiros próximos de quem viu.
+func _spotters() -> Array:
+	var idle: Array = enemies_of(hero).filter(func(u): return not engaged.has(u))
+	var seen: Array = idle.filter(func(u): return Hex.distance(u.pos, hero.pos) <= Data.WORLD["sight_radius"])
+	if seen.is_empty():
+		return []
+	return idle.filter(func(u):
+		return seen.any(func(s): return Hex.distance(u.pos, s.pos) <= Data.WORLD["group_radius"]))
+
+
+func sight_cells(unit) -> Array:
+	return area_of(unit.pos, Data.WORLD["sight_radius"])
+
+
+## O ataque do herói a quem não o viu começa o combate antes de o golpe sair.
+func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
+	var intro := []
+	var kind: String = unit.ability(ability_id)["kind"]
+	if unit == hero and not in_combat() and (kind == "attack" or kind == "charge"):
+		var radius: int = int(unit.ability(ability_id).get("radius", 0)) + Data.WORLD["group_radius"]
+		intro = engage(enemies_of(hero).filter(func(u): return Hex.distance(u.pos, cell) <= radius), false)
+	return intro + super(unit, ability_id, cell)
+
+
 func do_step(unit, to: Vector2i) -> Array:
 	var from: Vector2i = unit.pos
 	var events: Array = super(unit, to)
 	if unit == hero and hero.alive() and hero.pos == to:
 		farthest = maxi(farthest, Hex.distance(start_cell, to))
-		steps_until_spawn -= 1
 		heading = _flat(to) - _flat(from)
-		_rest(events)
+		if not in_combat():
+			steps_until_spawn -= 1
+			_rest(events)
+			var walkers := []
+			_wander(walkers)
+			return walkers + events # andam junto com o herói, não depois dele
 	return events
+
+
+## Quem ainda não viu o herói anda à toa, para o mundo não parecer parado.
+func _wander(events: Array) -> void:
+	for unit in enemies_of(hero):
+		if engaged.has(unit) or rng.randf() > Data.WORLD["wander_chance"]:
+			continue
+		var options: Array = Hex.neighbors(unit.pos).filter(func(cell): return can_enter(unit.pos, cell))
+		if options.is_empty():
+			continue
+		var to: Vector2i = options[rng.randi_range(0, options.size() - 1)]
+		events.append({"type": "wander", "unit": unit, "from": unit.pos, "to": to})
+		unit.pos = to
 
 
 func _rest(events: Array) -> void:
 	if hero.hp >= hero.max_hp:
 		return
-	for enemy in enemies_of(hero):
-		if Hex.distance(enemy.pos, hero.pos) <= Data.WORLD["rest_radius"]:
-			return
 	var healed: int = mini(Data.WORLD["rest_heal"], hero.max_hp - hero.hp)
 	hero.hp += healed
 	events.append({"type": "regen", "unit": hero, "amount": healed, "hp": hero.hp})
@@ -115,7 +182,10 @@ func _rest(events: Array) -> void:
 
 func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void:
 	super(target, amount, events, info)
-	if target.alive() or target == hero:
+	if target == hero:
+		return
+	if target.alive():
+		events.append_array(engage([target], false)) # quem apanha sem ter visto entra na luta
 		return
 	kills += 1
 	if hero.alive() and hero.hp < hero.max_hp:
@@ -126,20 +196,32 @@ func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void
 
 # --- Surgimento dos inimigos -------------------------------------------------
 
-## Chamado entre as ações. Remove quem morreu ou ficou para trás e cria novos grupos.
+## Chamado entre as ações: remove quem morreu ou ficou para trás, encerra o combate
+## quando não sobra ninguém nele, cria novos grupos e vê quem avistou o herói.
 func tick() -> Array:
 	var events := []
+	var was_fighting := in_combat()
+	var escaped := false
 	for unit in units.duplicate():
 		if unit == hero:
 			continue
-		var lost: bool = Hex.distance(unit.pos, hero.pos) > Data.WORLD["despawn_radius"] and unit.pending.is_empty()
+		var distance := Hex.distance(unit.pos, hero.pos)
+		if engaged.has(unit) and unit.alive() and distance > Data.WORLD["flee_radius"] and unit.pending.is_empty():
+			engaged.erase(unit)
+			escaped = true
+		var lost: bool = distance > Data.WORLD["despawn_radius"] and unit.pending.is_empty()
 		if not unit.alive() or lost:
+			engaged.erase(unit)
 			units.erase(unit)
 			events.append({"type": "despawn", "unit": unit})
-	if steps_until_spawn <= 0:
+	if was_fighting and not in_combat():
+		hero.guarding = false
+		events.append({"type": "combat_end", "fled": escaped})
+	if not in_combat() and steps_until_spawn <= 0:
 		var spawn_steps: Array = Data.WORLD["spawn_steps"]
 		steps_until_spawn = rng.randi_range(spawn_steps[0], spawn_steps[1])
 		events.append_array(_spawn_group())
+	events.append_array(engage(_spotters(), true))
 	return events
 
 

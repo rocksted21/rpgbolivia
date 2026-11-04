@@ -149,8 +149,11 @@ const WORLD := {
 	"spawn_max": 9,
 	"first_spawn_steps": 6,
 	"spawn_steps": [5, 10], # passos entre um grupo e outro
-	"rest_radius": 7, # sem inimigo perto, andar recupera vida
-	"rest_heal": 2,
+	"sight_radius": 5, # o inimigo inicia o combate ao ver o herói a essa distância
+	"group_radius": 3, # quem está perto de quem viu entra na luta junto
+	"flee_radius": 10, # inimigo em combate mais longe que isso perde o herói de vista
+	"wander_chance": 0.3, # chance de um inimigo parado dar um passo a cada passo do herói
+	"rest_heal": 2, # fora de combate, andar recupera vida
 	"kill_heal": 5,
 	"danger_distance": 20, # a cada tantas casas longe do início, o perigo sobe um nível
 	"danger_max": 12,

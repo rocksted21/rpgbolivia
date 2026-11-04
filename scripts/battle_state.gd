@@ -91,10 +91,15 @@ func time_for(base: int, unit) -> int:
 	return maxi(1, roundi(base * 10.0 / unit.speed))
 
 
+## Quem entra na fila de turnos. Na exploração, só o herói e quem está em combate com ele.
+func takes_turns(unit) -> bool:
+	return unit.alive()
+
+
 func active_unit():
 	var best = null
 	for unit in units:
-		if unit.alive() and (best == null or unit.clock < best.clock):
+		if takes_turns(unit) and (best == null or unit.clock < best.clock):
 			best = unit
 	return best
 
@@ -104,7 +109,7 @@ func active_unit():
 func timeline(count: int, extra := {}) -> Array:
 	var clocks := {}
 	for unit in units:
-		if unit.alive():
+		if takes_turns(unit):
 			clocks[unit] = unit.clock + extra.get(unit, 0)
 	var out := []
 	while out.size() < count and not clocks.is_empty():
@@ -140,7 +145,7 @@ func recovery_time_for(unit, ability_id: String) -> int:
 
 ## Unidades vivas na ordem em que vão agir: a primeira é a ativa.
 func turn_order() -> Array:
-	var order := units.filter(func(u): return u.alive())
+	var order := units.filter(func(u): return takes_turns(u))
 	var index := {}
 	for i in units.size():
 		index[units[i]] = i

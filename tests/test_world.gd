@@ -27,6 +27,7 @@ func _initialize() -> void:
 	test_no_trap()
 	test_rules()
 	test_spawning()
+	test_combat_flow()
 	test_full_runs()
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -171,6 +172,7 @@ func test_spawning() -> void:
 	var removed: Array = state.tick().filter(func(e): return e["type"] == "despawn" and e["unit"] == foe)
 	check(removed.size() == 1 and not state.units.has(foe), "inimigo muito longe some")
 	var dead = state.add_unit("esqueleto", Data.Team.ENEMY, Hex.neighbor(state.hero.pos, 0))
+	state.engage([dead], false)
 	state.hero.hp = 10
 	var hit: Array = []
 	dead.hp = 1
@@ -185,6 +187,106 @@ func test_spawning() -> void:
 	check(state.danger() > 1, "perigo sobe com a distância")
 	var strong = state._spawn_enemy("esqueleto", state.hero.pos + Vector2i(5, 0))
 	check(strong.max_hp > base, "inimigo mais forte longe do início")
+
+
+## Um inimigo a `distance` casas do herói, na mesma linha.
+func _foe_at(state, distance: int, type_id := "esqueleto"):
+	return state.add_unit(type_id, Data.Team.ENEMY, state.hero.pos + Vector2i(distance, 0))
+
+
+func _kinds(events: Array) -> Array:
+	return events.map(func(e): return e["type"])
+
+
+func test_combat_flow() -> void:
+	var sight: int = Data.WORLD["sight_radius"]
+	# Ver e ser visto.
+	var state = WorldState.new("duelista", 21)
+	var far = _foe_at(state, sight + 3)
+	state.tick()
+	check(not state.in_combat(), "inimigo longe não inicia combate")
+	check(state.active_unit() == state.hero, "fora de combate só o herói age")
+	check(state.turn_order() == [state.hero], "fila só com o herói")
+	var near = _foe_at(state, sight)
+	var buddy = state.add_unit("mumia", Data.Team.ENEMY, near.pos + Vector2i(2, 0))
+	var hero_clock: int = state.hero.clock
+	var events: Array = state.tick()
+	check(_kinds(events).has("combat_start"), "inimigo ao alcance da visão inicia combate")
+	check(state.engaged.has(near) and state.engaged.has(buddy), "companheiro próximo entra junto")
+	check(not state.takes_turns(far) or Hex.distance(far.pos, near.pos) <= Data.WORLD["group_radius"], "quem não viu fica fora da fila")
+	check(state.hero.clock > hero_clock, "visto, o herói espera a sua vez")
+	check(near.clock > hero_clock and buddy.clock > hero_clock, "ninguém ganha ações de graça")
+	check(state.turn_order().has(near) and state.turn_order().has(state.hero), "fila com os combatentes")
+	check(state.steps_until_spawn == Data.WORLD["first_spawn_steps"], "contagem intacta")
+	state.steps_until_spawn = 0
+	var during: Array = state.tick()
+	check(not _kinds(during).has("spawn"), "ninguém novo surge em combate")
+	# Mais rápido age primeiro.
+	var race = WorldState.new("guardiao", 22)
+	var quick = _foe_at(race, sight, "diabrete")
+	race.tick()
+	check(race.active_unit() == quick, "inimigo mais rápido age primeiro quando vê o herói")
+	# Vitória volta à exploração.
+	near.hp = 0
+	buddy.hp = 0
+	for unit in state.engaged.keys():
+		if unit.alive():
+			unit.hp = 0
+	far.pos = state.hero.pos + Vector2i(30, 0)
+	var ended: Array = state.tick()
+	check(_kinds(ended).has("combat_end") and not state.in_combat(), "sem inimigos o combate acaba")
+	check(not ended.filter(func(e): return e["type"] == "combat_end")[0]["fled"], "fim por vitória")
+	# Fuga.
+	var chase = WorldState.new("duelista", 23)
+	var hunter = _foe_at(chase, sight)
+	chase.tick()
+	hunter.pos = chase.hero.pos + Vector2i(Data.WORLD["flee_radius"] + 1, 0)
+	var fled: Array = chase.tick()
+	check(_kinds(fled).has("combat_end") and fled.filter(func(e): return e["type"] == "combat_end")[0]["fled"], "longe o bastante, o herói escapa")
+	check(chase.units.has(hunter), "quem perdeu o herói continua no mundo")
+	check(not chase.takes_turns(hunter), "e sai da fila")
+	# Ataque de surpresa.
+	var ambush = WorldState.new("besteiro", 24)
+	var prey = _foe_at(ambush, sight - 1)
+	var prey_hp: int = prey.hp
+	var opening_clock: int = ambush.hero.clock
+	var shot: Array = ambush.do_ability(ambush.hero, "tiro", prey.pos)
+	check(_kinds(shot)[0] == "combat_start" and not shot[0]["surprised"], "atacar quem não viu inicia combate")
+	check(prey.hp < prey_hp, "o golpe de surpresa acerta")
+	check(ambush.engaged.has(prey), "a vítima entra na luta")
+	check(prey.clock > opening_clock, "a vítima não reage de graça")
+	# Magia carregada não pode sair na hora só porque ninguém estava em combate.
+	var caster = WorldState.new("mago", 25)
+	var victim = _foe_at(caster, 3)
+	caster.do_ability(caster.hero, "flor_fogo", victim.pos) if "flor_fogo" in caster.hero.abilities else caster.engage([victim], false)
+	check(caster.in_combat(), "magia em área inicia combate")
+	# Quem apanha numa área entra na luta.
+	var splash = WorldState.new("duelista", 26)
+	var other = _foe_at(splash, sight + 2)
+	var bruise: Array = []
+	splash._apply_damage(other, 1, bruise, {})
+	check(splash.engaged.has(other), "dano puxa o inimigo para o combate")
+	# Andar.
+	var walk = WorldState.new("duelista", 27)
+	walk.hero.hp = 10
+	var step_to = Hex.neighbors(walk.hero.pos).filter(func(c): return walk.can_enter(walk.hero.pos, c))[0]
+	var moved: Array = walk.do_step(walk.hero, step_to)
+	check(walk.hero.hp == 10 + Data.WORLD["rest_heal"] and _kinds(moved).has("regen"), "fora de combate, andar recupera vida")
+	var idle = _foe_at(walk, sight + 4)
+	var was: Vector2i = idle.pos
+	var moved_once := false
+	for i in 40:
+		var options = Hex.neighbors(walk.hero.pos).filter(func(c): return walk.can_enter(walk.hero.pos, c))
+		var wander_events: Array = walk.do_step(walk.hero, options[0])
+		moved_once = moved_once or _kinds(wander_events).has("wander")
+		check(_kinds(wander_events).find("wander") < _kinds(wander_events).find("move") or not _kinds(wander_events).has("wander"), "inimigos andam junto com o herói")
+	check(moved_once and idle.pos != was, "quem não viu anda pelo mapa")
+	walk.engage([idle], false)
+	walk.hero.hp = 10
+	var fight_step = Hex.neighbors(walk.hero.pos).filter(func(c): return walk.can_enter(walk.hero.pos, c))[0]
+	var fight_events: Array = walk.do_step(walk.hero, fight_step)
+	check(walk.hero.hp == 10 and not _kinds(fight_events).has("regen"), "em combate, andar não cura")
+	check(not _kinds(fight_events).has("wander"), "em combate ninguém passeia")
 
 
 ## Jogadas completas com o herói guiado pela IA: acha travamentos e mede a dificuldade.
@@ -216,7 +318,7 @@ func _play_run(type_id: String, world_seed: int) -> Dictionary:
 		var unit = state.active_unit()
 		if not unit.pending.is_empty():
 			state.resolve_pending(unit)
-		elif unit == state.hero and state.enemies_of(unit).is_empty():
+		elif unit == state.hero and not state.in_combat():
 			_walk_on(state)
 		else:
 			var action: Dictionary = AI.decide(state, unit)

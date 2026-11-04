@@ -22,6 +22,8 @@ const UnitView = preload("res://scripts/unit_view.gd")
 const Hud = preload("res://scripts/hud.gd")
 const BattleCamera = preload("res://scripts/battle_camera.gd")
 const BiomeArt = preload("res://scripts/biome_art.gd")
+const Skills = preload("res://scripts/skill_data.gd")
+const HeroProgress = preload("res://scripts/hero_progress.gd")
 
 const BOARD_POS := Vector2(250, 142) # sem painel lateral: o tabuleiro fica no meio, a fila à esquerda
 const BOARD_SCALE := 0.5
@@ -58,6 +60,8 @@ const REACH_LINE := Color(1.0, 0.6, 0.15, 0.95)
 const TARGET_COLOR := Color(0.92, 0.24, 0.24, 0.55)
 const INSPECT_COLOR := Color(1.0, 1.0, 1.0, 0.95)
 const NEXT_ENEMY_ARROW := Color(0.95, 0.3, 0.25)
+const ROAM_HINT := "Clique em qualquer casa para andar. Passe o mouse num inimigo para ver até onde ele enxerga."
+const SIGHT_COLOR := Color(0.95, 0.25, 0.2, 0.28)
 const DEFAULT_HINT := "Toque numa casa azul para andar ou num personagem para agir. Segure para ver detalhes."
 # Magia é roxa para não se confundir com o laranja do alcance.
 const AREA_COLOR := Color(0.72, 0.3, 1.0, 0.6)
@@ -96,6 +100,7 @@ const SPELL_FX := {
 	"redemoinho": {"impact": "agua/water_hurricane", "impact_scale": 3.0, "lift": 60, "sound": &"water"},
 	"kraken": {"impact": "agua/kraken", "impact_scale": 5.0, "lift": 120, "sound": &"water"},
 	"chama": {"impact": "fogo/fire_pillar", "impact_scale": 2.0, "per_cell": true, "ground": true, "sound": &"flame"},
+	"manto_agua": {"impact": "agua/splash", "impact_scale": 3.0, "ground": true, "sound": &"water"},
 }
 const PROJECTILE_SCALE := 2.0
 const FX_FPS := 16.0
@@ -126,7 +131,12 @@ var focus_ring: Line2D
 var focus_tween: Tween
 var remote_playing := false
 var room_label: Label
+var rewarded := false # os pontos da luta já foram dados
 var exploring := false
+var traveling := false # o herói está andando sozinho até a casa escolhida
+var stop_travel := false
+var roam_search := {} # busca de caminho a partir de roam_from, para desenhar a rota sob o mouse
+var roam_from := NO_CELL
 var cell_nodes := {} # nós desenhados de cada casa, para descarregar o que ficou para trás
 var building: Array # casa em construção
 var row_range := Vector2i(0, -1)
@@ -174,9 +184,12 @@ func _start_battle() -> void:
 	if online_session.playing:
 		state = online_session.state
 	elif exploring:
-		state = WorldState.new(world_hero, randi())
+		state = WorldState.new(world_hero, randi(), HeroProgress.unlocked(world_hero))
 	else:
-		state = BattleState.from_data()
+		state = BattleState.from_data(_saved_builds())
+	rewarded = false
+	traveling = false
+	roam_from = NO_CELL
 	views.clear()
 	cell_nodes.clear()
 	row_range = Vector2i(0, -1)
@@ -222,13 +235,59 @@ func _start_battle() -> void:
 	hud.option_pressed.connect(_on_option_pressed)
 	hud.order_toggled.connect(_on_order_toggled)
 	hud.restart_pressed.connect(_leave_online if online_session.playing else _start_battle)
+	hud.skills_pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
 	if online_session.playing:
+		hud.skills_button.visible = false
 		for child in hud.end_label.get_parent().get_children():
-			if child is Button: child.text = "Voltar ao Online"
+			if child is Button and child != hud.skills_button: child.text = "Voltar ao Online"
 	if exploring:
 		hud.setup_exploration()
 		hud.menu_pressed.connect(_back_to_menu)
 	_advance()
+
+
+## Builds salvas dos heróis, por índice em Data.BATTLE_UNITS.
+func _saved_builds() -> Dictionary:
+	var builds := {}
+	for i in Data.BATTLE_UNITS.size():
+		var type_id: String = Data.BATTLE_UNITS[i][0]
+		if Skills.has_tree(type_id):
+			builds[i] = HeroProgress.unlocked(type_id)
+	return builds
+
+
+func _update_journey() -> void:
+	hud.set_journey(state.hero.hp, state.hero.max_hp, state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(state.hero.pos)]["name"])
+
+
+## Fim de luta: dá os pontos e mostra o resultado. Online, só dos heróis deste jogador;
+## na exploração, que só acaba com a queda, o ganho vem da distância e dos abates.
+func _show_result(result: int) -> void:
+	var won := result == Data.Team.PLAYER
+	var note := ""
+	if exploring: # a vida no topo da tela precisa mostrar a queda
+		_update_journey()
+	if not rewarded:
+		rewarded = true
+		var gain: int = Skills.WIN_POINTS if won else Skills.LOSS_POINTS
+		if exploring:
+			gain = Skills.journey_points(state.kills, state.farthest)
+		var types := []
+		for unit in state.units:
+			if unit.team == Data.Team.PLAYER and (not online_session.playing or online_session.can_control(unit)):
+				types.append(unit.type_id)
+		var before := 0
+		for type_id in types:
+			before += HeroProgress.earned(type_id)
+		var count := HeroProgress.award(types, gain)
+		if count == 1: # perto do teto, o herói pode ganhar menos que o previsto
+			var after := 0
+			for type_id in types:
+				after += HeroProgress.earned(type_id)
+			gain = after - before
+		if count > 0:
+			note = "+%d %s de skill%s" % [gain, "pontos" if gain > 1 else "ponto", " para %d heróis" % count if count > 1 else ""]
+	hud.show_end(_end_text() if exploring else ("Vitória!" if won else "Derrota"), note)
 
 
 # Anel grosso que pulsa na casa do personagem em foco, com o nome em cima dele.
@@ -605,15 +664,16 @@ func _advance() -> void:
 		if result >= 0:
 			online_session.publish([], true)
 			sound_manager.play_sfx(&"victory" if result == Data.Team.PLAYER else &"defeat")
-			hud.show_end(_end_text() if exploring else ("Vitória!" if result == Data.Team.PLAYER else "Derrota"))
+			_show_result(result)
 			return
 		if exploring:
 			var changes: Array = state.tick()
 			if not changes.is_empty():
 				await _play(changes)
-			hud.set_journey(state.hero.hp, state.hero.max_hp, state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(state.hero.pos)]["name"])
+			_update_journey()
 		var unit = state.active_unit()
 		_place_ground_marker(active_outline, unit.pos)
+		active_outline.visible = not _free_roam()
 		active_outline.z_index = _z(unit.pos.y) + 3
 		_refresh_turn_markers()
 		hud.refresh(state)
@@ -629,7 +689,7 @@ func _advance() -> void:
 		break
 	busy = false
 	if exploring:
-		hud.set_journey(state.hero.hp, state.hero.max_hp, state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(state.hero.pos)]["name"])
+		_update_journey()
 		_refresh_hover()
 	hud.refresh(state)
 	_refresh_turn_markers()
@@ -651,6 +711,11 @@ func _perform(events: Array) -> void:
 ## para quando forem pedidos.
 func _refresh_turn_markers() -> void:
 	var order: Array = state.turn_order()
+	for unit in views:
+		if not order.has(unit) or _free_roam():
+			views[unit].hide_arrow()
+	if _free_roam():
+		return
 	var next_enemy = null
 	for unit in order.slice(1):
 		if unit.team == Data.Team.ENEMY:
@@ -705,7 +770,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_SPACE:
 			if online_session.playing:
 				_submit_online("wait", NO_CELL)
-			else:
+			elif not _free_roam():
 				_perform(state.do_wait(state.active_unit()))
 		elif event.keycode >= KEY_1 and event.keycode < KEY_1 + menu_options.size():
 			_on_option_pressed(event.keycode - KEY_1)
@@ -730,7 +795,9 @@ func _handle_button(event: InputEventMouseButton) -> void:
 				get_tree().create_timer(HOLD_TIME).timeout.connect(func(): _on_hold(token))
 		elif pressing:
 			pressing = false
-			if not busy:
+			if traveling:
+				stop_travel = true # tocar durante a caminhada faz o herói parar
+			elif not busy:
 				_click(press_cell)
 
 
@@ -758,7 +825,7 @@ func _show_card(unit) -> void:
 		"abilities": unit.abilities.map(func(id): return _card_ability(unit, id)),
 	}
 	if not unit.pending.is_empty():
-		var ability: Dictionary = Data.ABILITIES[unit.pending["ability"]]
+		var ability: Dictionary = unit.ability(unit.pending["ability"])
 		var radius: int = ability["radius"]
 		info["spell"] = {
 			"name": ability["name"],
@@ -771,7 +838,12 @@ func _show_card(unit) -> void:
 	hud.show_card(info)
 
 
-const ABILITY_ICONS := {"golpe": "sword", "rapido": "sword", "tiro": "arrow", "cura": "heart", "guarda": "shield", "escudo_fogo": "shield", "coronhada": "sword"} # o resto das magias usa o fogo
+const ABILITY_ICONS := {
+	"golpe": "sword", "rapido": "sword", "golpe_pesado": "sword", "estocada": "sword", "adaga": "sword", "coronhada": "sword",
+	"tiro": "arrow", "tiro_longo": "arrow", "perfurante": "arrow", "tiro_rapido": "arrow", "saraivada": "arrow", "chuva_virotes": "arrow",
+	"cura": "heart", "clareira": "heart", "agua_vital": "heart",
+	"guarda": "shield", "escudo_fogo": "shield", "provocar": "shield", "aparar": "shield", "casca": "shield", "manto_agua": "shield",
+} # o resto das magias usa o ícone do elemento
 
 
 # Magias sem ícone próprio usam o do elemento: a pasta do efeito (fogo/, agua/).
@@ -783,7 +855,7 @@ func _spell_icon(id: String) -> String:
 
 ## Dados de uma habilidade para a ficha: alcance, efeito, tempo e quanto tiraria do herói da vez.
 func _card_ability(unit, id: String) -> Dictionary:
-	var ability: Dictionary = Data.ABILITIES[id]
+	var ability: Dictionary = unit.ability(id)
 	var out := {"name": ability["name"], "icon": ABILITY_ICONS.get(id, _spell_icon(id)), "time": state.time_for(ability["time"], unit)}
 	if ability["kind"] == "charge":
 		out["time"] = "%d + %d" % [state.cast_time_for(unit, id), state.recovery_time_for(unit, id)]
@@ -799,7 +871,7 @@ func _card_ability(unit, id: String) -> Dictionary:
 			out["amount"] = "+%d" % ability["heal"]
 			out["amount_icon"] = "heart"
 		"guard":
-			out["amount"] = "½ dano"
+			out["amount"] = "½ dano" if not unit.passives.has("guard_mult") else "%d%% dano" % roundi(unit.passives["guard_mult"] * 100)
 			out["amount_icon"] = "shield"
 		_:
 			out["amount"] = str(roundi(unit.atk * ability["power"]))
@@ -824,6 +896,9 @@ func _click(cell: Vector2i) -> void:
 		if not other_unit:
 			return
 	if cell == NO_CELL:
+		return
+	if _free_roam() and state.unit_at(cell) == null:
+		_travel(cell)
 		return
 	var unit = state.active_unit()
 	# Se alguma ação mira essa casa, o menu pergunta: assim dá para mirar no chão
@@ -907,7 +982,11 @@ func _cell_options(cell: Vector2i) -> Array:
 			options.append(option)
 	if state.unit_at(cell) != null:
 		options.append_array(_blocked_options(unit, state.unit_at(cell)))
-	if cell == unit.pos:
+	if _free_roam():
+		if cell != unit.pos:
+			options.append({"kind": "travel", "label": "Ir até lá", "detail": "para ao ser visto"})
+		options.append({"kind": "cancel", "label": "Cancelar", "detail": ""})
+	elif cell == unit.pos:
 		options.append({"kind": "wait", "label": "Esperar", "detail": "passa a vez"})
 	elif state.unit_at(cell) == null:
 		if state.can_step(unit, cell):
@@ -918,15 +997,16 @@ func _cell_options(cell: Vector2i) -> Array:
 
 
 func _ability_option(unit, id: String, cell: Vector2i) -> Dictionary:
-	var ability: Dictionary = Data.ABILITIES[id]
+	var ability: Dictionary = unit.ability(id)
 	var target = state.unit_at(cell)
 	match ability["kind"]:
 		"attack":
 			return {"detail": _preview_text(unit, id, target), "tone": "damage"}
 		"heal":
-			return {"detail": "+%d" % mini(ability["heal"], target.max_hp - target.hp), "tone": "heal"}
+			var detail := "+%d" % mini(ability["heal"], target.max_hp - target.hp)
+			return {"detail": detail + " e vizinhos" if ability.has("radius") else detail, "tone": "heal"}
 		"guard":
-			return {"detail": "metade do dano"}
+			return {"detail": "atrai inimigos" if ability.has("taunt") else "reduz o dano"}
 		_:
 			return {"detail": _area_text(unit, state.area_of(cell, ability["radius"])), "note": _cast_wait_text(state.cast_wait(unit, id))}
 
@@ -936,7 +1016,7 @@ func _ability_option(unit, id: String, cell: Vector2i) -> Dictionary:
 func _cast_wait_text(actions: int) -> String:
 	if actions == 0:
 		return "solta já na sua próxima vez"
-	var others: int = state.units.filter(func(u): return u.alive()).size() - 1
+	var others: int = state.turn_order().size() - 1
 	var rounds := ceili(float(actions) / maxi(1, others))
 	return "solta após %d aç%s (~%d rodada%s)" % [actions, "ão" if actions == 1 else "ões", rounds, "" if rounds == 1 else "s"]
 
@@ -961,6 +1041,8 @@ func _area_text(unit, cells: Array) -> String:
 func _menu_info(occupant) -> String:
 	if occupant == null:
 		return ""
+	if not state.takes_turns(occupant):
+		return "Vida %d/%d, ainda não viu você" % [occupant.hp, occupant.max_hp]
 	return "Vida %d/%d, age em %dº" % [occupant.hp, occupant.max_hp, state.turn_order().find(occupant) + 1]
 
 
@@ -982,6 +1064,8 @@ func _on_option_pressed(index: int) -> void:
 			_perform(state.do_wait(unit))
 		"step":
 			_perform(state.do_step(unit, cell))
+		"travel":
+			_travel(cell)
 		"cancel":
 			_close_menu()
 
@@ -1006,7 +1090,7 @@ func _refresh_overlays() -> void:
 	# A IA também não olha a mira dos heróis, então os dois lados jogam no escuro.
 	for unit in state.units:
 		if unit.alive() and unit.team == Data.Team.PLAYER and not unit.pending.is_empty():
-			var ability: Dictionary = Data.ABILITIES[unit.pending["ability"]]
+			var ability: Dictionary = unit.ability(unit.pending["ability"])
 			for cell in state.area_of(unit.pending["tile"], ability["radius"]):
 				_mark(cell, CHARGE_COLOR)
 	_sync_focus()
@@ -1022,8 +1106,20 @@ func _mark_free_look() -> void:
 		inspect_outline.visible = true
 	var spell := _menu_spell()
 	if spell != "":
-		for cell in state.area_of(menu_cell, Data.ABILITIES[spell]["radius"]):
+		for cell in state.area_of(menu_cell, unit.ability(spell)["radius"]):
 			_mark(cell, AREA_COLOR)
+		return
+	if _free_roam():
+		if shown != null and shown != unit:
+			for cell in state.sight_cells(shown):
+				_mark(cell, SIGHT_COLOR)
+		elif hover != NO_CELL:
+			for cell in _roam_path(hover):
+				_mark(cell, STEP_COLOR)
+		return
+	if exploring and shown != null and not state.takes_turns(shown):
+		for cell in state.sight_cells(shown):
+			_mark(cell, SIGHT_COLOR)
 		return
 	if shown != null and shown != unit:
 		_mark_reach(shown)
@@ -1037,7 +1133,7 @@ func _mark_free_look() -> void:
 ## Magia carregada que o menu aberto oferece; a área dela fica pintada.
 func _menu_spell() -> String:
 	for option in menu_options:
-		if option["kind"] == "ability" and Data.ABILITIES[option["id"]]["kind"] == "charge":
+		if option["kind"] == "ability" and state.active_unit().ability(option["id"])["kind"] == "charge":
 			return option["id"]
 	return ""
 
@@ -1063,7 +1159,7 @@ func _mark_reach(unit) -> void:
 ## casa colada fica sem cor, e dá para ver na hora que ali ele não acerta.
 func _mark_aim(unit) -> void:
 	for id in unit.abilities:
-		var kind: String = Data.ABILITIES[id]["kind"]
+		var kind: String = unit.ability(id)["kind"]
 		if kind != "attack" and kind != "charge":
 			continue
 		for cell in state.cells_in_range(unit, id):
@@ -1114,6 +1210,9 @@ func _update_hint() -> void:
 		hud.set_hint("")
 		return
 	var shown = _shown_unit()
+	if _free_roam() and (shown == null or shown == unit):
+		hud.set_hint(ROAM_HINT)
+		return
 	if shown != null:
 		var text := "%s: %s" % [shown.display_name, _menu_info(shown).to_lower()]
 		if not shown.pending.is_empty():
@@ -1157,6 +1256,15 @@ func _play(events: Array) -> void:
 				await _play_cast_resolve(event)
 			"spawn":
 				_play_spawn(event)
+			"wander":
+				event["silent"] = true
+				_play_move(event) # sem esperar: o mundo anda junto com o herói
+			"combat_start":
+				await _play_combat_start(event)
+			"combat_join":
+				_mark_alerted(event["units"])
+			"combat_end":
+				await _play_combat_end(event)
 			"despawn":
 				_remove_view(event["unit"])
 			"regen":
@@ -1217,7 +1325,7 @@ func _network_packet(_packet: Dictionary) -> void:
 		_update_hint()
 		if state.winner() >= 0:
 			busy = true
-			hud.show_end("Vitória!" if state.winner() == Data.Team.PLAYER else "Derrota")
+			_show_result(state.winner())
 	remote_playing = false
 
 
@@ -1246,6 +1354,86 @@ func _show_status(unit) -> void:
 
 
 # --- Exploração --------------------------------------------------------------
+
+## Fora de combate: o herói anda livre, sem fila de turnos.
+func _free_roam() -> bool:
+	return exploring and not state.in_combat()
+
+
+## Rota até a casa escolhida; se não dá para chegar nela, até a casa alcançável mais próxima.
+func _roam_path(target: Vector2i) -> Array:
+	var hero_pos: Vector2i = state.hero.pos
+	if roam_from != hero_pos:
+		roam_search = state.search(state.hero)
+		roam_from = hero_pos
+	var goal := target
+	if not roam_search["cost"].has(goal):
+		var nearest := Hex.distance(hero_pos, target)
+		goal = hero_pos
+		for cell in roam_search["cost"]:
+			var distance := Hex.distance(cell, target)
+			if distance < nearest:
+				nearest = distance
+				goal = cell
+	return state.path_from_search(roam_search, goal)
+
+
+## Caminha pela rota até chegar, ser visto ou receber um toque para parar.
+func _travel(target: Vector2i) -> void:
+	roam_from = NO_CELL # inimigos andam: a rota é sempre calculada na hora
+	var path := _roam_path(target)
+	if path.is_empty() or busy:
+		return
+	busy = true
+	traveling = true
+	stop_travel = false
+	_close_menu()
+	hud.set_hint("")
+	hover = NO_CELL
+	_refresh_overlays()
+	for cell in path:
+		if stop_travel or state.in_combat() or not state.hero.alive() or not state.can_step(state.hero, cell):
+			break
+		await _play(state.do_step(state.hero, cell))
+		var changes: Array = state.tick()
+		if not changes.is_empty():
+			await _play(changes)
+		_update_journey()
+	traveling = false
+	roam_from = NO_CELL
+	_advance()
+
+
+func _mark_alerted(units: Array) -> void:
+	for unit in units:
+		if views.has(unit):
+			_float_text(views[unit].position + Vector2(-12, -210), "!", Color(1.0, 0.3, 0.2))
+
+
+## Foi visto: aviso, e a câmera mostra quem apareceu antes de voltar para o herói.
+func _play_combat_start(event: Dictionary) -> void:
+	sound_manager.play_sfx(&"charge")
+	hud.show_banner("Combate!" , Color(1.0, 0.42, 0.3))
+	_mark_alerted(event["units"])
+	hud.refresh(state)
+	if not event["surprised"]:
+		return
+	var home := _camera_target(state.hero.pos)
+	var look := home.lerp(_camera_target(event["units"][0].pos), 0.45)
+	var tween := create_tween()
+	tween.tween_property(board, "position", look, 0.3).set_trans(Tween.TRANS_SINE)
+	tween.tween_interval(0.45)
+	tween.tween_property(board, "position", home, 0.25).set_trans(Tween.TRANS_SINE)
+	await tween.finished
+
+
+func _play_combat_end(event: Dictionary) -> void:
+	sound_manager.play_sfx(&"victory")
+	hud.show_banner("Você escapou" if event["fled"] else "Combate vencido", Color(0.6, 1.0, 0.6))
+	hud.refresh(state)
+	_refresh_turn_markers()
+	await get_tree().create_timer(0.4).timeout
+
 
 func _is_quiet(unit) -> bool:
 	return exploring and Hex.distance(unit.pos, state.hero.pos) > QUIET_DISTANCE
@@ -1302,7 +1490,8 @@ func _play_move(event: Dictionary) -> void:
 	view.face_toward(to - from)
 	view.z_index = _z(maxi(event["from"].y, event["to"].y)) + 5
 	view.set_walking(true)
-	sound_manager.play_sfx(&"step")
+	if not event.get("silent", false):
+		sound_manager.play_sfx(&"step")
 	var height_delta: int = state.elevation_at(event["to"]) - state.elevation_at(event["from"])
 	var duration := 0.22 if height_delta == 0 else 0.48
 	var tween := create_tween()
@@ -1310,6 +1499,8 @@ func _play_move(event: Dictionary) -> void:
 	if walker_is_hero:
 		tween.parallel().tween_property(board, "position", _camera_target(event["to"]), duration)
 	await tween.finished
+	if not is_instance_valid(view):
+		return
 	view.set_walking(false)
 	view.set_jump_height(0.0)
 	view.z_index = _z(event["to"].y) + 5
@@ -1339,8 +1530,9 @@ func _play_attack(event: Dictionary) -> void:
 	if not magic:
 		sound_manager.play_sfx(&"swing") # golpe corpo a corpo ou disparo da flecha
 	await view.play_once(UnitView.Anim.ATTACK)
-	if id == "tiro":
-		await _fly_projectile("kit/arrow", view.position + Vector2(0, -90), views[target].position + Vector2(0, -90))
+	var shot: String = Data.ABILITIES[id].get("shot", "") if Data.ABILITIES.has(id) else ""
+	if shot != "":
+		await _fly_projectile(shot, view.position + Vector2(0, -90), views[target].position + Vector2(0, -90))
 		sound_manager.play_sfx(&"arrow_hit")
 	elif magic:
 		await _play_spell_fx(id, view.position + Vector2(0, -90), [views[target].position])
@@ -1412,7 +1604,7 @@ func _play_cast_resolve(event: Dictionary) -> void:
 			spots = cells.map(func(cell): return feet_of(cell))
 		await _play_spell_fx(id, view.position + Vector2(0, -90), spots)
 	else:
-		await _fly_projectile("kit/magic", view.position + Vector2(0, -90), center)
+		await _fly_projectile(Data.ABILITIES[id].get("shot", "kit/magic"), view.position + Vector2(0, -90), center)
 	var flashes := []
 	for cell in event["cells"]:
 		var flash := Polygon2D.new()
@@ -1530,7 +1722,7 @@ func _blocked_options(unit, target) -> Array:
 	var options := []
 	var enemy: bool = target.team != unit.team
 	for id in unit.abilities:
-		var ability: Dictionary = Data.ABILITIES[id]
+		var ability: Dictionary = unit.ability(id)
 		var kind: String = ability["kind"]
 		var fits: bool = (kind == "attack" and enemy) or kind == "charge" or (kind == "heal" and not enemy) or (kind == "guard" and target == unit)
 		if not fits or state.valid_targets(unit, id).has(target.pos):

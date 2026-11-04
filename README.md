@@ -14,7 +14,7 @@ Para trabalhar em conjunto, crie uma branch no GitHub Desktop, faça seus commit
 
 ## Exploração (Single Player)
 
-O herói escolhido no menu anda por um mapa sem fim, gerado a partir de uma semente em `scripts/world_gen.gd`. Os inimigos surgem na névoa e o perigo sobe com a distância do início. A jornada acaba quando o herói cai. O combate continua sendo o de `scripts/battle_state.gd`; as regras próprias do modo ficam em `scripts/world_state.gd`, e os números em `WORLD` e `WORLD_SPAWNS`, no fim de `scripts/game_data.gd`. O modo Online continua usando o mapa fixo.
+O herói escolhido no menu anda por um mapa sem fim, gerado a partir de uma semente em `scripts/world_gen.gd`. Fora de combate o herói anda livre, sem turnos. Os inimigos surgem na névoa e o perigo sobe com a distância do início. O combate por turnos começa no próprio mapa quando um inimigo vê o herói ou é atacado, e termina quando os inimigos caem ou o herói foge para longe. A jornada acaba quando o herói cai. O combate continua sendo o de `scripts/battle_state.gd`; as regras próprias do modo ficam em `scripts/world_state.gd`, e os números em `WORLD` e `WORLD_SPAWNS`, no fim de `scripts/game_data.gd`. O modo Online continua usando o mapa fixo.
 
 Os biomas (floresta, selva, neve e deserto) mudam a aparência, os nomes das casas e quanto aparece de cada terreno; custo e proteção de cada tipo de terreno são os mesmos em todos. Os números ficam em `BIOMES`, em `scripts/game_data.gd`, e a escolha da arte em `scripts/biome_art.gd`. Os arquivos de `assets/biomes` são gerados a partir de `referencias/biomas` por `tools/build_biomes.py` (Python, com `pillow`, `numpy` e `scipy`).
 

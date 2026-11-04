@@ -83,6 +83,7 @@ var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magi
 
 
 var journey: Label
+var banner: Label
 
 
 func setup(p_meta: Dictionary) -> void:
@@ -263,7 +264,7 @@ func _card_portrait(info: Dictionary, casting: bool) -> Control:
 	badge.add_theme_stylebox_override("panel", _box(OPTION_FILL, MENU_INK, 3, 22, 0))
 	badge.custom_minimum_size = Vector2(46, 46)
 	badge.position = Vector2(-12, -12)
-	var order := _title("%dº" % info["order"], 20, MENU_INK)
+	var order := _title("%dº" % info["order"] if info["order"] > 0 else "–", 20, MENU_INK)
 	order.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	order.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	badge.add_child(order)
@@ -613,6 +614,25 @@ func set_journey(hp: int, max_hp: int, distance: int, kills: int, danger: int, b
 	journey.text = "%s   ·   Vida %d/%d   ·   Distância %d   ·   Abates %d   ·   Perigo %d" % [biome, hp, max_hp, distance, kills, danger]
 
 
+## Aviso grande no meio da tela, que some sozinho: início e fim de combate.
+func show_banner(text: String, color: Color) -> void:
+	if banner != null:
+		banner.queue_free()
+	banner = _label(text, 54, color)
+	banner.position = Vector2(0, 120)
+	banner.custom_minimum_size = Vector2(SCREEN.x, 0)
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner.add_theme_color_override("font_outline_color", Color.BLACK)
+	banner.add_theme_constant_override("outline_size", 12)
+	add_child(banner)
+	var shown := banner
+	var tween := create_tween()
+	tween.tween_interval(0.9)
+	tween.tween_property(shown, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(shown.queue_free)
+
+
 func set_hint(text: String) -> void:
 	hint.text = text
 
@@ -652,7 +672,7 @@ func _refresh_timeline(state) -> void:
 		timeline_tween.kill()
 	timeline.position.y = TIMELINE_Y
 	# Sozinho no mapa não há fila para mostrar: seria o herói repetido dez vezes.
-	timeline.visible = state.units.filter(func(u): return u.alive()).size() > 1
+	timeline.visible = state.turn_order().size() > 1
 	var order: Array = state.timeline(TIMELINE_SIZE, cast_preview)
 	# Magia que sai depois do fim da fila: a última vaga vira o selo dela, com as ações que faltam além.
 	var beyond := 0
