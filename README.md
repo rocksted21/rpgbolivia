@@ -12,13 +12,17 @@ O Godot recria a pasta `.godot/` automaticamente. Compilações em `build/`, dep
 
 Para trabalhar em conjunto, crie uma branch no GitHub Desktop, faça seus commits e envie a branch com **Publish branch** ou **Push origin**. Abra um pull request para revisar e juntar as alterações.
 
-## Exploração (Single Player)
+## Jornada (Single Player e Online)
 
-O herói escolhido no menu anda por um mapa sem fim, gerado a partir de uma semente em `scripts/world_gen.gd`. Fora de combate o herói anda livre, sem turnos. Os inimigos surgem na névoa e o perigo sobe com a distância do início. O combate por turnos começa no próprio mapa quando um inimigo vê o herói ou é atacado, e termina quando os inimigos caem ou o herói foge para longe. A jornada acaba quando o herói cai. O combate continua sendo o de `scripts/battle_state.gd`; as regras próprias do modo ficam em `scripts/world_state.gd`, e os números em `WORLD` e `WORLD_SPAWNS`, no fim de `scripts/game_data.gd`. O modo Online continua usando o mapa fixo.
+Uma party de até 4 heróis anda por um mapa sem fim, gerado a partir de uma semente em `scripts/world_gen.gd`. Fora de combate, cada herói anda livre, sem turnos; o botão **Em fila/Separados** (tecla G) decide se a party segue o herói selecionado em fila ou se só ele anda (Tab troca de herói). Quando o combate começa, a fila se abre: cada herói anda até uma casa próxima, longe dos outros. Segurar Q ou E, os botões da tela ou o botão do meio do mouse gira a câmera suavemente, e ela para em qualquer ângulo, sem mudar as regras.
 
-Os biomas (floresta, selva, neve e deserto) mudam a aparência, os nomes das casas e quanto aparece de cada terreno; custo e proteção de cada tipo de terreno são os mesmos em todos. Os números ficam em `BIOMES`, em `scripts/game_data.gd`, e a escolha da arte em `scripts/biome_art.gd`. Os arquivos de `assets/biomes` são gerados a partir de `referencias/biomas` por `tools/build_biomes.py` (Python, com `pillow`, `numpy` e `scipy`).
+Os inimigos surgem na névoa e o perigo sobe com a distância do início. O combate por turnos começa no próprio mapa quando um inimigo vê um herói ou é atacado, e termina quando os inimigos caem ou a party foge para longe. Quem caiu volta ferido ao fim do combate, e a jornada acaba quando todos caem.
 
-Testes: `godot --headless --path . --script tests/test_world.gd` para as regras e `godot --path . --script tests/world_smoke.gd -- <pasta> [herói]` para jogar pela tela e salvar capturas. `godot --path . --script tests/biome_shots.gd -- <pasta>` salva uma captura de cada bioma.
+No Online, de 2 a 4 pessoas escolhem os heróis na sala e dividem a mesma jornada. O dono da sala simula tudo e valida os comandos; os outros recebem o estado e animam.
+
+O combate está em `scripts/battle_state.gd`; as regras da jornada, em `scripts/world_state.gd`; os números, em `WORLD` e `WORLD_SPAWNS`, em `scripts/game_data.gd`.
+
+Testes: `godot --headless --path . --script tests/test_world.gd` para as regras e `godot --path . --script tests/world_smoke.gd -- <pasta> [herói]` para jogar pela tela e salvar capturas. A integração online está em `tests/test_online.gd` e `tests/test_online_pair.gd`, com o relay aberto na porta 18787.
 
 ## Referências
 

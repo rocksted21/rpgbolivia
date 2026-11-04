@@ -219,12 +219,12 @@ func _room_status() -> String:
 	if online_session.players.size() < 2:
 		return "Aguardando outro jogador entrar na sala…"
 	if not waiting.is_empty():
-		if online_session.picks.size() >= online_session.hero_count():
-			return "Todos os heróis têm dono. Libere um para %s." % ", ".join(waiting)
+		if online_session.picks.size() >= Data.PARTY_SIZE:
+			return "A party está cheia. Libere um herói para %s." % ", ".join(waiting)
 		return "Aguardando %s escolher." % ", ".join(waiting)
 	if online_session.relay.is_master:
-		return "Tudo pronto! Heróis livres vão para quem tem menos."
-	return "Tudo pronto. Aguardando o dono iniciar o combate."
+		return "Tudo pronto! A party tem %d de %d heróis." % [online_session.picks.size(), Data.PARTY_SIZE]
+	return "Tudo pronto. Aguardando o dono iniciar a jornada."
 
 func _render_players() -> void:
 	for child in player_row.get_children():
@@ -245,7 +245,6 @@ func _render_players() -> void:
 
 func _render_heroes() -> void:
 	var me: int = online_session.relay.my_id
-	var planned: Array = online_session.planned_owners()
 	for hero in hero_cards.size():
 		var card: Dictionary = hero_cards[hero]
 		var picker: int = online_session.picks.get(hero, 0)
@@ -263,9 +262,8 @@ func _render_heroes() -> void:
 			tag_fill = border
 			tag_ink = INK
 			tag_text = str(online_session.players.get(picker, "Jogador"))
-		elif online_session.players.size() >= 2 and planned[hero] != 0:
-			var heir: String = "você" if planned[hero] == me else str(online_session.players.get(planned[hero], "Jogador"))
-			tag_text = "LIVRE · iria para " + heir
+		elif online_session.picks.size() >= Data.PARTY_SIZE:
+			tag_text = "FORA DA PARTY"
 		var taken: bool = picker != 0 and picker != me
 		var width := 4 if picker != 0 else 2
 		var button: Button = card.button
@@ -284,7 +282,7 @@ func _render_heroes() -> void:
 		card.picker = picker
 
 func _hero_card(hero: int) -> Dictionary:
-	var type_id: String = Data.BATTLE_UNITS[hero][0]
+	var type_id: String = Data.WORLD_HEROES[hero]
 	var info: Dictionary = Data.UNIT_TYPES[type_id]
 	var button := Button.new()
 	# Mais heróis que cabem na largura: as cartas estreitam para a fileira caber na tela.

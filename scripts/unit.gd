@@ -22,6 +22,7 @@ var passives := {} # regras especiais das skills (ver skill_data.gd)
 var ability_mods := {} # {habilidade: {campo: soma}}
 var taunted_by = null # quem a IA é obrigada a perseguir
 var taunt_actions := 0
+var uid := 0 # identifica a unidade na rede, mesmo com inimigos entrando e saindo
 
 
 func _init(p_type_id: String, p_team: int, p_pos: Vector2i, build: Array = []) -> void:

@@ -2,6 +2,8 @@ extends SceneTree
 ## Integração real: relay Node + duas conexões WebSocket + combate do dono.
 const Session = preload("res://net/online_session.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
+const Hex = preload("res://scripts/hex.gd")
+const Data = preload("res://scripts/game_data.gd")
 var host
 var guest
 var view
@@ -30,6 +32,7 @@ func _run() -> void:
 	DirAccess.remove_absolute(HeroProgress.path)
 	HeroProgress.unlock("mago", "fog_labareda")
 	HeroProgress.unlock("druida", "dru_vigor")
+	# Mago (3) vai para o amigo e Druida (5) fica com o dono.
 	host = root.get_node("OnlineSession")
 	host.configure(_relay())
 	host.player_name = "Dono"
@@ -62,25 +65,44 @@ func _run() -> void:
 	host.pick_hero(3)
 	await _until(func(): return host.picks.get(3) != guest_id, 300)
 	_check(host.picks.get(3) == guest_id, "herói de outro jogador não pode ser tomado")
-	host.pick_hero(4)
+	host.pick_hero(5)
 	guest.pick_hero(0)
 	guest.pick_hero(0)
-	_check(await _until(func(): return guest.picks.get(4) == host_id and not guest.picks.has(0)), "escolher e liberar sincronizam")
+	_check(await _until(func(): return guest.picks.get(5) == host_id and not guest.picks.has(0)), "escolher e liberar sincronizam")
 	_check(host.can_start(), "todos escolheram: pode iniciar")
 	host.start_match()
 	_check(await _until(func(): return guest.playing), "início compartilhado")
-	_check(host.owners.size() == Session.hero_count() and host.owners == guest.owners, "heróis distribuídos entre dono e amigo")
-	_check(host.owners[3] == guest_id and host.owners[4] == host_id, "cada um controla o herói que escolheu")
-	_check(host.owners.count(host_id) + host.owners.count(guest_id) == Session.hero_count() and absi(host.owners.count(host_id) - host.owners.count(guest_id)) <= 1, "heróis livres divididos com equilíbrio")
-	var host_mage = host.state.units[3]
-	var guest_mage = guest.state.units[3]
+	_check(host.owners == [guest_id, host_id] and host.owners == guest.owners, "só os heróis escolhidos entram na party")
+	_check(host.party_types == ["mago", "druida"] and guest.party_types == host.party_types, "mesma party nos dois lados")
+	_check(guest.state.start_cell == host.state.start_cell, "mesma semente, mesmo mapa")
+	var host_mage = host.state.party[0]
+	var guest_mage = guest.state.party[0]
 	_check(host_mage.passives.has("cast_mult") and guest_mage.passives.has("cast_mult"), "herói usa a build de quem o controla")
 	_check(not "labareda" in host_mage.abilities, "build do dono não entra no herói do amigo")
-	_check(host.state.units[4].max_hp == 32 and guest.state.units[4].max_hp == 32, "build do dono chega ao amigo")
-	_check(host.state.units.map(func(u): return u.clock) == guest.state.units.map(func(u): return u.clock), "relógios iguais com builds")
+	_check(host.state.party[1].max_hp == 32 and guest.state.party[1].max_hp == 32, "build do dono chega ao amigo")
 	view = load("res://main.tscn").instantiate()
 	root.add_child(view)
-	_check(await _until(func(): return not view.busy), "combate fica pronto")
+	_check(await _until(func(): return not view.busy), "jornada fica pronta")
+	_check(view.exploring and view._free_roam(), "online começa explorando no mapa procedural")
+	# Exploração: cada um manda só nos próprios heróis, sem ordem de turno.
+	var druid = host.state.party[1]
+	var cell: Vector2i = Hex.neighbors(host_mage.pos).filter(func(c): return host.state.can_step(host_mage, c) and host.state.can_step(druid, c) or host.state.can_step(host_mage, c))[0]
+	view._network_command(host_id, {kind = "travel", cell = cell, hero = host_mage.uid})
+	_check(not view.walk_paths.has(host_mage), "dono não anda com o herói do amigo")
+	guest.submit({kind = "travel", cell = cell, hero = guest_mage.uid})
+	_check(await _until(func(): return host_mage.pos == cell), "amigo anda pela rede")
+	var druid_goal: Vector2i = Hex.neighbors(druid.pos).filter(func(c): return host.state.can_step(druid, c))[0]
+	view._network_command(host_id, {kind = "travel", cell = druid_goal, hero = druid.uid})
+	_check(await _until(func(): return druid.pos == druid_goal), "dono anda com o próprio herói")
+	_check(await _until(func(): return not guest.packets.is_empty() and guest.packets.back().revision == host.revision), "passos chegam ao amigo")
+	guest.apply_snapshot(guest.packets.back().snapshot)
+	_check(guest.snapshot() == host.snapshot(), "estado igual durante a exploração")
+	# Combate: um inimigo aparece, a vez é respeitada e o estado continua igual.
+	var foe = host.state.add_unit("mumia", Data.Team.ENEMY, Vector2i(host_mage.pos.x + 4, host_mage.pos.y))
+	view._add_unit_view(foe)
+	host.state.steps_until_spawn = 99
+	view._advance()
+	_check(await _until(func(): return host.state.in_combat() and not view.busy), "inimigo vê a party e o combate começa")
 	var revision: int = host.revision
 	var active = host.state.active_unit()
 	var clock: int = active.clock
@@ -90,11 +112,12 @@ func _run() -> void:
 	_check(active.clock == clock, "recusa comando de quem não controla o herói")
 	view._network_command(owner, {kind = "wait", cell = Vector2i(-1, -1), revision = revision - 1})
 	_check(active.clock == clock, "recusa comando de turno antigo")
-	view._network_command(owner, {kind = "step", cell = Vector2i(99, 99), revision = revision})
-	_check(active.clock == clock, "recusa destino fora do mapa")
+	view._network_command(owner, {kind = "step", cell = Vector2i(9999, 9999), revision = revision})
+	_check(active.clock == clock, "recusa destino impossível")
 	var guest_acted := false
-	for i in 8:
+	for i in 10:
 		await _until(func(): return not view.busy)
+		if not host.state.in_combat(): break
 		active = host.state.active_unit()
 		clock = active.clock
 		owner = host.owner_of(active)

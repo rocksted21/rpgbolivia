@@ -9,6 +9,7 @@ var picked := false
 var sent_done := false
 var actions := 0
 var last_revision := -1
+var fought := false
 var deadline := 0
 
 func _initialize() -> void:
@@ -29,7 +30,7 @@ func _run() -> void:
 			return
 		if session.players.size() == 2 and not picked:
 			picked = true
-			session.pick_hero(4 if host_role else 3)
+			session.pick_hero(5 if host_role else 3)
 		if host_role and session.can_start(): session.start_match()
 		await process_frame
 	view = load("res://main.tscn").instantiate()
@@ -47,7 +48,7 @@ func _run() -> void:
 				quit(1)
 				return
 			for unit in view.views:
-				if not view.views[unit].position.is_equal_approx(view.feet_of(unit.pos)):
+				if unit.alive() and not view.moving.has(unit) and not view.views[unit].position.is_equal_approx(view.feet_of(unit.pos)):
 					push_error("Sprite fora da casa sincronizada")
 					quit(1)
 					return
@@ -56,20 +57,33 @@ func _run() -> void:
 			await create_timer(0.3).timeout
 			quit(0)
 			return
-		if view.busy or view.remote_playing: continue
-		if host_role and actions >= 6 and not sent_done:
+		if view.busy or view.remote_playing or not view.moving.is_empty() or not view.walk_paths.is_empty(): continue
+		var state = session.state
+		if host_role and actions >= 10 and fought and not sent_done:
 			sent_done = true
 			session._send({type = "test_done", revision = session.revision, snapshot = session.snapshot()})
 		if sent_done or not expected.is_empty(): continue
-		if session.revision == last_revision or not session.can_control(session.state.active_unit()): continue
-		last_revision = session.revision
-		var unit = session.state.active_unit()
-		var steps: Array = preload("res://scripts/hex.gd").neighbors(unit.pos).filter(func(cell): return session.state.can_step(unit, cell))
-		if not steps.is_empty():
-			view._submit_online("step", steps[0])
-		else:
+		if session.revision == last_revision: continue
+		if state.in_combat():
+			fought = true
+			var unit = state.active_unit()
+			if not session.can_control(unit): continue
+			last_revision = session.revision
 			view._submit_online("wait", Vector2i(-1, -1))
-		if host_role: actions += 1
+			if host_role: actions += 1
+		else:
+			if fought and not host_role: continue
+			last_revision = session.revision
+			var mine = view._first_mine()
+			var steps: Array = preload("res://scripts/hex.gd").neighbors(mine.pos).filter(func(cell): return state.can_step(mine, cell))
+			if not steps.is_empty():
+				view._travel(steps[0])
+			if host_role:
+				actions += 1
+				if actions == 4: # o inimigo aparece perto, e os dois lados entram em combate
+					var foe = state.add_unit("mumia", 1, mine.pos + Vector2i(4, 0))
+					view._add_unit_view(foe)
+					view._play([{type = "spawn_ok"}], true)
 	push_error("Timeout no combate em duas instâncias")
 	quit(1)
 

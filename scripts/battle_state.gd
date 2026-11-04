@@ -14,6 +14,7 @@ const TAUNT_ACTIONS := 3 # ações em que a IA persegue quem a provocou
 var terrain: Array
 var elevation: Array
 var units := []
+var next_uid := 1
 
 
 func _init(map_terrain: Array = Data.MAP_TERRAIN, map_elevation: Array = Data.MAP_ELEVATION) -> void:
@@ -23,6 +24,8 @@ func _init(map_terrain: Array = Data.MAP_TERRAIN, map_elevation: Array = Data.MA
 
 func add_unit(type_id: String, team: int, pos: Vector2i, build: Array = []):
 	var unit = Unit.new(type_id, team, pos, build)
+	unit.uid = next_uid
+	next_uid += 1
 	unit.clock = time_for(Data.STEP_TIME, unit)
 	units.append(unit)
 	return unit
@@ -45,6 +48,13 @@ func rows() -> int:
 
 func cols() -> int:
 	return terrain[0].size()
+
+
+func unit_by_uid(uid: int):
+	for unit in units:
+		if unit.uid == uid:
+			return unit
+	return null
 
 
 func in_bounds(cell: Vector2i) -> bool:
@@ -89,6 +99,11 @@ func allies_of(unit) -> Array:
 
 func time_for(base: int, unit) -> int:
 	return maxi(1, roundi(base * 10.0 / unit.speed))
+
+
+## Há fila de turnos agora? A batalha fixa está sempre em combate.
+func in_combat() -> bool:
+	return true
 
 
 ## Quem entra na fila de turnos. Na exploração, só o herói e quem está em combate com ele.
@@ -182,26 +197,75 @@ func step_cost(from: Vector2i, to: Vector2i) -> int:
 
 
 ## Dijkstra a partir da unidade: {"cost": {célula: custo}, "prev": {célula: anterior}}.
+## Usa um heap e um mapa de quem ocupa cada casa: a IA e os cliques chamam isto o tempo todo.
 func search(unit) -> Dictionary:
 	var cost := {unit.pos: 0}
 	var prev := {}
-	var open := [unit.pos]
-	while not open.is_empty():
-		var current: Vector2i = open[0]
-		for cell in open:
-			if cost[cell] < cost[current]:
-				current = cell
-		open.erase(current)
+	var occupied := {}
+	for other in units:
+		if other.alive():
+			occupied[other.pos] = true
+	var heap: Array = [[0, 0, unit.pos]] # [custo, ordem de chegada, casa]
+	var order := 0
+	while not heap.is_empty():
+		var top: Array = _heap_pop(heap)
+		var current: Vector2i = top[2]
+		if top[0] > cost[current]:
+			continue
+		var height := elevation_at(current)
 		for next in Hex.neighbors(current):
-			if not can_enter(current, next):
+			if occupied.has(next) or not in_bounds(next) or not tile_at(next)["walkable"]:
 				continue
-			var total: int = cost[current] + step_cost(current, next)
+			var next_height := elevation_at(next)
+			if absi(next_height - height) > 1:
+				continue
+			var total: int = top[0] + Data.STEP_TIME + tile_at(next)["cost"] + (Data.CLIMB_TIME if next_height > height else 0)
 			if not cost.has(next) or total < cost[next]:
 				cost[next] = total
 				prev[next] = current
-				if not open.has(next):
-					open.append(next)
+				order += 1
+				_heap_push(heap, [total, order, next])
 	return {"cost": cost, "prev": prev}
+
+
+static func _heap_less(a: Array, b: Array) -> bool:
+	return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1])
+
+
+static func _heap_push(heap: Array, item: Array) -> void:
+	heap.append(item)
+	var i := heap.size() - 1
+	while i > 0:
+		var parent := (i - 1) / 2
+		if not _heap_less(heap[i], heap[parent]):
+			break
+		var swap: Array = heap[i]
+		heap[i] = heap[parent]
+		heap[parent] = swap
+		i = parent
+
+
+static func _heap_pop(heap: Array) -> Array:
+	var top: Array = heap[0]
+	var last: Array = heap.pop_back()
+	if not heap.is_empty():
+		heap[0] = last
+		var i := 0
+		while true:
+			var left := i * 2 + 1
+			var right := left + 1
+			var smallest := i
+			if left < heap.size() and _heap_less(heap[left], heap[smallest]):
+				smallest = left
+			if right < heap.size() and _heap_less(heap[right], heap[smallest]):
+				smallest = right
+			if smallest == i:
+				break
+			var swap: Array = heap[i]
+			heap[i] = heap[smallest]
+			heap[smallest] = swap
+			i = smallest
+	return top
 
 
 func path_from_search(found: Dictionary, goal: Vector2i) -> Array:
@@ -213,6 +277,43 @@ func path_from_search(found: Dictionary, goal: Vector2i) -> Array:
 		out.push_front(cell)
 		cell = found["prev"][cell]
 	return out
+
+
+## O mesmo custo de path_from_search, mas entre os caminhos empatados escolhe o mais perto da
+## reta até o destino. Numa grade de hexágonos há muitos, e o escolhido ao acaso faz curvas à toa.
+func straight_path(found: Dictionary, from: Vector2i, goal: Vector2i) -> Array:
+	var out := []
+	if not found["cost"].has(goal):
+		return out
+	var start := _flat_spot(from)
+	var line := (_flat_spot(goal) - start).normalized()
+	var cell := goal
+	while cell != from:
+		out.push_front(cell)
+		var best = null
+		var best_gap := INF
+		for prior in Hex.neighbors(cell):
+			if not found["cost"].has(prior) or not _links(prior, cell):
+				continue
+			if found["cost"][prior] + step_cost(prior, cell) != found["cost"][cell]:
+				continue
+			var away := _flat_spot(prior) - start
+			var gap := absf(away.cross(line))
+			if gap < best_gap:
+				best_gap = gap
+				best = prior
+		if best == null: # não deve acontecer; o caminho comum sempre existe
+			return path_from_search(found, goal)
+		cell = best
+	return out
+
+
+func _links(from: Vector2i, to: Vector2i) -> bool:
+	return absi(elevation_at(to) - elevation_at(from)) <= 1
+
+
+func _flat_spot(cell: Vector2i) -> Vector2:
+	return Vector2(cell.x + (cell.y & 1) * 0.5, cell.y * 0.866)
 
 
 func do_step(unit, to: Vector2i) -> Array:

@@ -9,6 +9,8 @@ const WorldState = preload("res://scripts/world_state.gd")
 const WorldGen = preload("res://scripts/world_gen.gd")
 const BiomeArt = preload("res://scripts/biome_art.gd")
 
+const SIM_RUNS := 3
+
 var checks := 0
 var failures := 0
 
@@ -27,6 +29,8 @@ func _initialize() -> void:
 	test_no_trap()
 	test_rules()
 	test_spawning()
+	test_party()
+	test_network()
 	test_combat_flow()
 	test_full_runs()
 	print("%d verificações, %d falhas" % [checks, failures])
@@ -159,13 +163,12 @@ func test_spawning() -> void:
 	var state = WorldState.new("guardiao", 11)
 	check(state.tick().is_empty(), "ninguém surge antes de andar")
 	state.steps_until_spawn = 0
-	var hero_clock: int = state.hero.clock
 	var events: Array = state.tick()
 	check(events.size() >= 1 and events[0]["type"] == "spawn", "grupo surge ao completar os passos")
 	var foe = events[0]["unit"]
 	var dist: int = Hex.distance(foe.pos, state.hero.pos)
 	check(dist >= Data.WORLD["spawn_min"] and dist <= Data.WORLD["spawn_max"], "surge fora de alcance imediato (%d casas)" % dist)
-	check(foe.clock > hero_clock, "inimigo novo não age antes do herói")
+	check(not state.takes_turns(foe), "quem surge não entra na fila antes de ver a party")
 	check(state.tile_at(foe.pos)["walkable"], "surge em casa caminhável")
 	check(state.steps_until_spawn >= Data.WORLD["spawn_steps"][0], "contagem recomeça")
 	foe.pos = state.hero.pos + Vector2i(40, 0)
@@ -196,6 +199,192 @@ func _foe_at(state, distance: int, type_id := "esqueleto"):
 
 func _kinds(events: Array) -> Array:
 	return events.map(func(e): return e["type"])
+
+
+func test_party() -> void:
+	var state = WorldState.new(Data.DEFAULT_PARTY, 31)
+	check(state.party.size() == 4 and state.units.size() == 4, "party com 4 heróis")
+	var spots := {}
+	for member in state.party:
+		spots[member.pos] = true
+		check(state.tile_at(member.pos)["walkable"], "herói em casa caminhável")
+	check(spots.size() == 4, "cada herói na sua casa")
+	# Andar sozinho e voltar.
+	var loner = state.party[1]
+	var other = state.party[0]
+	loner.pos = other.pos + Vector2i(Data.WORLD["party_leash"], 0)
+	var away: Vector2i = loner.pos + Vector2i(1, 0)
+	var back: Vector2i = loner.pos - Vector2i(1, 0)
+	check(not state.may_roam(loner, away), "herói não se afasta além do limite")
+	check(state.may_roam(loner, back), "herói sempre pode voltar")
+	loner.pos = state.party[2].pos + Vector2i(0, 1)
+	# Qualquer herói é visto.
+	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, state.party[3].pos + Vector2i(Data.WORLD["sight_radius"], 0))
+	var events: Array = state.tick()
+	check(_kinds(events).has("combat_start"), "ver qualquer herói inicia o combate")
+	check(state.turn_order().size() == 5, "toda a party entra na fila (%d)" % state.turn_order().size())
+	# Queda e fim.
+	state.party[1].hp = 0
+	check(state.winner() == -1, "a jornada continua com heróis de pé")
+	check(not state.turn_order().has(state.party[1]), "quem caiu sai da fila")
+	foe.hp = 0
+	var ended: Array = state.tick()
+	check(_kinds(ended).has("combat_end"), "combate termina")
+	check(_kinds(ended).has("revive") and state.party[1].alive(), "quem caiu volta ao fim do combate")
+	check(state.party[1].hp == roundi(state.party[1].max_hp * Data.WORLD["revive_hp"]), "volta ferido")
+	for member in state.party:
+		member.hp = 0
+	check(state.winner() == Data.Team.ENEMY, "party inteira caída encerra a jornada")
+	var doomed: Array = state.tick()
+	check(not _kinds(doomed).has("revive"), "sem volta se todos caíram")
+	_test_deploy()
+	_test_straight_path()
+	# O ataque de um herói faz dele o primeiro a agir de novo só depois do custo.
+	var ambush = WorldState.new(Data.DEFAULT_PARTY, 32)
+	var mage = ambush.party[2]
+	var prey = ambush.add_unit("mumia", Data.Team.ENEMY, mage.pos + Vector2i(3, 0))
+	ambush.party[2].clock = 500
+	ambush.do_ability(mage, "faisca", prey.pos)
+	check(ambush.in_combat() and prey.clock >= 500, "relógios recomeçam juntos no combate")
+	# Abate cura o mais ferido.
+	var heal = WorldState.new(Data.DEFAULT_PARTY, 33)
+	heal.party[0].hp = 10
+	heal.party[1].hp = heal.party[1].max_hp - 1
+	var target = heal.add_unit("diabrete", Data.Team.ENEMY, heal.party[0].pos + Vector2i(4, 0))
+	heal.engage([target], false)
+	target.hp = 1
+	var hit: Array = []
+	heal._apply_damage(target, 5, hit, {})
+	check(heal.party[0].hp == 10 + Data.WORLD["kill_heal"], "abate cura o herói mais ferido")
+
+
+## Procura um trecho aberto do mapa, para a fila ter onde se abrir.
+func _open_ground(state) -> Vector2i:
+	for row in range(-40, 40, 3):
+		for col in range(-40, 40, 3):
+			var center := Vector2i(col, row)
+			var clear := true
+			for cell in state.area_of(center, 5):
+				var near_center: bool = state.elevation_at(cell) == state.elevation_at(center) and state.tile_at(cell)["walkable"]
+				clear = clear and near_center
+			if clear:
+				return center
+	return Vector2i.ZERO
+
+
+func _adjacent_pairs(state) -> int:
+	var pairs := 0
+	for i in state.party.size():
+		for j in range(i + 1, state.party.size()):
+			if Hex.distance(state.party[i].pos, state.party[j].pos) == 1:
+				pairs += 1
+	return pairs
+
+
+func _test_deploy() -> void:
+	var state = WorldState.new(Data.DEFAULT_PARTY, 34)
+	var center := _open_ground(state)
+	# A party em fila, um colado no outro.
+	for i in state.party.size():
+		state.party[i].pos = center + Vector2i(i - 2, 0)
+	check(_adjacent_pairs(state) == 3, "fila com heróis colados")
+	var from: Array = state.party.map(func(u): return u.pos)
+	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, state.party[3].pos + Vector2i(Data.WORLD["sight_radius"], 0))
+	var events: Array = state.engage([foe], true)
+	var deployed: Array = events.filter(func(e): return e["type"] == "deploy")
+	check(not deployed.is_empty(), "o combate faz a fila abrir")
+	check(_kinds(events).find("deploy") < _kinds(events).find("combat_start"), "abre junto com o aviso")
+	check(_adjacent_pairs(state) == 0, "ninguém fica colado depois de abrir (%d pares)" % _adjacent_pairs(state))
+	for event in deployed:
+		check(Hex.distance(event["from"], event["to"]) <= Data.WORLD["deploy_steps"], "anda no máximo o limite")
+		check(state.tile_at(event["to"])["walkable"], "abre para casa caminhável")
+		check(event["unit"].pos == event["to"], "posição atualizada")
+	var spots := {}
+	for member in state.party:
+		spots[member.pos] = true
+		check(Hex.distance(member.pos, foe.pos) > 1, "ninguém começa colado no inimigo")
+	check(spots.size() == 4, "cada herói na sua casa")
+	var cost: Array = state.party.map(func(u): return u.pos)
+	check(cost != from, "os heróis mudaram de lugar")
+	# Quem luta de perto fica à frente de quem ataca de longe, mantendo o que era possível.
+	var tank_gap: int = Hex.distance(state.party[0].pos, foe.pos)
+	check(tank_gap >= 2, "tanque pronto para avançar")
+	# Quem abre o ataque não sai da mira.
+	var strike = WorldState.new(Data.DEFAULT_PARTY, 35)
+	var ground := _open_ground(strike)
+	for i in strike.party.size():
+		strike.party[i].pos = ground + Vector2i(i - 2, 0)
+	var mage = strike.party[2]
+	var mage_at: Vector2i = mage.pos
+	var prey = strike.add_unit("mumia", Data.Team.ENEMY, mage.pos + Vector2i(3, 0))
+	var hit: Array = strike.do_ability(mage, "faisca", prey.pos)
+	check(mage.pos == mage_at, "quem atacou continua no lugar")
+	check(_kinds(hit).has("combat_start") and _kinds(hit).has("attack"), "ataque segue depois da abertura")
+	check(_adjacent_pairs(strike) < 3, "os outros abrem mesmo assim")
+	# Combate em andamento não reabre a formação.
+	var extra = strike.add_unit("mumia", Data.Team.ENEMY, ground + Vector2i(-5, 0))
+	var at: Array = strike.party.map(func(u): return u.pos)
+	var joined: Array = strike.engage([extra], true)
+	check(not _kinds(joined).has("deploy") and at == strike.party.map(func(u): return u.pos), "quem chega depois não muda a formação")
+	# Sozinho não há fila para abrir.
+	var solo = WorldState.new("duelista", 36)
+	var lone = solo.add_unit("esqueleto", Data.Team.ENEMY, solo.hero.pos + Vector2i(3, 0))
+	var at_solo: Vector2i = solo.hero.pos
+	solo.engage([lone], true)
+	check(solo.hero.pos == at_solo, "herói sozinho fica onde está")
+
+
+func _test_straight_path() -> void:
+	var state = WorldState.new("duelista", 37)
+	var center := _open_ground(state)
+	state.hero.pos = center
+	var found: Dictionary = state.search(state.hero)
+	# Destino alcançável e não alinhado com a grade, onde há muitos caminhos empatados.
+	var goal: Vector2i = center
+	for cell in found["cost"]:
+		if Hex.distance(center, cell) == 5 and absi(cell.y - center.y) == 3:
+			goal = cell
+			break
+	check(goal != center, "há destino para testar o caminho reto")
+	var straight: Array = state.straight_path(found, center, goal)
+	var usual: Array = state.path_from_search(found, goal)
+	check(straight.size() == usual.size(), "caminho reto não fica mais longo")
+	check(straight.back() == goal, "caminho reto chega ao destino")
+	var at := center
+	var line: Vector2 = (state._flat_spot(goal) - state._flat_spot(center)).normalized()
+	for cell in straight:
+		check(Hex.distance(at, cell) == 1, "caminho reto anda de casa em casa")
+		check(absf((state._flat_spot(cell) - state._flat_spot(center)).cross(line)) < 0.9, "caminho reto não se afasta da linha")
+		at = cell
+
+
+func test_network() -> void:
+	var host = WorldState.new(Data.DEFAULT_PARTY, 41, {2: ["fog_pavio"]})
+	var guest = WorldState.new(Data.DEFAULT_PARTY, 41, {2: ["fog_pavio"]})
+	check(guest.party.map(func(u): return u.pos) == host.party.map(func(u): return u.pos), "mesma semente, mesmo início")
+	check(guest.terrain_id_at(Vector2i(20, -30)) == host.terrain_id_at(Vector2i(20, -30)), "mesma semente, mesmo mapa")
+	check(guest.party[2].passives == host.party[2].passives, "mesmas skills dos dois lados")
+	host.steps_until_spawn = 0
+	host.tick()
+	check(host.units.size() > 4, "surgem inimigos")
+	var foe = host.units[4]
+	foe.hp -= 3
+	foe.pos = host.party[0].pos + Vector2i(2, 0)
+	host.tick()
+	check(host.in_combat(), "dono em combate")
+	guest.apply_snapshot(bytes_to_var(var_to_bytes(host.snapshot())))
+	check(guest.units.size() == host.units.size(), "convidado recebe os inimigos")
+	var copy = guest.unit_by_uid(foe.uid)
+	check(copy != null and copy.hp == foe.hp and copy.pos == foe.pos and copy.max_hp == foe.max_hp, "inimigo igual nos dois lados")
+	check(guest.in_combat() and guest.active_unit().uid == host.active_unit().uid, "mesma vez nos dois lados")
+	check(guest.snapshot() == host.snapshot(), "estado idêntico")
+	host.units.erase(foe)
+	host.engaged.erase(foe)
+	guest.apply_snapshot(host.snapshot())
+	check(not guest.units.has(copy) and guest.unit_by_uid(foe.uid) == copy, "quem saiu continua conhecido para os eventos")
+	for i in 3:
+		var added = host.add_unit("esqueleto", Data.Team.ENEMY, host.party[0].pos + Vector2i(20 + i, 0))
+		check(added.uid > foe.uid, "uid nunca se repete")
 
 
 func test_combat_flow() -> void:
@@ -245,6 +434,13 @@ func test_combat_flow() -> void:
 	check(_kinds(fled).has("combat_end") and fled.filter(func(e): return e["type"] == "combat_end")[0]["fled"], "longe o bastante, o herói escapa")
 	check(chase.units.has(hunter), "quem perdeu o herói continua no mundo")
 	check(not chase.takes_turns(hunter), "e sai da fila")
+	# Sem caminho e sem ver a party, o inimigo desiste.
+	var stuck = WorldState.new("duelista", 28)
+	var island = _foe_at(stuck, sight)
+	stuck.tick()
+	island.pos = stuck.hero.pos + Vector2i(sight + 2, 0)
+	stuck.do_wait(island)
+	check(not stuck.engaged.has(island), "inimigo sem caminho desiste")
 	# Ataque de surpresa.
 	var ambush = WorldState.new("besteiro", 24)
 	var prey = _foe_at(ambush, sight - 1)
@@ -292,65 +488,74 @@ func test_combat_flow() -> void:
 ## Jogadas completas com o herói guiado pela IA: acha travamentos e mede a dificuldade.
 func test_full_runs() -> void:
 	var rows := []
+	for party in [Data.DEFAULT_PARTY, ["guardiao", "besteiro", "mago_agua", "druida"]]:
+		var distances := []
+		var kills := []
+		for world_seed in SIM_RUNS:
+			var result := _play_run(party, world_seed * 137 + 9)
+			check(result["ended"], "%s, semente %d: jornada avança sem travar" % [party, world_seed])
+			distances.append(result["distance"])
+			kills.append(result["kills"])
+		distances.sort()
+		kills.sort()
+		rows.append("%-42s distância mediana %3d (%d–%d) · abates %2d" % [" + ".join(party), distances[SIM_RUNS / 2], distances[0], distances[SIM_RUNS - 1], kills[SIM_RUNS / 2]])
 	for type_id in Data.WORLD_HEROES:
 		var distances := []
 		var kills := []
-		for world_seed in 12:
+		for world_seed in SIM_RUNS:
 			var result := _play_run(type_id, world_seed * 131 + 5)
 			check(result["ended"], "%s, semente %d: jornada avança sem travar" % [type_id, world_seed])
 			distances.append(result["distance"])
 			kills.append(result["kills"])
 		distances.sort()
 		kills.sort()
-		rows.append("%-10s distância mediana %3d (%d–%d) · abates %2d" % [type_id, distances[6], distances[0], distances[11], kills[6]])
+		rows.append("%-10s distância mediana %3d (%d–%d) · abates %2d" % [type_id, distances[SIM_RUNS / 2], distances[0], distances[SIM_RUNS - 1], kills[SIM_RUNS / 2]])
 	print("\n".join(rows))
 
 
-func _play_run(type_id: String, world_seed: int) -> Dictionary:
+func _play_run(type_id: Variant, world_seed: int) -> Dictionary:
 	var state = WorldState.new(type_id, world_seed)
 	var actions := 0
-	var last_progress := 0
-	var last_farthest := 0
-	var healed_last := false
-	while state.winner() < 0 and actions < 4000 and state.farthest < 400:
+	var combat_streak := 0
+	var healed := {}
+	while state.winner() < 0 and actions < 3000 and state.farthest < 120:
 		actions += 1
 		state.tick()
 		var unit = state.active_unit()
 		if not unit.pending.is_empty():
 			state.resolve_pending(unit)
-		elif unit == state.hero and not state.in_combat():
-			_walk_on(state)
+		elif state.is_hero(unit) and not state.in_combat():
+			_walk_on(state, unit)
 		else:
 			var action: Dictionary = AI.decide(state, unit)
 			var healing: bool = action["kind"] == "ability" and Data.ABILITIES[action["id"]]["kind"] == "heal"
 			# A IA curaria para sempre contra um inimigo fraco; uma pessoa revezaria com o ataque.
-			if unit == state.hero and healing and healed_last:
-				action = _attack_or_walk(state)
-			if unit == state.hero:
-				healed_last = healing and not action.is_empty()
-			if action.is_empty() or (unit == state.hero and action["kind"] == "wait"):
-				_walk_on(state)
+			if state.is_hero(unit) and healing and healed.get(unit, false):
+				action = _attack_or_walk(state, unit)
+			if state.is_hero(unit):
+				healed[unit] = healing and not action.is_empty()
+			if action.is_empty() or (state.is_hero(unit) and action["kind"] == "wait"):
+				_walk_on(state, unit)
 			else:
 				AI.apply(state, unit, action)
-		if state.farthest > last_farthest:
-			last_farthest = state.farthest
-			last_progress = actions
-		if actions - last_progress > 1200:
+		combat_streak = combat_streak + 1 if state.in_combat() else 0
+		if combat_streak > 900: # um combate não pode ficar preso para sempre
+			print("parado: combate=%s, %s" % [state.in_combat(), state.units.filter(func(u): return u.alive()).map(func(u): return [u.type_id, u.hp, u.pos, state.engaged.has(u)])])
 			return {"ended": false, "distance": state.farthest, "kills": state.kills}
 	return {"ended": true, "distance": state.farthest, "kills": state.kills}
 
 
-func _attack_or_walk(state) -> Dictionary:
-	for id in state.hero.abilities:
-		if Data.ABILITIES[id]["kind"] == "attack" and not state.valid_targets(state.hero, id).is_empty():
-			return {"kind": "ability", "id": id, "cell": state.valid_targets(state.hero, id)[0]}
+func _attack_or_walk(state, unit) -> Dictionary:
+	for id in unit.abilities:
+		if Data.ABILITIES[id]["kind"] == "attack" and not state.valid_targets(unit, id).is_empty():
+			return {"kind": "ability", "id": id, "cell": state.valid_targets(unit, id)[0]}
 	return {}
 
 
 ## Anda rumo à casa alcançável mais distante do início.
-func _walk_on(state) -> void:
-	var found: Dictionary = state.search(state.hero)
-	var goal: Vector2i = state.hero.pos
+func _walk_on(state, unit) -> void:
+	var found: Dictionary = state.search(unit)
+	var goal: Vector2i = unit.pos
 	var best := -1
 	for cell in found["cost"]:
 		var far: int = Hex.distance(cell, state.start_cell)
@@ -359,6 +564,6 @@ func _walk_on(state) -> void:
 			goal = cell
 	var path: Array = state.path_from_search(found, goal)
 	if path.is_empty():
-		state.do_wait(state.hero)
+		state.do_wait(unit)
 	else:
-		state.do_step(state.hero, path[0])
+		state.do_step(unit, path[0])

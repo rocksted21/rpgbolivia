@@ -17,9 +17,9 @@ Abra duas instâncias do jogo e escolha **Online**. A conexão é automática.
 Você também pode executar `iniciar-local.ps1` para instalar as dependências ausentes
 e iniciar o relay. Mantenha o terminal aberto enquanto joga.
 Informe seu nome; crie uma sala numa instância e toque em **ENTRAR** na lista da outra.
-Com pelo menos dois jogadores, o dono pode iniciar. Até quatro pessoas dividem os
-cinco heróis contra a IA. Na sala, cada um toca nos heróis que quer controlar (toque de novo libera);
-heróis livres vão para quem tem menos. A dica informa quem joga a cada turno.
+Com pelo menos dois jogadores, o dono pode iniciar. Até quatro pessoas dividem uma party de até
+quatro heróis no mapa procedural. Na sala, cada um toca nos heróis que quer controlar (toque de novo libera);
+só os heróis escolhidos entram na party. A dica informa quem joga a cada turno do combate.
 
 Para testes em outro computador na mesma rede, configure a variável de ambiente
 `COMBATE_RELAY=ws://IP-DO-COMPUTADOR:8787` antes de iniciar o jogo.
@@ -49,7 +49,7 @@ O servidor fica hospedado; o dono precisa manter o jogo aberto durante o combate
 
 ## Escopo desta versão
 
-- Cooperativo, 2–4 pessoas; cada um escolhe seus heróis na sala, inimigos pela IA.
+- Cooperativo, 2–4 pessoas no mapa procedural; cada um escolhe seus heróis na sala, inimigos pela IA.
 - O dono valida as escolhas: ninguém toma herói de outro e só inicia quando todos têm pelo menos um.
 - Criar, listar, atualizar, entrar pela lista, cancelar, sair e iniciar juntos.
 - Dono valida a posse do herói, turno, destino e habilidade; convidados recebem estado e animações.

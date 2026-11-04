@@ -19,6 +19,9 @@ const TEXT := Color("f5efdf")
 var single_player: Button
 var options: AcceptDialog
 var hero_picker: Control
+var party := [] # heróis escolhidos para a jornada, na ordem da lista
+var hero_buttons := {}
+var start_button: Button
 
 
 func _ready() -> void:
@@ -77,7 +80,7 @@ func _build_hero_picker() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 22)
 	center.add_child(column)
-	_label(column, "Escolha seu herói", 40, TEXT)
+	_label(column, "Monte sua party", 40, TEXT)
 	var grid := GridContainer.new()
 	grid.columns = 3
 	grid.add_theme_constant_override("h_separation", 16)
@@ -88,10 +91,18 @@ func _build_hero_picker() -> void:
 		var id: String = Data.WORLD_HEROES[i]
 		var button := _button(grid, "")
 		button.name = "Hero%d" % i
+		hero_buttons[id] = button
 		_fill_hero_button(button, id, units_meta[id])
-	var back := _button(column, "Voltar")
-	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var actions := HBoxContainer.new()
+	actions.alignment = BoxContainer.ALIGNMENT_CENTER
+	actions.add_theme_constant_override("separation", 16)
+	column.add_child(actions)
+	var back := _button(actions, "Voltar")
 	back.pressed.connect(_close_hero_picker)
+	start_button = _button(actions, "", true)
+	start_button.pressed.connect(_start_single_player)
+	party = Data.DEFAULT_PARTY.duplicate()
+	_show_party()
 
 
 func _fill_hero_button(button: Button, id: String, info: Dictionary) -> void:
@@ -129,11 +140,35 @@ func _fill_hero_button(button: Button, id: String, info: Dictionary) -> void:
 	role.add_theme_font_size_override("font_size", 16)
 	role.add_theme_color_override("font_color", Color("c3c8d3"))
 	text.add_child(role)
-	button.pressed.connect(func(): _start_single_player(id))
+	button.pressed.connect(func(): _toggle_hero(id))
 
 
-func _start_single_player(hero_type: String) -> void:
-	get_tree().root.set_meta(WORLD_META, hero_type)
+func _toggle_hero(id: String) -> void:
+	if id in party:
+		party.erase(id)
+	elif party.size() < Data.PARTY_SIZE:
+		party.append(id)
+	_show_party()
+
+
+func _show_party() -> void:
+	for id in hero_buttons:
+		var chosen: bool = id in party
+		var style := _box(Color("3b3a2c") if chosen else Color("252d3e"))
+		if chosen:
+			style.border_color = GOLD
+			style.set_border_width_all(4)
+		hero_buttons[id].add_theme_stylebox_override("normal", style)
+	start_button.disabled = party.is_empty()
+	start_button.text = "Começar com %d de %d" % [party.size(), Data.PARTY_SIZE]
+
+
+func _start_single_player() -> void:
+	var chosen: Array = []
+	for id in Data.WORLD_HEROES: # ordem fixa: a mesma party sempre sai igual
+		if id in party:
+			chosen.append(id)
+	get_tree().root.set_meta(WORLD_META, chosen)
 	online_session.leave()
 	var error := get_tree().change_scene_to_file("res://main.tscn")
 	if error != OK:

@@ -10,6 +10,8 @@ uniform vec2 ground_anchor = vec2(0.0);
 uniform float elevation = 0.0;
 uniform bool tile_surface = false;
 uniform float tile_scale = 0.5;
+// Giro da câmera: o chão gira em volta do centro; o que fica em pé só muda de lugar.
+uniform float view_angle = 0.0;
 // Névoa da exploração: fim 0 desliga. A distância conta a partir do centro da câmera.
 uniform float fog_start = 0.0;
 uniform float fog_end = 0.0;
@@ -27,8 +29,15 @@ float depth_scale(float y) {
 	return 1.0 / max(0.25, 1.0 - (y - focus.y) * perspective);
 }
 
+vec2 turned(vec2 point) {
+	vec2 away = point - focus;
+	float c = cos(view_angle);
+	float s = sin(view_angle);
+	return focus + vec2(away.x * c - away.y * s, away.x * s + away.y * c);
+}
+
 vec2 project_ground(vec2 point, float height) {
-	vec2 ground = point + vec2(0.0, height);
+	vec2 ground = turned(point + vec2(0.0, height));
 	return screen_focus + ((ground - focus) * vec2(1.0, ground_tilt) - vec2(0.0, height)) * depth_scale(ground.y);
 }
 
@@ -41,12 +50,12 @@ void vertex() {
 		float front_edge = 213.0 - abs(local.x - 93.0) * (53.0 / 93.0);
 		height -= max(0.0, local.y - front_edge) * tile_scale;
 	}
-	vec2 ground_point = (upright ? ground_anchor : VERTEX) + vec2(0.0, height);
+	vec2 ground_point = turned((upright ? ground_anchor : VERTEX) + vec2(0.0, height));
 	float ground_y = ground_point.y;
 	fog = fog_end > 0.0 ? smoothstep(fog_start, fog_end, length((ground_point - focus) * vec2(0.6, 1.0))) : 0.0;
 	if (upright) {
 		// A altura do personagem não recebe o achatamento do chão.
-		VERTEX = project_ground(ground_anchor, elevation) + (VERTEX - ground_anchor) * depth_scale(ground_anchor.y + elevation);
+		VERTEX = project_ground(ground_anchor, elevation) + (VERTEX - ground_anchor) * depth_scale(turned(ground_anchor + vec2(0.0, elevation)).y);
 	} else {
 		VERTEX = project_ground(VERTEX, height);
 	}

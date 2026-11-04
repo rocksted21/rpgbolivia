@@ -1,5 +1,6 @@
 extends Node
-## O relay só transporta. O dono valida comandos e simula o combate.
+## O relay só transporta. O dono valida comandos e simula a exploração e o combate;
+## os outros recebem o estado e animam.
 signal changed
 signal match_started
 signal packet_received(packet: Dictionary)
@@ -7,7 +8,7 @@ signal command_received(sender: int, command: Dictionary)
 signal connection_lost(reason: String)
 
 const Relay = preload("res://net/relay_connection.gd")
-const BattleState = preload("res://scripts/battle_state.gd")
+const WorldState = preload("res://scripts/world_state.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Skills = preload("res://scripts/skill_data.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
@@ -15,8 +16,9 @@ var relay
 var player_name := "Jogador"
 var players := {}
 var owners := []
-## Herói (índice em Data.BATTLE_UNITS) -> jogador que o escolheu na sala.
+## Herói (índice em Data.WORLD_HEROES) -> jogador que o escolheu na sala.
 var picks := {}
+var party_types := [] # a party da partida; owners segue a mesma ordem
 ## Jogador -> {tipo do herói: [nós]}. Só o dono guarda; a partida usa match_builds().
 var player_builds := {}
 var playing := false
@@ -87,6 +89,7 @@ func leave() -> void:
 	players.clear()
 	owners.clear()
 	picks.clear()
+	party_types.clear()
 	player_builds.clear()
 	playing = false
 	state = null
@@ -117,10 +120,7 @@ func _roster() -> void:
 	changed.emit()
 
 static func hero_count() -> int:
-	var count := 0
-	for entry in Data.BATTLE_UNITS:
-		if entry[1] == Data.Team.PLAYER: count += 1
-	return count
+	return Data.WORLD_HEROES.size()
 
 ## Jogadores na ordem de entrada; a mesma ordem decide cores e desempates.
 func player_order() -> Array:
@@ -140,19 +140,11 @@ func can_start() -> bool:
 		if heroes_of(id).is_empty(): return false
 	return true
 
-## Escolhidos ficam com quem escolheu; os livres vão, em ordem, para quem tem menos heróis.
-func planned_owners() -> Array:
-	var result := []
-	var count := {}
-	for id in players: count[id] = heroes_of(id).size()
-	for hero in hero_count():
-		var id: int = picks.get(hero, 0)
-		if id == 0 and not count.is_empty():
-			for candidate in player_order():
-				if id == 0 or count[candidate] < count[id]: id = candidate
-			count[id] += 1
-		result.append(id)
-	return result
+## Só entram na party os heróis escolhidos, na ordem da lista: [índice do herói, ...].
+func party_heroes() -> Array:
+	var chosen: Array = picks.keys()
+	chosen.sort()
+	return chosen
 
 ## Toque num herói livre o pega; toque num herói seu o libera. O dono decide.
 func pick_hero(hero: int) -> void:
@@ -166,7 +158,7 @@ func _toggle_pick(id: int, hero: int) -> void:
 	if playing or not players.has(id) or hero < 0 or hero >= hero_count(): return
 	if picks.get(hero, 0) == id:
 		picks.erase(hero)
-	elif not picks.has(hero):
+	elif not picks.has(hero) and picks.size() < Data.PARTY_SIZE:
 		picks[hero] = id
 	else:
 		return
@@ -175,34 +167,45 @@ func _toggle_pick(id: int, hero: int) -> void:
 func start_match() -> void:
 	if not relay.is_master or playing or not can_start():
 		return
-	owners = planned_owners()
+	var heroes := party_heroes()
+	party_types = heroes.map(func(hero): return Data.WORLD_HEROES[hero])
+	owners = heroes.map(func(hero): return picks[hero])
 	var builds := match_builds()
-	state = BattleState.from_data(builds)
+	var world_seed := randi()
+	state = WorldState.new(party_types, world_seed, builds)
 	revision = 0
 	playing = true
-	relay.set_props({locked = true, fase = "Combate"})
-	_send({type = "start", owners = owners, players = players, builds = builds})
+	relay.set_props({locked = true, fase = "Jornada"})
+	_send({type = "start", owners = owners, players = players, party = party_types, world_seed = world_seed, builds = builds})
 	match_started.emit()
 
-## Cada herói usa a build de quem ficou com ele: {índice em Data.BATTLE_UNITS: [nós]}.
+## Cada herói usa a build de quem ficou com ele: {índice na party: [nós]}.
 func match_builds() -> Dictionary:
 	var builds := {}
-	for hero in owners.size():
-		var type_id: String = Data.BATTLE_UNITS[hero][0]
-		var saved: Variant = player_builds.get(owners[hero], {})
+	for i in party_types.size():
+		var saved: Variant = player_builds.get(owners[i], {})
 		if saved is Dictionary:
-			builds[hero] = Skills.sanitize(type_id, saved.get(type_id, []))
+			builds[i] = Skills.sanitize(party_types[i], saved.get(party_types[i], []))
 	return builds
 
 
 ## Confere o que veio do dono, para uma mensagem estranha não derrubar o cliente.
-static func clean_builds(received: Variant) -> Dictionary:
+static func clean_builds(received: Variant, types: Array) -> Dictionary:
 	var builds := {}
 	if received is Dictionary:
-		for hero in received:
-			if hero is int and hero >= 0 and hero < Data.BATTLE_UNITS.size():
-				builds[hero] = Skills.sanitize(Data.BATTLE_UNITS[hero][0], received[hero])
+		for i in received:
+			if i is int and i >= 0 and i < types.size():
+				builds[i] = Skills.sanitize(types[i], received[i])
 	return builds
+
+
+static func clean_party(received: Variant) -> Array:
+	if not received is Array or received.is_empty() or received.size() > Data.PARTY_SIZE:
+		return []
+	for type_id in received:
+		if not type_id in Data.WORLD_HEROES:
+			return []
+	return received
 
 
 func owner_of(unit) -> int:
@@ -220,22 +223,13 @@ func submit(command: Dictionary) -> void:
 	else:
 		_send({type = "command", command = command}, true)
 
-func snapshot() -> Array:
-	var result := []
-	for unit in state.units:
-		result.append({pos = unit.pos, hp = unit.hp, clock = unit.clock, guarding = unit.guarding, pending = unit.pending.duplicate(true)})
-	return result
+func snapshot() -> Dictionary:
+	return state.snapshot()
 
-func apply_snapshot(rows: Array) -> void:
-	for i in mini(rows.size(), state.units.size()):
-		var unit = state.units[i]
-		unit.pos = rows[i].pos
-		unit.hp = rows[i].hp
-		unit.clock = rows[i].clock
-		unit.guarding = rows[i].guarding
-		unit.pending = rows[i].pending.duplicate(true)
+func apply_snapshot(data: Dictionary) -> void:
+	state.apply_snapshot(data)
 
-func publish(events: Array = [], ready := false) -> void:
+func publish(events: Array = [], ready := false, roam := false) -> void:
 	if not playing or not relay.is_master:
 		return
 	revision += 1
@@ -243,9 +237,11 @@ func publish(events: Array = [], ready := false) -> void:
 	for event in events:
 		var copy: Dictionary = event.duplicate()
 		for key in ["unit", "target"]:
-			if copy.has(key): copy[key] = state.units.find(copy[key])
+			if copy.has(key): copy[key] = copy[key].uid
+		if copy.has("units"):
+			copy["units"] = copy["units"].map(func(unit): return unit.uid)
 		encoded.append(copy)
-	_send({type = "battle", revision = revision, snapshot = snapshot(), events = encoded, ready = ready})
+	_send({type = "battle", revision = revision, snapshot = snapshot(), events = encoded, ready = ready, roam = roam})
 
 func _receive(sender: int, payload: PackedByteArray) -> void:
 	if payload.size() > 262144: return
@@ -272,10 +268,13 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 			changed.emit()
 		"start":
 			if playing: return
+			var types := clean_party(message.get("party"))
+			if types.is_empty() or not message.get("world_seed") is int: return
 			playing = true
 			players = message.players
 			owners = message.owners
-			state = BattleState.from_data(clean_builds(message.get("builds", {})))
+			party_types = types
+			state = WorldState.new(types, message.world_seed, clean_builds(message.get("builds", {}), types))
 			revision = 0
 			match_started.emit()
 		"battle":

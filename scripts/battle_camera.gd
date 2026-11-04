@@ -14,6 +14,7 @@ var ground_material: ShaderMaterial
 var surface_materials := {}
 var tile_materials := {}
 var fog_range := Vector2.ZERO # início e fim da névoa; zero desliga
+var view_angle := 0.0 # giro da câmera, em radianos, em volta do centro da tela
 
 
 func _init() -> void:
@@ -28,6 +29,27 @@ func _ready() -> void:
 	RenderingServer.frame_pre_draw.connect(_sync_billboards)
 
 
+## Gira um ponto do chão em volta do centro da câmera.
+func turned(world: Vector2) -> Vector2:
+	return FOCUS + (world - FOCUS).rotated(view_angle)
+
+
+func set_view_angle(angle: float) -> void:
+	view_angle = angle
+	ground_material.set_shader_parameter("view_angle", angle)
+	for mat in surface_materials.values():
+		mat.set_shader_parameter("view_angle", angle)
+	for mat in tile_materials.values():
+		mat.set_shader_parameter("view_angle", angle)
+	for entry in billboards:
+		entry.material.set_shader_parameter("view_angle", angle)
+
+
+## Escala de um ponto em pé sobre esse lugar do chão, já com o giro.
+func depth_at(anchor: Vector2, elevation: float) -> float:
+	return depth_scale(turned(anchor + Vector2(0, elevation)).y)
+
+
 func depth_scale(world_y: float) -> float:
 	return 1.0 / maxf(0.25, 1.0 - (world_y - FOCUS.y) * PERSPECTIVE)
 
@@ -35,7 +57,7 @@ func depth_scale(world_y: float) -> float:
 func project(world: Vector2, elevation := 0.0) -> Vector2:
 	# Recupera a profundidade no chão antes de aplicar a altura vertical.
 	# Altura não é distância: subir um penhasco não pode diminuir o personagem.
-	var ground := world + Vector2(0, elevation)
+	var ground := turned(world + Vector2(0, elevation))
 	var depth := depth_scale(ground.y)
 	return SCREEN_FOCUS + Vector2(ground.x - FOCUS.x, (ground.y - FOCUS.y) * GROUND_TILT - elevation) * depth
 
@@ -92,6 +114,7 @@ func _material(upright: bool) -> ShaderMaterial:
 	result.set_shader_parameter("perspective", PERSPECTIVE)
 	result.set_shader_parameter("upright", upright)
 	_apply_fog(result)
+	result.set_shader_parameter("view_angle", view_angle)
 	return result
 
 

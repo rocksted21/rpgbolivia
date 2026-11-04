@@ -11,6 +11,9 @@ signal order_toggled(on: bool)
 signal restart_pressed
 signal skills_pressed
 signal menu_pressed
+signal party_pressed(unit)
+signal rotate_held(direction: int) # -1 ou 1 enquanto o botão está apertado; 0 ao soltar
+signal together_toggled(on: bool)
 signal unit_picked(unit)
 
 const Data = preload("res://scripts/game_data.gd")
@@ -83,6 +86,9 @@ var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magi
 
 
 var journey: Label
+var party_row: HBoxContainer
+var party_cards := {} # herói -> {panel, fill, status}
+var together_button: Button
 var banner: Label
 
 
@@ -589,7 +595,7 @@ func setup_exploration() -> void:
 	order_button.visible = false
 	journey = _label("", 22, Color(1.0, 0.95, 0.8))
 	journey.position = Vector2(0, 16)
-	journey.custom_minimum_size = Vector2(SCREEN.x, 0)
+	journey.custom_minimum_size = Vector2(SCREEN.x - 320, 0) # à direita ficam os botões da câmera
 	journey.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	journey.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	journey.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -610,8 +616,107 @@ func setup_exploration() -> void:
 	end_column.add_child(menu_button)
 
 
-func set_journey(hp: int, max_hp: int, distance: int, kills: int, danger: int, biome := "") -> void:
-	journey.text = "%s   ·   Vida %d/%d   ·   Distância %d   ·   Abates %d   ·   Perigo %d" % [biome, hp, max_hp, distance, kills, danger]
+## Barra da party, embaixo: mostra a vida de todos e seleciona o herói. `owners` tem o nome
+## do jogador de cada herói no online.
+func setup_party(heroes: Array, owners: Dictionary) -> void:
+	party_row = HBoxContainer.new()
+	party_row.position = Vector2(90, 606)
+	party_row.add_theme_constant_override("separation", 8)
+	add_child(party_row)
+	for unit in heroes:
+		var panel := PanelContainer.new()
+		panel.custom_minimum_size = Vector2(200, 62)
+		panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		panel.gui_input.connect(func(event):
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				party_pressed.emit(unit))
+		party_row.add_child(panel)
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(row)
+		var portrait := TextureRect.new()
+		var atlas := AtlasTexture.new()
+		atlas.atlas = load("res://assets/units/%s.png" % unit.type_id)
+		atlas.region = Rect2(0, 0, meta[unit.type_id]["cell_w"], meta[unit.type_id]["cell_h"])
+		portrait.texture = atlas
+		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		portrait.custom_minimum_size = Vector2(46, 46)
+		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(portrait)
+		var column := VBoxContainer.new()
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.add_theme_constant_override("separation", 2)
+		column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(column)
+		var title: String = unit.display_name
+		if owners.get(unit, "") != "":
+			title = "%s · %s" % [owners[unit], unit.display_name]
+		var name_label := _label(title, 15, Color.WHITE)
+		name_label.clip_text = true
+		name_label.custom_minimum_size.x = 130
+		column.add_child(name_label)
+		var back := ColorRect.new()
+		back.color = Color(0, 0, 0, 0.7)
+		back.custom_minimum_size = Vector2(130, 10)
+		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		column.add_child(back)
+		var fill := ColorRect.new()
+		fill.color = PLAYER_COLOR
+		fill.size = Vector2(130, 10)
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		back.add_child(fill)
+		var status := _label("", 13, Color(0.85, 0.87, 0.92))
+		column.add_child(status)
+		party_cards[unit] = {"panel": panel, "fill": fill, "status": status}
+	var rotate_left := _corner_button("⟲ Q", Vector2(SCREEN.x - 300, MARGIN), 90)
+	rotate_left.button_down.connect(func(): rotate_held.emit(-1))
+	rotate_left.button_up.connect(func(): rotate_held.emit(0))
+	var rotate_right := _corner_button("E ⟳", Vector2(SCREEN.x - 202, MARGIN), 90)
+	rotate_right.button_down.connect(func(): rotate_held.emit(1))
+	rotate_right.button_up.connect(func(): rotate_held.emit(0))
+	together_button = _corner_button("", Vector2(SCREEN.x - 104, MARGIN), 92)
+	together_button.toggle_mode = true
+	together_button.button_pressed = true
+	together_button.toggled.connect(func(on):
+		_show_together(on)
+		together_toggled.emit(on))
+	_show_together(true)
+
+
+func _corner_button(text: String, at: Vector2, width: float) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", 18)
+	button.position = at
+	button.custom_minimum_size = Vector2(width, 48)
+	sound_manager.bind_button(button, &"switch1")
+	add_child(button)
+	return button
+
+
+func _show_together(on: bool) -> void:
+	together_button.text = "Em fila" if on else "Separados"
+
+
+func set_together(on: bool) -> void:
+	together_button.button_pressed = on
+
+
+func update_party(current) -> void:
+	for unit in party_cards:
+		var card: Dictionary = party_cards[unit]
+		card.fill.size.x = 130.0 * clampf(float(unit.hp) / unit.max_hp, 0.0, 1.0)
+		card.status.text = "%d/%d" % [unit.hp, unit.max_hp] if unit.alive() else "caído"
+		card.panel.modulate.a = 1.0 if unit.alive() else 0.5
+		var border := ACTIVE_COLOR if unit == current else Color(0.3, 0.33, 0.4)
+		card.panel.add_theme_stylebox_override("panel", _box(Color(0.1, 0.11, 0.14, 0.92), border, 3 if unit == current else 1, 8, 6))
+
+
+func set_journey(alive: int, total: int, distance: int, kills: int, danger: int, biome := "") -> void:
+	journey.text = "%s   ·   Heróis %d/%d   ·   Distância %d   ·   Abates %d   ·   Perigo %d" % [biome, alive, total, distance, kills, danger]
 
 
 ## Aviso grande no meio da tela, que some sozinho: início e fim de combate.
@@ -671,8 +776,8 @@ func _refresh_timeline(state) -> void:
 	if timeline_tween != null:
 		timeline_tween.kill()
 	timeline.position.y = TIMELINE_Y
-	# Sozinho no mapa não há fila para mostrar: seria o herói repetido dez vezes.
-	timeline.visible = state.turn_order().size() > 1
+	# Fora de combate não há fila para mostrar.
+	timeline.visible = state.in_combat() and state.turn_order().size() > 1
 	var order: Array = state.timeline(TIMELINE_SIZE, cast_preview)
 	# Magia que sai depois do fim da fila: a última vaga vira o selo dela, com as ações que faltam além.
 	var beyond := 0

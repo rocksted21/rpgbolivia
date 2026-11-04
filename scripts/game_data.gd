@@ -142,11 +142,13 @@ const BATTLE_UNITS := [
 # --- Exploração (modo solo) ---------------------------------------------------
 
 const WORLD_HEROES := ["guardiao", "duelista", "besteiro", "mago", "mago_agua", "druida"]
+const PARTY_SIZE := 4
+const DEFAULT_PARTY := ["guardiao", "duelista", "mago", "druida"]
 const WORLD := {
 	"active_radius": 14, # até onde a IA procura caminho a partir do herói
 	"despawn_radius": 13, # inimigo mais longe que isso se perde na névoa
-	"spawn_min": 7,
-	"spawn_max": 9,
+	"spawn_min": 8,
+	"spawn_max": 10,
 	"first_spawn_steps": 6,
 	"spawn_steps": [5, 10], # passos entre um grupo e outro
 	"sight_radius": 5, # o inimigo inicia o combate ao ver o herói a essa distância
@@ -154,6 +156,11 @@ const WORLD := {
 	"flee_radius": 10, # inimigo em combate mais longe que isso perde o herói de vista
 	"wander_chance": 0.3, # chance de um inimigo parado dar um passo a cada passo do herói
 	"rest_heal": 2, # fora de combate, andar recupera vida
+	"deploy_steps": 2, # quantas casas cada herói anda para se espalhar quando o combate começa
+	"party_leash": 14, # distância máxima entre dois heróis fora de combate
+	"revive_hp": 0.25, # quem caiu volta com essa fração da vida quando o combate acaba
+	"party_enemies": 2, # vagas extras de inimigos por herói além do primeiro
+	"party_group": 1, # inimigos a mais em cada grupo por herói além do primeiro
 	"kill_heal": 5,
 	"danger_distance": 20, # a cada tantas casas longe do início, o perigo sobe um nível
 	"danger_max": 12,

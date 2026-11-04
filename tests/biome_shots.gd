@@ -31,8 +31,7 @@ func _run(dir: String) -> void:
 		view.views[state.hero].position = view.feet_of(cell)
 		view.battle_camera.set_elevation(view._cell_elevation(cell), view.views[state.hero])
 		view.board.position = view._camera_target(cell)
-		view._rebase_depth(cell.y)
-		view._sync_world(cell)
+		view._set_camera(cell)
 		for i in 3:
 			await process_frame
 		await RenderingServer.frame_post_draw

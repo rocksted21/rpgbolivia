@@ -6,24 +6,69 @@ extends "res://scripts/battle_state.gd"
 const WorldGen = preload("res://scripts/world_gen.gd")
 
 var gen
-var hero
+var party := [] # os heróis, sempre no começo de units e na mesma ordem
+var hero # o primeiro da party; quem precisa de um só (testes, capturas) usa este
 var rng := RandomNumberGenerator.new()
 var start_cell: Vector2i
 var kills := 0
 var farthest := 0
-var steps_until_spawn := 0
+var steps_until_spawn := 0.0
 var heading := Vector2.ZERO # direção da caminhada: os grupos surgem preferindo a frente
-var engaged := {} # inimigos em combate com o herói; os outros ainda não o viram
+var last_walker # quem andou por último: os grupos surgem perto dele
+var engaged := {} # inimigos em combate com a party; os outros ainda não a viram
+var known := {} # toda unidade já vista, por uid: eventos podem citar quem já saiu do mapa
 
 
-func _init(hero_type: String, world_seed: int, build: Array = []) -> void:
+## `heroes`: tipos dos heróis, ou um só. `builds`: nós da árvore, por índice na party,
+## ou a lista de nós quando há um herói só.
+func _init(heroes: Variant, world_seed: int, builds: Variant = {}) -> void:
 	super()
 	rng.seed = world_seed
 	gen = WorldGen.new(world_seed)
 	start_cell = gen.find_start()
-	hero = add_unit(hero_type, Data.Team.PLAYER, start_cell, build)
-	hero.abilities = hero.abilities + Data.WORLD_EXTRA_ABILITIES.get(hero_type, [])
-	steps_until_spawn = Data.WORLD["first_spawn_steps"]
+	var types: Array = heroes if heroes is Array else [heroes]
+	var spots: Array = [start_cell] + Hex.neighbors(start_cell).filter(func(cell): return gen.walkable(cell))
+	for i in types.size():
+		var build: Array = builds if builds is Array else builds.get(i, [])
+		var member = add_unit(types[i], Data.Team.PLAYER, spots[i % spots.size()], build)
+		member.abilities = member.abilities + Data.WORLD_EXTRA_ABILITIES.get(types[i], [])
+		party.append(member)
+	hero = party[0]
+	last_walker = hero
+	steps_until_spawn = float(Data.WORLD["first_spawn_steps"])
+
+
+func add_unit(type_id: String, team: int, pos: Vector2i, build: Array = []):
+	var unit = super(type_id, team, pos, build)
+	known[unit.uid] = unit
+	return unit
+
+
+func unit_by_uid(uid: int):
+	return known.get(uid)
+
+
+func is_hero(unit) -> bool:
+	return party.has(unit)
+
+
+func alive_party() -> Array:
+	return party.filter(func(u): return u.alive())
+
+
+func foes() -> Array:
+	return units.filter(func(u): return u.alive() and not party.has(u))
+
+
+## Distância até o herói vivo mais perto.
+func party_distance(cell: Vector2i) -> int:
+	var best := 999999
+	for member in party:
+		if member.hp > 0:
+			best = mini(best, Hex.distance(member.pos, cell))
+	if best == 999999: # todos caídos: a conta ainda precisa de uma resposta
+		best = Hex.distance(hero.pos, cell)
+	return best
 
 
 # --- Mapa sem bordas ---------------------------------------------------------
@@ -32,9 +77,9 @@ func exists(_cell: Vector2i) -> bool:
 	return true
 
 
-## "Dentro do jogo" é a área em volta do herói: limita a busca de caminho da IA.
+## "Dentro do jogo" é a área em volta da party: limita a busca de caminho da IA.
 func in_bounds(cell: Vector2i) -> bool:
-	return Hex.distance(cell, hero.pos) <= Data.WORLD["active_radius"]
+	return party_distance(cell) <= Data.WORLD["active_radius"]
 
 
 func terrain_id_at(cell: Vector2i) -> int:
@@ -84,9 +129,9 @@ func _disc(center: Vector2i, radius: int) -> Array:
 
 # --- Fim de jogo e progresso -------------------------------------------------
 
-## A exploração nunca é vencida: ela acaba quando o herói cai.
+## A exploração nunca é vencida: ela acaba quando a party inteira cai.
 func winner() -> int:
-	return -1 if hero.alive() else Data.Team.ENEMY
+	return -1 if not alive_party().is_empty() else Data.Team.ENEMY
 
 
 func danger() -> int:
@@ -100,30 +145,101 @@ func in_combat() -> bool:
 
 
 func takes_turns(unit) -> bool:
-	return unit.alive() and (unit == hero or engaged.has(unit))
+	return unit.alive() and (party.has(unit) or engaged.has(unit))
 
 
-## Coloca inimigos em combate. O relógio de cada um parte do atual, para ninguém ganhar
-## uma fila de ações de graça. Se o herói foi visto (`surprised`), ele também espera a
-## sua vez: age primeiro quem for mais rápido. Se foi ele quem atacou, ele sai na frente.
-func engage(foes: Array, surprised: bool) -> Array:
-	var joining := foes.filter(func(u): return u.alive() and not engaged.has(u))
+## Coloca inimigos em combate. Fora de combate cada herói andou no seu ritmo, então os
+## relógios recomeçam juntos e ninguém ganha uma fila de ações de graça. Se a party foi
+## vista (`surprised`), age primeiro quem for mais rápido; se foi ela quem atacou, `opener`
+## sai na frente. Quem chega a um combate já em andamento espera um passo.
+func engage(foes_list: Array, surprised: bool, opener = null) -> Array:
+	var joining := foes_list.filter(func(u): return u.alive() and not engaged.has(u))
 	if joining.is_empty():
 		return []
 	var starting := not in_combat()
-	if starting and surprised:
-		hero.clock += time_for(Data.STEP_TIME, hero)
-	var base: int = hero.clock - (time_for(Data.STEP_TIME, hero) if starting and surprised else 0)
+	var now: int = 0
+	var opening := []
+	if starting:
+		opening = _deploy(joining, opener)
+		for member in alive_party():
+			now = maxi(now, member.clock)
+		for member in alive_party():
+			member.clock = now if member == opener else now + time_for(Data.STEP_TIME, member)
+	else:
+		now = active_unit().clock
 	for unit in joining:
 		engaged[unit] = true
-		unit.clock = base + time_for(Data.STEP_TIME, unit)
-	return [{"type": "combat_start" if starting else "combat_join", "units": joining, "surprised": surprised}]
+		unit.clock = now + time_for(Data.STEP_TIME, unit)
+	return opening + [{"type": "combat_start" if starting else "combat_join", "units": joining, "surprised": surprised}]
 
 
-## Quem vê o herói agora, junto com os companheiros próximos de quem viu.
+## Quando o combate começa, a fila se desfaz: cada herói anda até uma casa próxima, separado
+## dos outros, mas ainda perto. Quem luta de perto vai à frente; quem ataca de longe fica atrás. Quem abriu o
+## ataque não sai do lugar, porque já mirou.
+func _deploy(foes_list: Array, opener) -> Array:
+	var events := []
+	if party.size() < 2:
+		return events
+	for member in alive_party():
+		if member == opener:
+			continue
+		var best: Vector2i = member.pos
+		var best_score := _deploy_score(member, member.pos, foes_list) + 0.5 # só sai se valer a pena
+		for cell in _cells_within(member, Data.WORLD["deploy_steps"]):
+			var score := _deploy_score(member, cell, foes_list)
+			if score > best_score:
+				best_score = score
+				best = cell
+		if best != member.pos:
+			events.append({"type": "deploy", "unit": member, "from": member.pos, "to": best})
+			member.pos = best
+	return events
+
+
+func _deploy_score(member, cell: Vector2i, foes_list: Array) -> float:
+	var ally_gap := 999
+	for other in alive_party():
+		if other != member:
+			ally_gap = mini(ally_gap, Hex.distance(other.pos, cell))
+	var foe_gap := 999
+	for foe in foes_list:
+		foe_gap = mini(foe_gap, Hex.distance(foe.pos, cell))
+	# O ideal é uma casa livre entre os heróis: separados, mas perto uns dos outros.
+	var score := 20.0 if ally_gap == 2 else (10.0 if ally_gap == 3 else (0.0 if ally_gap == 1 else -5.0))
+	if foe_gap <= 1:
+		score -= 25.0 # ninguém começa a luta colado num inimigo
+	score += -foe_gap if _is_melee(member) else mini(foe_gap, 4)
+	return score
+
+
+func _is_melee(unit) -> bool:
+	for id in unit.abilities:
+		var ability: Dictionary = unit.ability(id)
+		if (ability["kind"] == "attack" or ability["kind"] == "charge") and ability["range"] > 1:
+			return false
+	return true
+
+
+## Casas livres a até `steps` passos da unidade, respeitando degraus e obstáculos.
+func _cells_within(unit, steps: int) -> Array:
+	var seen := {unit.pos: true}
+	var frontier := [unit.pos]
+	for i in steps:
+		var next_frontier := []
+		for cell in frontier:
+			for next in Hex.neighbors(cell):
+				if not seen.has(next) and can_enter(cell, next):
+					seen[next] = true
+					next_frontier.append(next)
+		frontier = next_frontier
+	seen.erase(unit.pos)
+	return seen.keys()
+
+
+## Quem vê a party agora, junto com os companheiros próximos de quem viu.
 func _spotters() -> Array:
-	var idle: Array = enemies_of(hero).filter(func(u): return not engaged.has(u))
-	var seen: Array = idle.filter(func(u): return Hex.distance(u.pos, hero.pos) <= Data.WORLD["sight_radius"])
+	var idle: Array = foes().filter(func(u): return not engaged.has(u))
+	var seen: Array = idle.filter(func(u): return party_distance(u.pos) <= Data.WORLD["sight_radius"])
 	if seen.is_empty():
 		return []
 	return idle.filter(func(u):
@@ -138,30 +254,39 @@ func sight_cells(unit) -> Array:
 func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 	var intro := []
 	var kind: String = unit.ability(ability_id)["kind"]
-	if unit == hero and not in_combat() and (kind == "attack" or kind == "charge"):
+	if party.has(unit) and not in_combat() and (kind == "attack" or kind == "charge"):
 		var radius: int = int(unit.ability(ability_id).get("radius", 0)) + Data.WORLD["group_radius"]
-		intro = engage(enemies_of(hero).filter(func(u): return Hex.distance(u.pos, cell) <= radius), false)
+		intro = engage(foes().filter(func(u): return Hex.distance(u.pos, cell) <= radius), false, unit)
 	return intro + super(unit, ability_id, cell)
 
 
 func do_step(unit, to: Vector2i) -> Array:
 	var from: Vector2i = unit.pos
 	var events: Array = super(unit, to)
-	if unit == hero and hero.alive() and hero.pos == to:
+	if party.has(unit) and unit.alive() and unit.pos == to:
 		farthest = maxi(farthest, Hex.distance(start_cell, to))
 		heading = _flat(to) - _flat(from)
+		last_walker = unit
 		if not in_combat():
-			steps_until_spawn -= 1
-			_rest(events)
+			steps_until_spawn -= 1.0 / alive_party().size() # conta passos da party, não de cada herói
+			_rest(unit, events)
 			var walkers := []
 			_wander(walkers)
 			return walkers + events # andam junto com o herói, não depois dele
 	return events
 
 
+## Inimigo sem caminho até a party e sem vê-la desiste, para o combate não ficar preso.
+func do_wait(unit) -> Array:
+	var events: Array = super(unit)
+	if engaged.has(unit) and party_distance(unit.pos) > Data.WORLD["sight_radius"]:
+		engaged.erase(unit)
+	return events
+
+
 ## Quem ainda não viu o herói anda à toa, para o mundo não parecer parado.
 func _wander(events: Array) -> void:
-	for unit in enemies_of(hero):
+	for unit in foes():
 		if engaged.has(unit) or rng.randf() > Data.WORLD["wander_chance"]:
 			continue
 		var options: Array = Hex.neighbors(unit.pos).filter(func(cell): return can_enter(unit.pos, cell))
@@ -172,26 +297,40 @@ func _wander(events: Array) -> void:
 		unit.pos = to
 
 
-func _rest(events: Array) -> void:
-	if hero.hp >= hero.max_hp:
+func _rest(unit, events: Array) -> void:
+	if unit.hp >= unit.max_hp:
 		return
-	var healed: int = mini(Data.WORLD["rest_heal"], hero.max_hp - hero.hp)
-	hero.hp += healed
-	events.append({"type": "regen", "unit": hero, "amount": healed, "hp": hero.hp})
+	var healed: int = mini(Data.WORLD["rest_heal"], unit.max_hp - unit.hp)
+	unit.hp += healed
+	events.append({"type": "regen", "unit": unit, "amount": healed, "hp": unit.hp, "quiet": true})
+
+
+## O herói pode dar esse passo sem se afastar demais da party? Sempre pode voltar.
+func may_roam(unit, to: Vector2i) -> bool:
+	for member in alive_party():
+		if member == unit:
+			continue
+		var distance := Hex.distance(member.pos, to)
+		if distance > Data.WORLD["party_leash"] and distance >= Hex.distance(member.pos, unit.pos):
+			return false
+	return true
 
 
 func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void:
 	super(target, amount, events, info)
-	if target == hero:
+	if party.has(target):
 		return
 	if target.alive():
 		events.append_array(engage([target], false)) # quem apanha sem ter visto entra na luta
 		return
 	kills += 1
-	if hero.alive() and hero.hp < hero.max_hp:
-		var healed: int = mini(Data.WORLD["kill_heal"], hero.max_hp - hero.hp)
-		hero.hp += healed
-		events.append({"type": "regen", "unit": hero, "amount": healed, "hp": hero.hp})
+	var hurt: Array = alive_party().filter(func(u): return u.hp < u.max_hp)
+	if hurt.is_empty():
+		return
+	hurt.sort_custom(func(a, b): return float(a.hp) / a.max_hp < float(b.hp) / b.max_hp)
+	var healed: int = mini(Data.WORLD["kill_heal"], hurt[0].max_hp - hurt[0].hp)
+	hurt[0].hp += healed
+	events.append({"type": "regen", "unit": hurt[0], "amount": healed, "hp": hurt[0].hp})
 
 
 # --- Surgimento dos inimigos -------------------------------------------------
@@ -203,9 +342,9 @@ func tick() -> Array:
 	var was_fighting := in_combat()
 	var escaped := false
 	for unit in units.duplicate():
-		if unit == hero:
+		if party.has(unit):
 			continue
-		var distance := Hex.distance(unit.pos, hero.pos)
+		var distance := party_distance(unit.pos)
 		if engaged.has(unit) and unit.alive() and distance > Data.WORLD["flee_radius"] and unit.pending.is_empty():
 			engaged.erase(unit)
 			escaped = true
@@ -214,19 +353,30 @@ func tick() -> Array:
 			engaged.erase(unit)
 			units.erase(unit)
 			events.append({"type": "despawn", "unit": unit})
-	if was_fighting and not in_combat():
-		hero.guarding = false
+	if was_fighting and not in_combat() and winner() < 0:
 		events.append({"type": "combat_end", "fled": escaped})
+		_after_combat(events)
 	if not in_combat() and steps_until_spawn <= 0:
 		var spawn_steps: Array = Data.WORLD["spawn_steps"]
-		steps_until_spawn = rng.randi_range(spawn_steps[0], spawn_steps[1])
+		steps_until_spawn = float(rng.randi_range(spawn_steps[0], spawn_steps[1]))
 		events.append_array(_spawn_group())
-	events.append_array(engage(_spotters(), true))
+	if winner() < 0:
+		events.append_array(engage(_spotters(), true))
 	return events
 
 
+## Fim do combate: ninguém fica com magia pela metade, e quem caiu volta ferido.
+func _after_combat(events: Array) -> void:
+	for member in party:
+		member.guarding = false
+		member.pending = {}
+		if not member.alive():
+			member.hp = maxi(1, roundi(member.max_hp * Data.WORLD["revive_hp"]))
+			events.append({"type": "revive", "unit": member, "hp": member.hp})
+
+
 func _spawn_group() -> Array:
-	var room := max_enemies() - enemies_of(hero).size()
+	var room := max_enemies() - foes().size()
 	var count := mini(room, group_size())
 	if count <= 0:
 		return []
@@ -241,22 +391,23 @@ func _spawn_group() -> Array:
 	return events
 
 
+## Mais heróis, mais inimigos: cada herói além do primeiro abre vaga e engrossa os grupos.
 func max_enemies() -> int:
-	return mini(2 + danger() / 2, 6)
+	return mini(2 + danger() / 2, 6) + (party.size() - 1) * Data.WORLD["party_enemies"]
 
 
 func group_size() -> int:
-	return rng.randi_range(1, mini(1 + danger() / 2, 4))
+	var extra: int = (party.size() - 1) * Data.WORLD["party_group"]
+	return rng.randi_range(1 + extra, mini(1 + danger() / 2, 4) + extra)
 
 
 ## Casas válidas na borda da névoa, a mais à frente da caminhada primeiro.
 func _spawn_spots() -> Array:
-	var found: Dictionary = search(hero)
+	var found: Dictionary = search(last_walker)
 	var spots := []
 	for cell in found["cost"]:
-		var dist := Hex.distance(cell, hero.pos)
-		var row_gap: int = cell.y - hero.pos.y
-		if dist < Data.WORLD["spawn_min"] or dist > Data.WORLD["spawn_max"] or row_gap > 4:
+		var distance := party_distance(cell)
+		if distance < Data.WORLD["spawn_min"] or Hex.distance(cell, last_walker.pos) > Data.WORLD["spawn_max"]:
 			continue
 		if unit_at(cell) == null:
 			spots.append(cell)
@@ -264,7 +415,7 @@ func _spawn_spots() -> Array:
 		return spots
 	var scores := {}
 	for cell in spots:
-		var away: Vector2 = _flat(cell) - _flat(hero.pos)
+		var away: Vector2 = _flat(cell) - _flat(last_walker.pos)
 		scores[cell] = away.normalized().dot(heading.normalized()) + rng.randf() * 0.8
 	spots.sort_custom(func(a, b): return scores[a] > scores[b])
 	return spots
@@ -289,10 +440,50 @@ func _pick_type() -> String:
 
 func _spawn_enemy(type_id: String, cell: Vector2i):
 	var unit = add_unit(type_id, Data.Team.ENEMY, cell)
-	# O relógio começa no do herói: quem surge não ganha uma fila de ações de graça.
-	unit.clock = hero.clock + time_for(Data.STEP_TIME, unit)
 	var level := danger() - 1
 	unit.max_hp = roundi(unit.max_hp * (1.0 + Data.WORLD["danger_hp"] * level))
 	unit.hp = unit.max_hp
 	unit.atk = roundi(unit.atk * (1.0 + Data.WORLD["danger_atk"] * level))
 	return unit
+
+
+# --- Rede ----------------------------------------------------------------------
+## O dono simula; os outros recebem o estado completo e só animam.
+
+func snapshot() -> Dictionary:
+	var rows := []
+	for unit in units:
+		rows.append({
+			uid = unit.uid, type = unit.type_id, pos = unit.pos, hp = unit.hp, max_hp = unit.max_hp, atk = unit.atk,
+			clock = unit.clock, guarding = unit.guarding, pending = unit.pending.duplicate(true), engaged = engaged.has(unit),
+		})
+	return {units = rows, kills = kills, farthest = farthest}
+
+
+func apply_snapshot(data: Dictionary) -> void:
+	var seen := {}
+	engaged.clear()
+	for row in data.units:
+		seen[row.uid] = true
+		var unit = known.get(row.uid)
+		if unit == null:
+			unit = add_unit(row.type, Data.Team.ENEMY, row.pos)
+			known.erase(unit.uid)
+			unit.uid = row.uid
+			known[unit.uid] = unit
+		if not units.has(unit):
+			units.append(unit)
+		unit.pos = row.pos
+		unit.hp = row.hp
+		unit.max_hp = row.max_hp
+		unit.atk = row.atk
+		unit.clock = row.clock
+		unit.guarding = row.guarding
+		unit.pending = row.pending.duplicate(true)
+		if row.engaged:
+			engaged[unit] = true
+	for unit in units.duplicate():
+		if not seen.has(unit.uid):
+			units.erase(unit)
+	kills = data.kills
+	farthest = data.farthest

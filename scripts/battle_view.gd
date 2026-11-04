@@ -32,6 +32,10 @@ const ROW_STEP := 160
 const TILE_FRONT := 213.0 # ponta da frente do topo do hexágono, na textura (igual ao shader)
 const TILE_SLOPE := 53.0 # quanto as bordas inclinadas descem do centro até o lado
 const TILE_WALL := 31.0 # altura da parede abaixo da borda da frente
+# Cantos do topo do hexágono; o lado i dá para a vizinha na direção i de Hex.neighbor.
+const HEX_CORNERS := [Vector2(185, 53), Vector2(185, 160), Vector2(93, 213), Vector2(0, 160), Vector2(0, 53), Vector2(93, 0)]
+const HEX_MIDDLE := Vector2(93, 107)
+const WALL_SIDE_MARGIN := 0.4
 const SIDE_HEIGHT := 29 # altura da lateral do tile; empilhar tiles a cada 29 px forma o penhasco
 const LAYERS_PER_LEVEL := 4 # 116 px por nível; a altura é projetada na vertical
 # Na exploração os degraus são mais baixos: num mapa gerado, uma casa atrás de um
@@ -51,7 +55,7 @@ const FOG_SIDE_SQUEEZE := 0.6 # igual ao peso lateral da névoa no shader
 const VIEW_ROWS_FRONT := 7
 const VIEW_ROWS_BACK := 11
 const UNLOAD_MARGIN := 2
-const Z_REBASE_ROWS := 20
+const Z_REBASE_ROWS := 12 # em meias linhas: a ordem de desenho fica longe do limite do Godot
 const QUIET_DISTANCE := 11 # inimigo mais longe que isso age sem animação nem espera
 
 const STEP_COLOR := Color(0.27, 0.67, 1.0, 0.35)
@@ -60,7 +64,28 @@ const REACH_LINE := Color(1.0, 0.6, 0.15, 0.95)
 const TARGET_COLOR := Color(0.92, 0.24, 0.24, 0.55)
 const INSPECT_COLOR := Color(1.0, 1.0, 1.0, 0.95)
 const NEXT_ENEMY_ARROW := Color(0.95, 0.3, 0.25)
-const ROAM_HINT := "Clique em qualquer casa para andar. Passe o mouse num inimigo para ver até onde ele enxerga."
+const ROAM_HINT := "Clique para andar  ·  Segure Q/E para girar  ·  Tab troca de herói  ·  G alterna fila e separados"
+const TURN_SPEED := 1.9 # radianos por segundo com a tecla apertada
+const TURN_EASE := 9.0 # quão rápido o giro acelera e freia
+const TURN_DRAG := 0.007 # radianos por pixel ao arrastar com o botão do meio
+const MAP_REFRESH := 0.12 # segundos entre revisões do mapa enquanto gira
+const DEPLOY_TIME := 0.45
+const CAMERA_SPEED := 7.0
+const STEP_FLAT := 0.22
+const STEP_CLIMB := 0.48
+const WALK_STEP := 0.3 # tempo por casa na jornada, igual em chão plano e em degrau
+const WALK_SMOOTH := 8.0 # arredonda as curvas: o desenho persegue o caminho, sem quinas
+const MAX_WALK_FRAME := 0.05
+const WALK_SETTLE := 1.5 # distância em que o herói já é considerado parado
+const FACE_HOLD := 0.4 # tempo mínimo olhando para um lado, para não ficar virando
+const FACE_FOLLOW := 2.5 # quão rápido o olhar acompanha a direção da caminhada
+const FACE_TURN := 1.3 # precisa ser bem mais vertical que horizontal para virar de frente ou de costas
+const FACE_KEEP := 0.75 # e bem menos para voltar a olhar de lado
+const FACE_SIDE_FLIP := 0.3 # andando quase na vertical, não troca de lado à toa
+const CATCH_UP := 0.7 # quanto o seguidor acelera por casa de atraso
+const BUILD_BUDGET_USEC := 2000 # tempo por quadro para desenhar casas novas
+const FILE_RETRY := 0.05
+const FILE_PATIENCE := 1.5
 const SIGHT_COLOR := Color(0.95, 0.25, 0.2, 0.28)
 const DEFAULT_HINT := "Toque numa casa azul para andar ou num personagem para agir. Segure para ver detalhes."
 # Magia é roxa para não se confundir com o laranja do alcance.
@@ -133,17 +158,36 @@ var remote_playing := false
 var room_label: Label
 var rewarded := false # os pontos da luta já foram dados
 var exploring := false
-var traveling := false # o herói está andando sozinho até a casa escolhida
-var stop_travel := false
+var selected # o herói que recebe os cliques fora de combate
+var together := true # fora de combate, os heróis do jogador andam em fila atrás do selecionado
+var file_next := {} # herói -> quem anda logo atrás dele
+var file_blocked := {} # seguidor -> tempo esperando alguém sair da frente
+var walk_paths := {} # herói -> casas que faltam; cada um caminha no próprio ritmo (só o dono da sala)
+var walk_goals := {} # herói -> casa escolhida, para refazer a rota se alguém entrar na frente
+var step_wait := {} # herói -> tempo até o próximo passo
+var moving := {} # unidades em movimento na tela
+var walks := {} # unidade -> caminhada em andamento (posição contínua, independente dos passos)
+var overlays_dirty := false
+var cells_to_build := []
+var cells_to_unload := []
+var camera_unit # quem a câmera acompanha
+var camera_cell := NO_CELL
+var camera_look = null # enquanto mostra quem apareceu, a câmera olha para este ponto
+var view_angle := 0.0 # giro da câmera; as regras não sabem dele
+var turn_speed := 0.0
+var turn_hold := 0 # botão da tela apertado: -1, 1 ou 0
+var map_refresh := 0.0
+var cell_rows := {} # casa -> linha de desenho atual, para só mexer no que mudou de ordem
 var roam_search := {} # busca de caminho a partir de roam_from, para desenhar a rota sob o mouse
 var roam_from := NO_CELL
+var roam_for = null
 var cell_nodes := {} # nós desenhados de cada casa, para descarregar o que ficou para trás
 var building: Array # casa em construção
-var row_range := Vector2i(0, -1)
-var col_range := Vector2i(0, -1)
 var z_origin := 0
 var level_layers := LAYERS_PER_LEVEL
 var tile_meshes := {}
+var wall_meshes := {}
+var wall_groups := [] # paredes por lado do hexágono: as de costas para a câmera ficam escondidas
 
 
 func _ready() -> void:
@@ -159,7 +203,7 @@ func _ready() -> void:
 		var layer := CanvasLayer.new()
 		add_child(layer)
 		var row := HBoxContainer.new()
-		row.position = Vector2(16, 626)
+		row.position = Vector2(860, 74)
 		layer.add_child(row)
 		room_label = Label.new()
 		room_label.add_theme_font_size_override("font_size", 18)
@@ -178,22 +222,36 @@ func _exit_tree() -> void:
 
 
 func _start_battle() -> void:
-	var world_hero: String = get_tree().root.get_meta(WORLD_META, "")
-	exploring = not online_session.playing and world_hero != ""
+	var chosen: Variant = get_tree().root.get_meta(WORLD_META, [])
+	var party_types: Array = chosen if chosen is Array else ([chosen] if str(chosen) != "" else [])
+	exploring = online_session.playing or not party_types.is_empty()
 	level_layers = WORLD_LAYERS_PER_LEVEL if exploring else LAYERS_PER_LEVEL
 	if online_session.playing:
 		state = online_session.state
 	elif exploring:
-		state = WorldState.new(world_hero, randi(), HeroProgress.unlocked(world_hero))
+		var builds := {}
+		for i in party_types.size():
+			builds[i] = HeroProgress.unlocked(party_types[i])
+		state = WorldState.new(party_types, randi(), builds)
 	else:
 		state = BattleState.from_data(_saved_builds())
 	rewarded = false
-	traveling = false
+	walk_paths.clear()
+	walk_goals.clear()
+	file_next.clear()
+	file_blocked.clear()
+	step_wait.clear()
+	moving.clear()
+	walks.clear()
+	cell_rows.clear()
+	cells_to_build.clear()
+	cells_to_unload.clear()
+	camera_look = null
 	roam_from = NO_CELL
+	selected = _first_mine() if exploring else null
+	camera_unit = selected
 	views.clear()
 	cell_nodes.clear()
-	row_range = Vector2i(0, -1)
-	col_range = Vector2i(0, -1)
 	z_origin = 0
 	overlays.clear()
 	reach_lines.clear()
@@ -217,8 +275,15 @@ func _start_battle() -> void:
 	add_child(battle_camera)
 	if exploring:
 		battle_camera.set_fog(FOG_START, FOG_END)
-		board.position = _camera_target(state.hero.pos)
-		z_origin = state.hero.pos.y
+		camera_cell = selected.pos
+		board.position = _camera_target(camera_cell)
+		z_origin = _row(camera_cell)
+	wall_groups = []
+	for dir in 6:
+		var group := Node2D.new()
+		board.add_child(group)
+		wall_groups.append(group)
+	_show_facing_walls()
 	_build_tiles()
 	for unit in state.units:
 		_add_unit_view(unit)
@@ -236,13 +301,17 @@ func _start_battle() -> void:
 	hud.order_toggled.connect(_on_order_toggled)
 	hud.restart_pressed.connect(_leave_online if online_session.playing else _start_battle)
 	hud.skills_pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
+	if exploring:
+		hud.setup_exploration()
+		hud.menu_pressed.connect(_back_to_menu)
+		hud.setup_party(state.party, _owner_names())
+		hud.party_pressed.connect(_on_party_pick)
+		hud.rotate_held.connect(func(direction): turn_hold = direction)
+		hud.together_toggled.connect(func(on): together = on)
 	if online_session.playing:
 		hud.skills_button.visible = false
 		for child in hud.end_label.get_parent().get_children():
 			if child is Button and child != hud.skills_button: child.text = "Voltar ao Online"
-	if exploring:
-		hud.setup_exploration()
-		hud.menu_pressed.connect(_back_to_menu)
 	_advance()
 
 
@@ -257,7 +326,17 @@ func _saved_builds() -> Dictionary:
 
 
 func _update_journey() -> void:
-	hud.set_journey(state.hero.hp, state.hero.max_hp, state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(state.hero.pos)]["name"])
+	hud.set_journey(state.alive_party().size(), state.party.size(), state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(camera_cell)]["name"])
+	hud.update_party(selected if _free_roam() else state.active_unit())
+
+
+## Nome do jogador de cada herói, para a barra da party no online.
+func _owner_names() -> Dictionary:
+	var names := {}
+	if online_session.playing:
+		for unit in state.party:
+			names[unit] = str(online_session.players.get(online_session.owner_of(unit), ""))
+	return names
 
 
 ## Fim de luta: dá os pontos e mostra o resultado. Online, só dos heróis deste jogador;
@@ -309,7 +388,7 @@ func _sync_focus() -> void:
 		focus_ring.visible = false
 		return
 	_place_ground_marker(focus_ring, shown.pos)
-	focus_ring.z_index = _z(shown.pos.y) + 4 # abaixo do personagem (+5)
+	focus_ring.z_index = _z(_row(shown.pos)) + 4 # abaixo do personagem (+5)
 	focus_ring.visible = true
 
 
@@ -325,7 +404,7 @@ func _on_timeline_pick(unit) -> void:
 
 func _build_tiles() -> void:
 	if exploring:
-		_sync_world(state.hero.pos)
+		_sync_world(camera_cell)
 		return
 	for row in state.rows():
 		for col in state.cols():
@@ -334,8 +413,8 @@ func _build_tiles() -> void:
 
 func _build_cell(cell: Vector2i) -> void:
 	building = []
-	var row := cell.y
-	var base := Vector2(_column_x(cell), row * ROW_STEP)
+	var row := _row(cell)
+	var base := Vector2(_column_x(cell), cell.y * ROW_STEP)
 	var layers: int = state.elevation_at(cell) * level_layers
 	# Só a parede que aparece: o que as casas da frente cobrem não precisa ser desenhado.
 	var terrain_id: int = state.terrain_id_at(cell)
@@ -343,8 +422,11 @@ func _build_cell(cell: Vector2i) -> void:
 	var biome: String = state.biome_at(cell) if exploring else ""
 	var wall := BiomeArt.wall(biome) if exploring else TILE_PATH % 9
 	var ground := BiomeArt.ground(biome, terrain_id, state.detail_at(cell)) if exploring else TILE_PATH % SCENERY_BASE.get(terrain_id, terrain_id)
-	for layer in range(_hidden_layers(cell, layers), layers):
-		_add_tile(wall, base - Vector2(0, layer * SIDE_HEIGHT), row, layer * SIDE_HEIGHT)
+	if exploring:
+		_add_walls(cell, wall, ground, row, layers)
+	else:
+		for layer in range(_hidden_layers(cell, layers), layers):
+			_add_tile(wall, base - Vector2(0, layer * SIDE_HEIGHT), row, layer * SIDE_HEIGHT)
 	_add_tile(ground, cell_origin(cell), row, layers * SIDE_HEIGHT)
 	if exploring:
 		_add_biome_props(biome, terrain_id, cell)
@@ -365,16 +447,49 @@ func _build_cell(cell: Vector2i) -> void:
 	building.append(line)
 	reach_lines[cell] = line
 	cell_nodes[cell] = building
-	_include_in_range(cell)
+	cell_rows[cell] = row
 
 
-func _include_in_range(cell: Vector2i) -> void:
-	if row_range.y < row_range.x:
-		row_range = Vector2i(cell.y, cell.y)
-		col_range = Vector2i(cell.x, cell.x)
-		return
-	row_range = Vector2i(mini(row_range.x, cell.y), maxi(row_range.y, cell.y))
-	col_range = Vector2i(mini(col_range.x, cell.x), maxi(col_range.y, cell.x))
+## Com a câmera livre, qualquer lado pode ficar de frente: cada lado com desnível ganha a sua
+## parede, degrau por degrau. Os lados de trás ficam cobertos pelo topo da própria casa.
+func _add_walls(cell: Vector2i, wall: String, ground: String, row: int, layers: int) -> void:
+	for dir in 6:
+		var side: int = state.elevation_at(Hex.neighbor(cell, dir)) * level_layers
+		for layer in range(side + 1, layers + 1):
+			var height := layer * SIDE_HEIGHT
+			var path := ground if layer == layers else wall
+			var strip := Polygon2D.new()
+			strip.texture = load(path)
+			var mesh: Dictionary = _wall_mesh(dir)
+			strip.polygon = mesh["vertices"]
+			strip.uv = mesh["uv"]
+			strip.polygons = mesh["faces"]
+			strip.material = battle_camera.tile_material(height * BOARD_SCALE, BOARD_SCALE)
+			strip.position = Vector2(_column_x(cell), cell.y * ROW_STEP - height)
+			strip.z_index = _z(row)
+			wall_groups[dir].add_child(strip)
+			battle_camera.keep_drawn(strip)
+			building.append(strip)
+
+
+## Parede de um lado do hexágono, com o mesmo truque da faixa da frente dos tiles: a base fica
+## mais abaixo na malha e o shader a converte em altura, de volta à mesma borda do chão.
+func _wall_mesh(dir: int) -> Dictionary:
+	if wall_meshes.has(dir):
+		return wall_meshes[dir]
+	var a: Vector2 = HEX_CORNERS[dir]
+	var b: Vector2 = HEX_CORNERS[(dir + 1) % 6]
+	# Nos lados verticais, 1 pixel para fora: o Godot não desenha malha sem área.
+	var drop := Vector2(signf(a.x - HEX_MIDDLE.x) if a.x == b.x else 0.0, TILE_WALL)
+	# A arte da parede é a faixa inclinada da frente do tile.
+	var ua := Vector2(0, TILE_FRONT - TILE_SLOPE)
+	var ub := Vector2(TILE_WIDTH / 2.0, TILE_FRONT)
+	wall_meshes[dir] = {
+		"vertices": PackedVector2Array([a, b, b + drop, a + drop]),
+		"uv": PackedVector2Array([ua, ub, ub + Vector2(0, TILE_WALL), ua + Vector2(0, TILE_WALL)]),
+		"faces": [PackedInt32Array([0, 1, 2, 3])] as Array[PackedInt32Array],
+	}
+	return wall_meshes[dir]
 
 
 func _hidden_layers(cell: Vector2i, layers: int) -> int:
@@ -397,7 +512,10 @@ func _rebase_depth(row: int) -> void:
 	var shift := (row - z_origin) * 10
 	z_origin = row
 	for child in board.get_children():
-		if child.z_index < 800: # marcadores e efeitos ficam sempre por cima
+		if wall_groups.has(child):
+			for strip in child.get_children():
+				strip.z_index -= shift
+		elif child.z_index < 800: # marcadores e efeitos ficam sempre por cima
 			child.z_index -= shift
 
 
@@ -408,25 +526,49 @@ func _camera_target(cell: Vector2i) -> Vector2:
 	return BattleCamera.FOCUS - feet * BOARD_SCALE
 
 
-## Desenha as casas que cabem na tela em volta de `center` e descarrega as distantes.
-func _sync_world(center: Vector2i) -> void:
-	for row in range(center.y - VIEW_ROWS_BACK, center.y + VIEW_ROWS_FRONT + 1):
-		var half := _visible_columns(row - center.y)
-		for col in range(center.x - half, center.x + half + 1):
+## Desenha as casas que cabem na tela em volta de `center` e descarrega as distantes. Durante a
+## caminhada isso é dividido entre vários quadros (`all_now` falso), para o movimento não engasgar.
+func _sync_world(center: Vector2i, all_now := true) -> void:
+	var wanted := {}
+	var reach := VIEW_ROWS_BACK + 8
+	var middle := _flat_point(center)
+	for row in range(center.y - reach, center.y + reach + 1):
+		for col in range(center.x - reach - 6, center.x + reach + 7):
 			var cell := Vector2i(col, row)
+			var spot := (_flat_point(cell) - middle).rotated(view_angle)
+			var gap := roundi(spot.y / ROW_STEP)
+			if gap >= -VIEW_ROWS_BACK and gap <= VIEW_ROWS_FRONT and absf(spot.x) / TILE_WIDTH <= _visible_columns(gap):
+				wanted[cell] = true
+	cells_to_build = wanted.keys().filter(func(cell): return not cell_nodes.has(cell))
+	cells_to_build.sort_custom(func(a, b): return Hex.distance(a, center) > Hex.distance(b, center)) # o fim sai primeiro
+	cells_to_unload = []
+	for cell in cell_nodes:
+		var spot := (_flat_point(cell) - middle).rotated(view_angle)
+		var gap := roundi(spot.y / ROW_STEP)
+		if gap < -VIEW_ROWS_BACK - UNLOAD_MARGIN or gap > VIEW_ROWS_FRONT + UNLOAD_MARGIN or absf(spot.x) / TILE_WIDTH > _visible_columns(gap) + UNLOAD_MARGIN:
+			cells_to_unload.append(cell)
+	if all_now:
+		_work_on_map(-1)
+
+
+func _flat_point(cell: Vector2i) -> Vector2:
+	return Vector2(_column_x(cell), cell.y * ROW_STEP)
+
+
+## Constrói e descarrega casas até o tempo acabar; `budget` negativo termina tudo.
+func _work_on_map(budget: int) -> void:
+	var begin := Time.get_ticks_usec()
+	while not cells_to_build.is_empty() or not cells_to_unload.is_empty():
+		if not cells_to_build.is_empty():
+			var cell: Vector2i = cells_to_build.pop_back() # as mais próximas primeiro
 			if not cell_nodes.has(cell):
 				_build_cell(cell)
-	var removed := false
-	for cell in cell_nodes.keys():
-		var gap: int = cell.y - center.y
-		if gap < -VIEW_ROWS_BACK - UNLOAD_MARGIN or gap > VIEW_ROWS_FRONT + UNLOAD_MARGIN or absi(cell.x - center.x) > _visible_columns(gap) + UNLOAD_MARGIN:
-			_unload_cell(cell)
-			removed = true
-	if removed:
-		row_range = Vector2i(0, -1)
-		col_range = Vector2i(0, -1)
-		for cell in cell_nodes:
-			_include_in_range(cell)
+		elif cell_nodes.has(cells_to_unload[-1]):
+			_unload_cell(cells_to_unload.pop_back())
+		else:
+			cells_to_unload.pop_back()
+		if budget >= 0 and Time.get_ticks_usec() - begin > budget:
+			return
 
 
 ## Quantas colunas para cada lado cabem na tela nessa linha: mais ao fundo, mais colunas.
@@ -439,9 +581,12 @@ func _visible_columns(row_gap: int) -> int:
 
 
 func _unload_cell(cell: Vector2i) -> void:
+	if not cell_nodes.has(cell):
+		return
 	for node in cell_nodes[cell]:
 		node.queue_free()
 	cell_nodes.erase(cell)
+	cell_rows.erase(cell)
 	overlays.erase(cell)
 	reach_lines.erase(cell)
 	forests.erase(cell)
@@ -477,7 +622,7 @@ func _add_tile(path: String, pos: Vector2, row: int, height := 0.0) -> void:
 
 
 func _tile_mesh(texture: Texture2D) -> Dictionary:
-	var key := texture.get_size()
+	var key := [texture.get_size(), exploring]
 	if tile_meshes.has(key):
 		return tile_meshes[key]
 	# As fileiras seguem as bordas do hexágono. Com a dobra entre o topo e a parede bem
@@ -486,7 +631,7 @@ func _tile_mesh(texture: Texture2D) -> Dictionary:
 	var faces: Array[PackedInt32Array] = []
 	const COLUMNS := 6
 	const TOP_ROWS := 8
-	const ROWS := TOP_ROWS + 1
+	var rows := TOP_ROWS if exploring else TOP_ROWS + 1 # a jornada desenha as paredes à parte
 	var width: float = texture.get_width()
 	var slope := TILE_SLOPE / (TILE_WIDTH / 2.0)
 	for x in COLUMNS + 1:
@@ -496,11 +641,12 @@ func _tile_mesh(texture: Texture2D) -> Dictionary:
 		var front := TILE_FRONT - off_center * slope
 		for y in TOP_ROWS + 1:
 			vertices.append(Vector2(px, lerpf(back, front, y / float(TOP_ROWS))))
-		vertices.append(Vector2(px, minf(front + TILE_WALL, texture.get_height())))
+		if not exploring:
+			vertices.append(Vector2(px, minf(front + TILE_WALL, texture.get_height())))
 	for x in COLUMNS:
-		for y in ROWS:
-			var i := x * (ROWS + 1) + y
-			faces.append(PackedInt32Array([i, i + ROWS + 1, i + ROWS + 2, i + 1]))
+		for y in rows:
+			var i := x * (rows + 1) + y
+			faces.append(PackedInt32Array([i, i + rows + 1, i + rows + 2, i + 1]))
 	tile_meshes[key] = {"vertices": vertices, "faces": faces}
 	return tile_meshes[key]
 
@@ -522,7 +668,7 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	var foot: Vector2 = sprite.texture.get_size() / 2.0
 	sprite.position = cell_origin(cell) + Vector2(93, prop["ground_y"]) - foot
 	sprite.flip_h = fmod(detail * 13.0, 1.0) < 0.5
-	sprite.z_index = _z(cell.y) + prop["depth"]
+	sprite.z_index = _z(_row(cell)) + prop["depth"]
 	board.add_child(sprite)
 	building.append(sprite)
 	battle_camera.add_billboard(sprite, foot, _cell_elevation(cell))
@@ -545,7 +691,7 @@ func _scenery_layer(id: int, cell: Vector2i, depth: int, height := 1.0, slice :=
 	prop.scale.y = height
 	prop.position = cell_origin(cell) + Vector2(0, 160 * (1.0 - height))
 	prop.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	prop.z_index = _z(cell.y) + depth
+	prop.z_index = _z(_row(cell)) + depth
 	board.add_child(prop)
 	building.append(prop)
 	battle_camera.add_billboard(prop, Vector2(93, 160 * height), _cell_elevation(cell))
@@ -560,7 +706,7 @@ func _add_unit_view(unit) -> void:
 	board.add_child(view)
 	view.setup(unit, Hud.PLAYER_COLOR if unit.team == Data.Team.PLAYER else Hud.ENEMY_COLOR, meta[unit.type_id])
 	view.position = feet_of(unit.pos)
-	view.z_index = _z(unit.pos.y) + 5
+	view.z_index = _z(_row(unit.pos)) + 5
 	views[unit] = view
 	battle_camera.add_billboard(view, Vector2.ZERO, _cell_elevation(unit.pos))
 
@@ -610,17 +756,19 @@ func cell_to_screen(cell: Vector2i) -> Vector2:
 
 
 func _cell_at(screen: Vector2) -> Vector2i:
-	for row in range(row_range.y, row_range.x - 1, -1): # as linhas da frente cobrem as de trás
-		for col in range(col_range.x, col_range.y + 1):
-			var cell := Vector2i(col, row)
-			if not overlays.has(cell) or screen.distance_squared_to(cell_to_screen(cell)) > 67600.0:
-				continue
-			var projected := PackedVector2Array()
-			for point in hex_poly:
-				projected.append(battle_camera.project(board.global_transform * (cell_origin(cell) + point), _cell_elevation(cell)))
-			if Geometry2D.is_point_in_polygon(screen, projected):
-				return cell
-	return NO_CELL
+	var found := NO_CELL
+	var front_row := -999999
+	for cell in overlays: # as linhas da frente cobrem as de trás
+		var row := _row(cell)
+		if row <= front_row or screen.distance_squared_to(cell_to_screen(cell)) > 67600.0:
+			continue
+		var projected := PackedVector2Array()
+		for point in hex_poly:
+			projected.append(battle_camera.project(board.global_transform * (cell_origin(cell) + point), _cell_elevation(cell)))
+		if Geometry2D.is_point_in_polygon(screen, projected):
+			found = cell
+			front_row = row
+	return found
 
 
 ## Com a câmera baixa, a cabeça pode estar sobre outra casa. Seleciona o
@@ -628,8 +776,8 @@ func _cell_at(screen: Vector2) -> Vector2i:
 func _pick_cell(screen: Vector2) -> Vector2i:
 	# Num mapa gerado, um degrau pode cobrir o centro da casa vizinha: o passo continua possível.
 	if exploring and not busy:
-		for cell in Hex.neighbors(state.active_unit().pos):
-			if overlays.has(cell) and state.can_step(state.active_unit(), cell) and screen.distance_to(cell_to_screen(cell)) <= 14.0:
+		for cell in Hex.neighbors(_actor().pos):
+			if overlays.has(cell) and state.can_step(_actor(), cell) and screen.distance_to(cell_to_screen(cell)) <= 14.0:
 				return cell
 	var ground_cell := _cell_at(screen)
 	# Mantém o centro de cada hex acessível para movimento e mira no chão,
@@ -643,7 +791,7 @@ func _pick_cell(screen: Vector2) -> Vector2i:
 			continue
 		var anchor: Vector2 = view.global_position
 		var height: float = battle_camera.elevation_of(view)
-		var original: Vector2 = anchor + (screen - battle_camera.project(anchor, height)) / battle_camera.depth_scale(anchor.y + height)
+		var original: Vector2 = anchor + (screen - battle_camera.project(anchor, height)) / battle_camera.depth_at(anchor, height)
 		if view.sprite.is_pixel_opaque(view.sprite.to_local(original)):
 			return view.unit.pos
 	return ground_cell
@@ -674,7 +822,9 @@ func _advance() -> void:
 		var unit = state.active_unit()
 		_place_ground_marker(active_outline, unit.pos)
 		active_outline.visible = not _free_roam()
-		active_outline.z_index = _z(unit.pos.y) + 3
+		active_outline.z_index = _z(_row(unit.pos)) + 3
+		if exploring and state.in_combat():
+			_focus_turn(unit)
 		_refresh_turn_markers()
 		hud.refresh(state)
 		hud.set_hint("")
@@ -715,6 +865,8 @@ func _refresh_turn_markers() -> void:
 		if not order.has(unit) or _free_roam():
 			views[unit].hide_arrow()
 	if _free_roam():
+		if selected != null and views.has(selected):
+			views[selected].show_arrow(ACTIVE_COLOR)
 		return
 	var next_enemy = null
 	for unit in order.slice(1):
@@ -748,6 +900,10 @@ func _on_order_toggled(on: bool) -> void:
 # --- Input -------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Arrastar com o botão do meio gira a câmera, inclusive na vez dos inimigos.
+	if exploring and event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
+		_set_view_angle(view_angle + event.relative.x * TURN_DRAG)
+		return
 	if event is InputEventMouseButton:
 		_handle_button(event)
 		return
@@ -766,7 +922,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_hint()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
-			_close_menu()
+			if menu_cell != NO_CELL or not _free_roam():
+				_close_menu()
+			else:
+				_stop_selected()
+		elif _free_roam() and event.keycode == KEY_TAB:
+			_select_next()
+		elif _free_roam() and event.keycode == KEY_G:
+			hud.set_together(not together)
 		elif event.keycode == KEY_SPACE:
 			if online_session.playing:
 				_submit_online("wait", NO_CELL)
@@ -795,9 +958,7 @@ func _handle_button(event: InputEventMouseButton) -> void:
 				get_tree().create_timer(HOLD_TIME).timeout.connect(func(): _on_hold(token))
 		elif pressing:
 			pressing = false
-			if traveling:
-				stop_travel = true # tocar durante a caminhada faz o herói parar
-			elif not busy:
+			if not busy:
 				_click(press_cell)
 
 
@@ -876,7 +1037,7 @@ func _card_ability(unit, id: String) -> Dictionary:
 		_:
 			out["amount"] = str(roundi(unit.atk * ability["power"]))
 			out["amount_icon"] = "star"
-	var hero = state.active_unit()
+	var hero = _actor()
 	if ability["kind"] == "attack" and hero.team == Data.Team.PLAYER and unit.team != Data.Team.PLAYER:
 		out["hero_type"] = hero.type_id
 		out["hero_amount"] = state.preview_attack(unit, id, hero)["amount"]
@@ -897,10 +1058,16 @@ func _click(cell: Vector2i) -> void:
 			return
 	if cell == NO_CELL:
 		return
-	if _free_roam() and state.unit_at(cell) == null:
-		_travel(cell)
+	if _free_roam():
+		var occupant = state.unit_at(cell)
+		if occupant == null:
+			_travel(cell)
+		elif state.is_hero(occupant) and online_session.can_control(occupant) and occupant != selected:
+			_select(occupant)
+		else:
+			_open_menu(cell)
 		return
-	var unit = state.active_unit()
+	var unit = _actor()
 	# Se alguma ação mira essa casa, o menu pergunta: assim dá para mirar no chão
 	# onde o inimigo ainda vai pisar sem o herói sair andando.
 	var aimable := _cell_options(cell).any(func(option): return option["kind"] == "ability")
@@ -948,12 +1115,12 @@ func _open_menu(cell: Vector2i) -> void:
 	# Sem ações, um menu só cobriria o alcance que a pessoa quer ver: a informação vai na dica.
 	if not options.is_empty():
 		var title: String = occupant.display_name if occupant != null else state.tile_name_at(cell)
-		var info: String = _menu_info(occupant) if occupant != null else "\n".join(_terrain_notes(state.active_unit(), cell))
+		var info: String = _menu_info(occupant) if occupant != null else "\n".join(_terrain_notes(_actor(), cell))
 		hud.show_menu(cell_to_screen(cell), title, occupant.team if occupant != null else -1, info, options)
 	# A fila mostra onde a magia seria solta, antes de confirmar.
 	var spell := _menu_spell()
 	if spell != "":
-		var unit = state.active_unit()
+		var unit = _actor()
 		hud.preview_cast(state, unit, state.cast_time_for(unit, spell))
 	_refresh_overlays()
 	_update_hint()
@@ -971,7 +1138,7 @@ func _close_menu() -> void:
 
 
 func _cell_options(cell: Vector2i) -> Array:
-	var unit = state.active_unit()
+	var unit = _actor()
 	var options := []
 	for id in unit.abilities:
 		if state.valid_targets(unit, id).has(cell):
@@ -1053,8 +1220,8 @@ func _on_option_pressed(index: int) -> void:
 	if option.get("disabled", false):
 		return
 	var cell := menu_cell
-	var unit = state.active_unit()
-	if online_session.playing and option["kind"] != "cancel":
+	var unit = _actor()
+	if online_session.playing and option["kind"] != "cancel" and option["kind"] != "travel":
 		_submit_online(option["kind"], cell, option.get("id", ""))
 		return
 	match option["kind"]:
@@ -1097,12 +1264,12 @@ func _refresh_overlays() -> void:
 
 
 func _mark_free_look() -> void:
-	var unit = state.active_unit()
+	var unit = _actor()
 	var shown = _shown_unit()
 	var focus: Vector2i = menu_cell if menu_cell != NO_CELL else (shown.pos if shown != null else NO_CELL)
 	if focus != NO_CELL:
 		_place_ground_marker(inspect_outline, focus)
-		inspect_outline.z_index = _z(focus.y) + 4
+		inspect_outline.z_index = _z(_row(focus)) + 4
 		inspect_outline.visible = true
 	var spell := _menu_spell()
 	if spell != "":
@@ -1133,7 +1300,7 @@ func _mark_free_look() -> void:
 ## Magia carregada que o menu aberto oferece; a área dela fica pintada.
 func _menu_spell() -> String:
 	for option in menu_options:
-		if option["kind"] == "ability" and state.active_unit().ability(option["id"])["kind"] == "charge":
+		if option["kind"] == "ability" and _actor().ability(option["id"])["kind"] == "charge":
 			return option["id"]
 	return ""
 
@@ -1182,7 +1349,7 @@ func _covers_a_unit(cell: Vector2i) -> bool:
 	if not exploring:
 		return false
 	for unit in state.units:
-		if unit.alive() and cell.y > unit.pos.y and Hex.distance(cell, unit.pos) <= 2:
+		if unit.alive() and _row(cell) > _row(unit.pos) and Hex.distance(cell, unit.pos) <= 2:
 			return true
 	return false
 
@@ -1201,8 +1368,8 @@ func _preview_text(unit, id: String, target) -> String:
 func _update_hint() -> void:
 	if busy:
 		return
-	var unit = state.active_unit()
-	if online_session.playing:
+	var unit = _actor()
+	if online_session.playing and not _free_roam():
 		var owner: int = online_session.owner_of(unit)
 		hud.set_hint("Vez de %s · %s%s" % [unit.display_name, online_session.players.get(owner, "Dono"), " · você joga" if online_session.can_control(unit) else " · aguardando"])
 		return
@@ -1229,12 +1396,20 @@ func _update_hint() -> void:
 
 # --- Animação dos eventos ----------------------------------------------------
 
-func _play(events: Array) -> void:
-	online_session.publish(events)
+## `roam`: exploração. Os passos não esperam a animação, porque cada herói anda no seu ritmo.
+func _play(events: Array, roam := false) -> void:
+	online_session.publish(events, roam, roam)
 	for event in events:
 		match event["type"]:
 			"move":
-				await _play_move(event)
+				if roam:
+					_play_move(event)
+				else:
+					await _play_move(event)
+			"deploy":
+				event["silent"] = true
+				event["duration"] = DEPLOY_TIME
+				_play_move(event) # todos abrem ao mesmo tempo, junto com o aviso de combate
 			"attack":
 				await _play_attack(event)
 			"damage":
@@ -1258,6 +1433,7 @@ func _play(events: Array) -> void:
 				_play_spawn(event)
 			"wander":
 				event["silent"] = true
+				event["duration"] = WALK_STEP * 1.6
 				_play_move(event) # sem esperar: o mundo anda junto com o herói
 			"combat_start":
 				await _play_combat_start(event)
@@ -1269,31 +1445,58 @@ func _play(events: Array) -> void:
 				_remove_view(event["unit"])
 			"regen":
 				_play_regen(event)
+			"revive":
+				_play_revive(event)
 	for unit in views:
 		if unit.alive():
 			_show_status(unit)
 
 
-func _submit_online(kind: String, cell: Vector2i, ability := "") -> void:
-	if busy or not online_session.can_control(state.active_unit()): return
-	_close_menu()
-	online_session.submit({kind = kind, cell = cell, ability = ability})
+func _submit_online(kind: String, cell: Vector2i, ability := "", hero = null, followers := []) -> void:
+	var actor = hero if hero != null else _actor()
+	if not online_session.can_control(actor): return
+	if not _free_roam():
+		if busy: return
+		_close_menu()
+	elif busy and kind != "travel" and kind != "stop": return
+	else:
+		_close_menu()
+	online_session.submit({kind = kind, cell = cell, ability = ability, hero = actor.uid, followers = followers.map(func(u): return u.uid)})
 
 
 func _network_command(sender: int, command: Dictionary) -> void:
-	if busy or not online_session.playing or not online_session.relay.is_master: return
-	if command.get("revision", -1) != online_session.revision or state.winner() >= 0: return
-	var unit = state.active_unit()
-	if online_session.owner_of(unit) != sender or not unit.pending.is_empty(): return
+	if not online_session.playing or not online_session.relay.is_master or state.winner() >= 0: return
 	var cell: Variant = command.get("cell", NO_CELL)
 	if not cell is Vector2i: return
-	match str(command.get("kind", "")):
+	var kind := str(command.get("kind", ""))
+	if _free_roam():
+		var hero = state.unit_by_uid(int(command.get("hero", 0))) if command.get("hero") is int else null
+		if hero == null or not state.is_hero(hero) or not hero.alive() or online_session.owner_of(hero) != sender: return
+		match kind:
+			"travel":
+				var followers := []
+				if command.get("followers") is Array:
+					for uid in command["followers"]:
+						var member = state.unit_by_uid(int(uid)) if uid is int else null
+						if member != null and member != hero and state.is_hero(member) and member.alive() and online_session.owner_of(member) == sender and not member in followers:
+							followers.append(member)
+				_start_file(hero, followers, cell)
+			"stop": _end_chain(hero)
+			"ability":
+				var id: String = str(command.get("ability", ""))
+				if not busy and id in hero.abilities and cell in state.valid_targets(hero, id):
+					_perform(state.do_ability(hero, id, cell))
+		return
+	if busy or command.get("revision", -1) != online_session.revision: return
+	var unit = state.active_unit()
+	if online_session.owner_of(unit) != sender or not unit.pending.is_empty(): return
+	match kind:
 		"wait": _perform(state.do_wait(unit))
 		"step":
-			if state.in_bounds(cell) and state.can_step(unit, cell): _perform(state.do_step(unit, cell))
+			if state.can_step(unit, cell): _perform(state.do_step(unit, cell))
 		"ability":
 			var id: String = str(command.get("ability", ""))
-			if id in unit.abilities and state.in_bounds(cell) and cell in state.valid_targets(unit, id):
+			if id in unit.abilities and cell in state.valid_targets(unit, id):
 				_perform(state.do_ability(unit, id, cell))
 
 
@@ -1304,22 +1507,39 @@ func _network_packet(_packet: Dictionary) -> void:
 		var packet: Dictionary = online_session.packets.pop_front()
 		if int(packet.revision) <= online_session.revision: continue
 		online_session.revision = int(packet.revision)
-		busy = true
-		_close_menu()
+		var roam: bool = packet.get("roam", false)
+		if not roam:
+			busy = true
+			_close_menu()
 		online_session.apply_snapshot(packet.snapshot)
 		var events: Array = packet.events
 		for event in events:
 			for key in ["unit", "target"]:
-				if event.has(key): event[key] = state.units[int(event[key])]
-		await _play(events)
+				if event.has(key): event[key] = state.unit_by_uid(int(event[key]))
+			if event.has("units"):
+				event["units"] = event["units"].map(func(uid): return state.unit_by_uid(int(uid)))
+		await _play(events, roam)
+		_match_views()
 		for unit in views:
-			views[unit].position = feet_of(unit.pos)
-			battle_camera.set_elevation(_cell_elevation(unit.pos), views[unit])
+			if not moving.has(unit):
+				views[unit].position = feet_of(unit.pos)
+				views[unit].z_index = _z(_row(unit.pos)) + 5
+				battle_camera.set_elevation(_cell_elevation(unit.pos), views[unit])
 			views[unit].set_hp(unit.hp)
 			views[unit].visible = unit.alive()
+			if unit.alive():
+				views[unit].rotation = 0.0
+				views[unit].modulate.a = 1.0
 		busy = not bool(packet.ready)
 		hud.refresh(state)
-		_place_ground_marker(active_outline, state.active_unit().pos)
+		if state.winner() < 0:
+			_place_ground_marker(active_outline, state.active_unit().pos)
+			active_outline.visible = not _free_roam()
+			if state.in_combat():
+				_focus_turn(state.active_unit())
+			elif camera_unit != selected:
+				_select(_actor())
+			_update_journey()
 		_refresh_turn_markers()
 		_refresh_overlays()
 		_update_hint()
@@ -1360,48 +1580,419 @@ func _free_roam() -> bool:
 	return exploring and not state.in_combat()
 
 
-## Rota até a casa escolhida; se não dá para chegar nela, até a casa alcançável mais próxima.
-func _roam_path(target: Vector2i) -> Array:
-	var hero_pos: Vector2i = state.hero.pos
-	if roam_from != hero_pos:
-		roam_search = state.search(state.hero)
-		roam_from = hero_pos
+## O herói que recebe as ordens agora: o selecionado fora de combate, o da vez em combate.
+func _actor():
+	if not _free_roam():
+		return state.active_unit()
+	if selected == null or not selected.alive():
+		selected = _first_mine()
+	return selected
+
+
+func _first_mine():
+	var living: Array = state.alive_party()
+	for member in living:
+		if online_session.can_control(member):
+			return member
+	return living[0] if not living.is_empty() else state.hero
+
+
+func _select(unit) -> void:
+	selected = unit
+	roam_from = NO_CELL
+	_follow(unit)
+	_refresh_turn_markers()
+	_refresh_overlays()
+	_update_hint()
+	_update_journey()
+
+
+func _select_next() -> void:
+	var mine: Array = state.alive_party().filter(func(u): return online_session.can_control(u))
+	if mine.size() > 1:
+		_select(mine[(mine.find(selected) + 1) % mine.size()])
+
+
+func _on_party_pick(unit) -> void:
+	if _free_roam() and unit.alive() and online_session.can_control(unit):
+		sound_manager.play_ui(&"switch3")
+		_select(unit)
+	else:
+		_on_timeline_pick(unit)
+
+
+# --- Câmera --------------------------------------------------------------------
+
+func _process(delta: float) -> void:
+	if not exploring or board == null:
+		return
+	_update_turn(delta)
+	_update_walks(delta)
+	var goal: Vector2 = camera_look if camera_look != null else BattleCamera.FOCUS - _camera_point() * BOARD_SCALE
+	board.position = board.position.lerp(goal, 1.0 - exp(-delta * CAMERA_SPEED))
+	_work_on_map(BUILD_BUDGET_USEC)
+	_roam_tick(delta)
+	if overlays_dirty:
+		overlays_dirty = false
+		_refresh_overlays()
+
+
+## O ponto que a câmera segue: a posição contínua de quem está andando, sem contar a altura.
+func _camera_point() -> Vector2:
+	if walks.has(camera_unit):
+		return walks[camera_unit].ground
+	return _ground(camera_cell)
+
+
+func _ground(cell: Vector2i) -> Vector2:
+	return Vector2(_column_x(cell), cell.y * ROW_STEP) + FEET
+
+
+func _level_height(cell: Vector2i) -> float:
+	return state.elevation_at(cell) * level_layers * SIDE_HEIGHT
+
+
+# --- Movimento contínuo --------------------------------------------------------
+# As regras movem de casa em casa; a tela não. Cada unidade percorre as casas numa linha só,
+# sem parar entre elas, e o desenho persegue essa linha: as curvas ficam redondas e os
+# degraus viram rampas. Passos que chegam adiantados (fila, rede) só apressam um pouco.
+
+func _begin_walk(unit, from: Vector2i, to: Vector2i, duration: float) -> void:
+	var view = views[unit]
+	if not walks.has(unit):
+		walks[unit] = {
+			"from": from, "to": to, "progress": 0.0, "duration": duration, "queue": [],
+			"ground": view.position + Vector2(0, _level_height(from)), "level": _level_height(from),
+			"heading": Vector2.ZERO, "face_wait": 0.0,
+		}
+		moving[unit] = true
+		view.set_walking(true)
+		view.set_jump_height(0.0)
+		view.face_toward((_ground(to) - _ground(from)).rotated(view_angle))
+	else:
+		walks[unit]["queue"].append({"to": to, "duration": duration})
+
+
+func _update_walks(frame_time: float) -> void:
+	var delta := minf(frame_time, MAX_WALK_FRAME) # um quadro lento não vira um salto na tela
+	for unit in walks.keys():
+		var view = views.get(unit)
+		var walk: Dictionary = walks[unit]
+		if view == null or not is_instance_valid(view):
+			walks.erase(unit)
+			moving.erase(unit)
+			continue
+		var queue: Array = walk["queue"]
+		walk["progress"] += delta * (1.0 + queue.size() * 0.5) / walk["duration"]
+		while walk["progress"] >= 1.0 and not queue.is_empty():
+			var next: Dictionary = queue.pop_front()
+			walk["progress"] -= 1.0
+			walk["from"] = walk["to"]
+			walk["to"] = next["to"]
+			walk["duration"] = next["duration"]
+		# Esperando o próximo passo, o avanço não acumula: senão ele pularia casas ao chegar.
+		walk["progress"] = minf(walk["progress"], 1.0)
+		var progress: float = walk["progress"]
+		var goal: Vector2 = _ground(walk["from"]).lerp(_ground(walk["to"]), progress)
+		var goal_level: float = lerpf(_level_height(walk["from"]), _level_height(walk["to"]), progress)
+		var blend := 1.0 - exp(-delta * WALK_SMOOTH)
+		var previous: Vector2 = walk["ground"]
+		walk["ground"] = previous.lerp(goal, blend)
+		walk["level"] = lerpf(walk["level"], goal_level, blend)
+		view.position = walk["ground"] - Vector2(0, walk["level"])
+		battle_camera.set_elevation(walk["level"] * BOARD_SCALE, view)
+		view.z_index = _z(maxi(_row(walk["from"]), _row(walk["to"]))) + 5
+		_steer(view, walk, walk["ground"] - previous, delta)
+		if progress >= 1.0 and queue.is_empty() and walk["ground"].distance_to(goal) < WALK_SETTLE:
+			_finish_walk(unit)
+
+
+## Olha para a direção geral da caminhada: o zigue-zague das casas não faz o herói virar.
+func _steer(view, walk: Dictionary, moved: Vector2, delta: float) -> void:
+	walk["heading"] = walk["heading"].lerp(moved, 1.0 - exp(-delta * FACE_FOLLOW))
+	walk["face_wait"] -= delta
+	if walk["face_wait"] > 0.0 or walk["heading"].length() < 0.01:
+		return
+	var seen: Vector2 = walk["heading"].rotated(view_angle)
+	var was: Array = [view.sprite.flip_h, view.facing]
+	var vertical: bool = absf(seen.y) > absf(seen.x) * (FACE_KEEP if view.facing != view.Facing.SIDE else FACE_TURN)
+	var sideways: bool = absf(seen.x) > absf(seen.y) * FACE_SIDE_FLIP
+	if vertical:
+		view.facing = view.Facing.SOUTH if seen.y > 0 else view.Facing.NORTH
+	else:
+		view.facing = view.Facing.SIDE
+	if sideways or not vertical:
+		view.face_right(seen.x > 0)
+	if [view.sprite.flip_h, view.facing] != was:
+		walk["face_wait"] = FACE_HOLD
+
+
+func _finish_walk(unit) -> void:
+	walks.erase(unit)
+	moving.erase(unit)
+	var view = views[unit]
+	view.set_walking(false)
+	view.position = feet_of(unit.pos)
+	view.z_index = _z(_row(unit.pos)) + 5
+	battle_camera.set_elevation(_cell_elevation(unit.pos), view)
+	overlays_dirty = true
+
+
+func _follow(unit) -> void:
+	camera_unit = unit
+	_set_camera(unit.pos)
+
+
+func _set_camera(cell: Vector2i) -> void:
+	camera_cell = cell
+	_sync_world(cell, false)
+	_rebase_depth(_row(cell))
+
+
+## Em combate a câmera vai até cada herói da vez, e até o inimigo que estiver fora de vista.
+func _focus_turn(unit) -> void:
+	if state.is_hero(unit) or Hex.distance(unit.pos, camera_cell) > 6:
+		_follow(unit)
+
+
+## Gira enquanto Q/E ou o botão da tela estão apertados: acelera e freia suave, e para onde soltar.
+func _update_turn(delta: float) -> void:
+	var direction := turn_hold
+	if Input.is_key_pressed(KEY_Q):
+		direction -= 1
+	if Input.is_key_pressed(KEY_E):
+		direction += 1
+	turn_speed = lerpf(turn_speed, clampi(direction, -1, 1) * TURN_SPEED, 1.0 - exp(-delta * TURN_EASE))
+	if direction == 0 and absf(turn_speed) < 0.01:
+		turn_speed = 0.0
+	if turn_speed != 0.0:
+		_set_view_angle(view_angle + turn_speed * delta)
+	map_refresh -= delta
+
+
+func _set_view_angle(angle: float) -> void:
+	view_angle = fposmod(angle, TAU)
+	battle_camera.set_view_angle(view_angle)
+	_show_facing_walls()
+	_refresh_depths()
+	if map_refresh <= 0.0:
+		map_refresh = MAP_REFRESH
+		_sync_world(camera_cell, false)
+
+
+func _show_facing_walls() -> void:
+	for dir in wall_groups.size():
+		var outward: Vector2 = HEX_CORNERS[dir] + HEX_CORNERS[(dir + 1) % 6] - HEX_MIDDLE * 2.0
+		# Folga: com a perspectiva, paredes quase de lado ainda aparecem nas pontas da tela.
+		wall_groups[dir].visible = outward.rotated(view_angle).y > -outward.length() * WALL_SIDE_MARGIN
+
+
+## Com o giro, a ordem de desenho muda: quem está mais perto da tela vai por cima.
+func _refresh_depths() -> void:
+	for cell in cell_nodes:
+		var row := _row(cell)
+		var shift: int = (row - cell_rows[cell]) * 10
+		if shift != 0:
+			cell_rows[cell] = row
+			for node in cell_nodes[cell]:
+				node.z_index += shift
+	for unit in views:
+		if not walks.has(unit):
+			views[unit].z_index = _z(_row(unit.pos)) + 5
+	if state.winner() < 0 and active_outline != null:
+		active_outline.z_index = _z(_row(state.active_unit().pos)) + 3
+	_rebase_depth(_row(camera_cell))
+
+
+## Linha de desenho da casa, em meias linhas: nos ângulos livres as casas não ficam alinhadas.
+func _row(cell: Vector2i) -> int:
+	if not exploring:
+		return cell.y
+	var flat := Vector2(_column_x(cell), cell.y * ROW_STEP).rotated(view_angle)
+	return roundi(flat.y * 2.0 / ROW_STEP)
+
+
+# --- Caminhada livre -----------------------------------------------------------
+
+## Rota do herói até a casa; se não dá para chegar nela, até a casa alcançável mais próxima.
+func _route(hero, target: Vector2i, found: Dictionary) -> Array:
 	var goal := target
-	if not roam_search["cost"].has(goal):
-		var nearest := Hex.distance(hero_pos, target)
-		goal = hero_pos
-		for cell in roam_search["cost"]:
+	if not found["cost"].has(goal):
+		var nearest := Hex.distance(hero.pos, target)
+		goal = hero.pos
+		for cell in found["cost"]:
 			var distance := Hex.distance(cell, target)
 			if distance < nearest:
 				nearest = distance
 				goal = cell
-	return state.path_from_search(roam_search, goal)
+	return state.straight_path(found, hero.pos, goal)
 
 
-## Caminha pela rota até chegar, ser visto ou receber um toque para parar.
+func _roam_path(target: Vector2i) -> Array:
+	var hero = _actor()
+	if roam_from != hero.pos or roam_for != hero:
+		roam_search = state.search(hero)
+		roam_from = hero.pos
+		roam_for = hero
+	return _route(hero, target, roam_search)
+
+
+## Manda o herói selecionado até a casa; em fila, os outros heróis do jogador vão atrás dele.
 func _travel(target: Vector2i) -> void:
-	roam_from = NO_CELL # inimigos andam: a rota é sempre calculada na hora
-	var path := _roam_path(target)
-	if path.is_empty() or busy:
-		return
-	busy = true
-	traveling = true
-	stop_travel = false
+	var hero = _actor()
 	_close_menu()
-	hud.set_hint("")
+	if not online_session.can_control(hero):
+		return
+	var followers := []
+	if together:
+		followers = state.alive_party().filter(func(u): return u != hero and online_session.can_control(u))
+		followers.sort_custom(func(a, b): return Hex.distance(a.pos, hero.pos) < Hex.distance(b.pos, hero.pos))
+	if online_session.playing:
+		_submit_online("travel", target, "", hero, followers)
+	else:
+		_start_file(hero, followers, target)
 	hover = NO_CELL
 	_refresh_overlays()
-	for cell in path:
-		if stop_travel or state.in_combat() or not state.hero.alive() or not state.can_step(state.hero, cell):
-			break
-		await _play(state.do_step(state.hero, cell))
-		var changes: Array = state.tick()
-		if not changes.is_empty():
-			await _play(changes)
-		_update_journey()
-	traveling = false
-	roam_from = NO_CELL
-	_advance()
+
+
+func _stop_selected() -> void:
+	if online_session.playing:
+		_submit_online("stop", _actor().pos, "", _actor())
+	else:
+		_end_chain(_actor())
+
+
+## Cada seguidor primeiro alcança quem está à frente; depois, pisa nas casas que ele deixa.
+func _start_file(leader, followers: Array, target: Vector2i) -> void:
+	for member in [leader] + followers:
+		_end_walk(member)
+		file_next.erase(member)
+		for ahead in file_next.keys():
+			if file_next[ahead] == member:
+				file_next.erase(ahead)
+	var path := _route(leader, target, state.search(leader))
+	if path.is_empty():
+		return
+	walk_paths[leader] = path
+	walk_goals[leader] = target
+	var ahead = leader
+	for member in followers:
+		file_next[ahead] = member
+		var trail := _route(member, ahead.pos, state.search(member))
+		if not trail.is_empty():
+			walk_paths[member] = trail
+		ahead = member
+
+
+func _end_walk(hero) -> void:
+	walk_paths.erase(hero)
+	walk_goals.erase(hero)
+	file_blocked.erase(hero)
+
+
+## Para o herói e quem vem atrás dele.
+func _end_chain(hero) -> void:
+	var member = hero
+	while member != null:
+		_end_walk(member)
+		member = file_next.get(member)
+
+
+## Cada herói dá o próximo passo quando termina o anterior. Só quem simula anda aqui.
+func _roam_tick(delta: float) -> void:
+	if online_session.playing and not online_session.relay.is_master:
+		return
+	for hero in step_wait.keys():
+		step_wait[hero] -= delta
+	if walk_paths.is_empty() or busy:
+		return
+	if not _free_roam():
+		_clear_walks()
+		return
+	for hero in walk_paths.keys():
+		if walk_paths.has(hero) and step_wait.get(hero, 0.0) <= 0.0:
+			_roam_step(hero)
+			if busy:
+				return
+
+
+func _clear_walks() -> void:
+	walk_paths.clear()
+	walk_goals.clear()
+	file_next.clear()
+	file_blocked.clear()
+
+
+func _roam_step(hero) -> void:
+	var path: Array = walk_paths[hero]
+	if not hero.alive() or path.is_empty():
+		_end_walk(hero)
+		return
+	var cell: Vector2i = path[0]
+	if walk_goals.has(hero):
+		# Quem puxa a fila não fica preso aos que vêm atrás; sozinho, respeita o limite da party.
+		if not file_next.has(hero) and not state.may_roam(hero, cell):
+			_end_walk(hero)
+			return
+		if not state.can_step(hero, cell): # alguém entrou na frente: tenta outra rota, uma vez
+			var detour := _route(hero, walk_goals[hero], state.search(hero))
+			if detour.is_empty() or not state.can_step(hero, detour[0]):
+				_end_walk(hero)
+				return
+			path = detour
+			walk_paths[hero] = path
+			cell = path[0]
+	elif not state.can_step(hero, cell):
+		# Seguidor: quem está na frente logo sai. Se não sair, ele para e espera a próxima ordem.
+		file_blocked[hero] = file_blocked.get(hero, 0.0) + FILE_RETRY
+		step_wait[hero] = FILE_RETRY
+		if file_blocked[hero] > FILE_PATIENCE:
+			_end_walk(hero)
+		return
+	file_blocked.erase(hero)
+	path.pop_front()
+	if path.is_empty():
+		_end_walk(hero)
+	var from: Vector2i = hero.pos
+	# Atrasado na fila, o seguidor acelera até colar em quem está à frente.
+	var late: int = path.size() if not walk_goals.has(hero) else 0
+	var wait: float = WALK_STEP / (1.0 + CATCH_UP * late)
+	step_wait[hero] = wait
+	var events: Array = state.do_step(hero, cell)
+	for event in events:
+		if event["type"] == "move":
+			event["duration"] = wait
+	var behind = null
+	if file_next.has(hero) and file_next[hero].alive():
+		behind = file_next[hero]
+		if not walk_paths.has(behind):
+			walk_paths[behind] = []
+		walk_paths[behind].append(from)
+	events.append_array(state.tick())
+	var fight := events.any(func(e): return e["type"] == "combat_start")
+	if fight:
+		_clear_walks()
+		busy = true
+		_close_menu()
+		hud.set_hint("")
+	await _play(events, true)
+	_update_journey()
+	if fight:
+		_refresh_overlays()
+		await get_tree().create_timer(DEPLOY_TIME).timeout
+		_advance()
+	elif behind != null and walk_paths.has(behind) and step_wait.get(behind, 0.0) <= 0.0:
+		_roam_step(behind) # quem está na fila pisa junto: a distância entre eles não muda
+
+
+## Quem ainda não tem desenho ganha um; quem saiu do mapa perde o seu.
+func _match_views() -> void:
+	for unit in state.units:
+		if not views.has(unit):
+			_add_unit_view(unit)
+	for unit in views.keys():
+		if not state.units.has(unit):
+			_remove_view(unit)
 
 
 func _mark_alerted(units: Array) -> void:
@@ -1410,7 +2001,7 @@ func _mark_alerted(units: Array) -> void:
 			_float_text(views[unit].position + Vector2(-12, -210), "!", Color(1.0, 0.3, 0.2))
 
 
-## Foi visto: aviso, e a câmera mostra quem apareceu antes de voltar para o herói.
+## Foi visto: aviso, e a câmera mostra quem apareceu antes de voltar para a party.
 func _play_combat_start(event: Dictionary) -> void:
 	sound_manager.play_sfx(&"charge")
 	hud.show_banner("Combate!" , Color(1.0, 0.42, 0.3))
@@ -1418,13 +2009,9 @@ func _play_combat_start(event: Dictionary) -> void:
 	hud.refresh(state)
 	if not event["surprised"]:
 		return
-	var home := _camera_target(state.hero.pos)
-	var look := home.lerp(_camera_target(event["units"][0].pos), 0.45)
-	var tween := create_tween()
-	tween.tween_property(board, "position", look, 0.3).set_trans(Tween.TRANS_SINE)
-	tween.tween_interval(0.45)
-	tween.tween_property(board, "position", home, 0.25).set_trans(Tween.TRANS_SINE)
-	await tween.finished
+	camera_look = _camera_target(camera_cell).lerp(_camera_target(event["units"][0].pos), 0.45)
+	await get_tree().create_timer(0.75).timeout
+	camera_look = null
 
 
 func _play_combat_end(event: Dictionary) -> void:
@@ -1436,7 +2023,7 @@ func _play_combat_end(event: Dictionary) -> void:
 
 
 func _is_quiet(unit) -> bool:
-	return exploring and Hex.distance(unit.pos, state.hero.pos) > QUIET_DISTANCE
+	return exploring and Hex.distance(unit.pos, camera_cell) > QUIET_DISTANCE
 
 
 func _play_spawn(event: Dictionary) -> void:
@@ -1455,10 +2042,22 @@ func _remove_view(unit) -> void:
 func _play_regen(event: Dictionary) -> void:
 	var view = views[event["unit"]]
 	view.set_hp(event["hp"])
+	if event.get("quiet", false): # descansar andando não merece um número subindo a cada passo
+		return
 	_float_text(view.position + Vector2(-20, -200), "+%d" % event["amount"], Color(0.4, 1.0, 0.5))
 
 
 ## A câmera andou: o que está sob o mouse mudou. Toque não tem hover, então fica como está.
+func _play_revive(event: Dictionary) -> void:
+	var view = views[event["unit"]]
+	view.visible = true
+	view.rotation = 0.0
+	view.modulate.a = 1.0
+	view.set_hp(event["hp"])
+	sound_manager.play_sfx(&"heal")
+	_float_text(view.position + Vector2(-60, -200), "de pé!", Color(0.4, 1.0, 0.5))
+
+
 func _refresh_hover() -> void:
 	if hover == NO_CELL:
 		return
@@ -1479,38 +2078,52 @@ func _play_move(event: Dictionary) -> void:
 	var view = views[event["unit"]]
 	var from: Vector2 = feet_of(event["from"])
 	var to: Vector2 = feet_of(event["to"])
-	var walker_is_hero: bool = exploring and event["unit"] == state.hero
-	if exploring and not walker_is_hero and Hex.distance(event["to"], state.hero.pos) > QUIET_DISTANCE:
+	var unit = event["unit"]
+	if exploring and unit == camera_unit:
+		_set_camera(event["to"])
+	if exploring and Hex.distance(event["to"], camera_cell) > QUIET_DISTANCE:
+		if walks.has(unit):
+			_finish_walk(unit)
 		view.position = to
-		view.z_index = _z(event["to"].y) + 5
+		view.z_index = _z(_row(event["to"])) + 5
 		battle_camera.set_elevation(_cell_elevation(event["to"]), view)
 		return
-	if walker_is_hero:
-		_sync_world(event["to"])
+	if exploring:
+		var time: float = event.get("duration", WALK_STEP)
+		if not event.get("silent", false):
+			sound_manager.play_sfx(&"step")
+		_begin_walk(unit, event["from"], event["to"], time)
+		await get_tree().create_timer(time).timeout
+		return
 	view.face_toward(to - from)
-	view.z_index = _z(maxi(event["from"].y, event["to"].y)) + 5
+	view.z_index = _z(maxi(_row(event["from"]), _row(event["to"]))) + 5
 	view.set_walking(true)
+	moving[unit] = moving.get(unit, 0) + 1
 	if not event.get("silent", false):
 		sound_manager.play_sfx(&"step")
 	var height_delta: int = state.elevation_at(event["to"]) - state.elevation_at(event["from"])
-	var duration := 0.22 if height_delta == 0 else 0.48
+	var duration: float = event.get("duration", STEP_FLAT if height_delta == 0 else STEP_CLIMB)
 	var tween := create_tween()
-	tween.tween_method(_move_frame.bind(view, from, to, _cell_elevation(event["from"]), _cell_elevation(event["to"]), height_delta), 0.0, 1.0, duration)
-	if walker_is_hero:
-		tween.parallel().tween_property(board, "position", _camera_target(event["to"]), duration)
+	tween.tween_method(_move_frame.bind(view, event["from"], event["to"], _cell_elevation(event["from"]), _cell_elevation(event["to"]), height_delta), 0.0, 1.0, duration)
 	await tween.finished
-	if not is_instance_valid(view):
+	moving[unit] -= 1
+	if moving[unit] <= 0:
+		moving.erase(unit)
+	if not is_instance_valid(view) or moving.has(unit):
 		return
 	view.set_walking(false)
 	view.set_jump_height(0.0)
-	view.z_index = _z(event["to"].y) + 5
-	if walker_is_hero:
-		_rebase_depth(event["to"].y)
+	view.position = feet_of(unit.pos)
+	view.z_index = _z(_row(unit.pos)) + 5
+	battle_camera.set_elevation(_cell_elevation(unit.pos), view)
 	_refresh_overlays()
 
 
-func _move_frame(progress: float, view, from: Vector2, to: Vector2, from_height: float, to_height: float, height_delta: int) -> void:
-	view.position = from.lerp(to, progress)
+## As casas, e não pontos prontos: girar a câmera no meio do passo não deixa o herói fora do lugar.
+func _move_frame(progress: float, view, from: Vector2i, to: Vector2i, from_height: float, to_height: float, height_delta: int) -> void:
+	if not is_instance_valid(view):
+		return
+	view.position = feet_of(from).lerp(feet_of(to), progress)
 	battle_camera.set_elevation(lerpf(from_height, to_height, progress), view)
 	var jump := 0.0
 	if height_delta != 0:
@@ -1522,9 +2135,9 @@ func _play_attack(event: Dictionary) -> void:
 	var unit = event["unit"]
 	var target = event["target"]
 	var view = views[unit]
-	view.face_toward(feet_of(target.pos) - view.position)
+	view.face_toward((feet_of(target.pos) - view.position).rotated(view_angle))
 	# Quem apanha olha para quem bateu, para o tranco do dano sair na direção certa.
-	views[target].face_toward(view.position - views[target].position)
+	views[target].face_toward((view.position - views[target].position).rotated(view_angle))
 	var id: String = event.get("ability", "")
 	var magic := SPELL_FX.has(id)
 	if not magic:
@@ -1583,7 +2196,7 @@ func _play_death(event: Dictionary) -> void:
 
 func _play_cast_start(event: Dictionary) -> void:
 	var view = views[event["unit"]]
-	view.face_toward(feet_of(event["tile"]) - view.position)
+	view.face_toward((feet_of(event["tile"]) - view.position).rotated(view_angle))
 	_show_status(event["unit"])
 	_refresh_overlays()
 	sound_manager.play_sfx(&"charge")
