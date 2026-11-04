@@ -1,0 +1,29 @@
+# Relay do Combate Tático em São Paulo. Publicar: `fly deploy --ha=false` nesta pasta.
+# Uma máquina só: as salas ficam na memória dela. Nota: net/README.md
+app = "combate-tatico-relay"
+primary_region = "gru"
+
+[build]
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 800
+    hard_limit = 1000
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

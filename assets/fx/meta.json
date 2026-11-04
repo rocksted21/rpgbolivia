@@ -1,0 +1,122 @@
+{
+	"agua/geyser": {
+		"frames": 7,
+		"h": 128,
+		"w": 128
+	},
+	"agua/ice_burst": {
+		"frames": 13,
+		"h": 128,
+		"w": 128
+	},
+	"agua/ice_crystal": {
+		"frames": 10,
+		"h": 32,
+		"w": 32
+	},
+	"agua/ice_spike": {
+		"frames": 12,
+		"h": 128,
+		"w": 128
+	},
+	"agua/kraken": {
+		"frames": 19,
+		"h": 128,
+		"w": 128
+	},
+	"agua/snowflake": {
+		"frames": 13,
+		"h": 128,
+		"w": 128
+	},
+	"agua/splash": {
+		"frames": 9,
+		"h": 64,
+		"w": 64
+	},
+	"agua/water_drop": {
+		"frames": 19,
+		"h": 32,
+		"w": 32
+	},
+	"agua/water_hurricane": {
+		"frames": 16,
+		"h": 128,
+		"w": 128
+	},
+	"agua/water_whip": {
+		"frames": 22,
+		"h": 128,
+		"w": 128
+	},
+	"agua/waterball": {
+		"frames": 16,
+		"h": 128,
+		"w": 128
+	},
+	"fogo/explosion": {
+		"frames": 9,
+		"h": 256,
+		"w": 256
+	},
+	"fogo/fire": {
+		"frames": 6,
+		"h": 64,
+		"w": 64
+	},
+	"fogo/fire_flower": {
+		"frames": 11,
+		"h": 256,
+		"w": 256
+	},
+	"fogo/fire_hurricane": {
+		"frames": 14,
+		"h": 256,
+		"w": 256
+	},
+	"fogo/fire_pillar": {
+		"frames": 8,
+		"h": 143,
+		"w": 32
+	},
+	"fogo/fire_shield": {
+		"frames": 8,
+		"h": 128,
+		"w": 128
+	},
+	"fogo/fireball": {
+		"frames": 15,
+		"h": 128,
+		"w": 128
+	},
+	"fogo/lava_drop": {
+		"frames": 16,
+		"h": 64,
+		"w": 64
+	},
+	"fogo/lava_puddle": {
+		"frames": 10,
+		"h": 128,
+		"w": 128
+	},
+	"fogo/magma_geyser": {
+		"frames": 11,
+		"h": 128,
+		"w": 128
+	},
+	"fogo/phoenix": {
+		"frames": 16,
+		"h": 256,
+		"w": 256
+	},
+	"fogo/small_fire": {
+		"frames": 6,
+		"h": 32,
+		"w": 32
+	},
+	"fogo/sun_strike": {
+		"frames": 7,
+		"h": 256,
+		"w": 256
+	}
+}

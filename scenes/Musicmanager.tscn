@@ -1,0 +1,40 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/music_manager.gd" id="1_script"]
+[ext_resource type="Script" path="res://scripts/audio_group.gd" id="2_group"]
+[ext_resource type="AudioStream" path="res://assets/audio/musicas/3.mp3" id="3_music"]
+[ext_resource type="AudioStream" path="res://assets/audio/musicas/4.mp3" id="4_music"]
+[ext_resource type="AudioStream" path="res://assets/audio/musicas/6.mp3" id="6_music"]
+[ext_resource type="AudioStream" path="res://assets/audio/musicas/9.mp3" id="9_music"]
+[ext_resource type="AudioStream" path="res://assets/audio/musicas/Digital Hope.mp3" id="10_menu"]
+
+[node name="MusicManager" type="Node"]
+process_mode = 3
+script = ExtResource("1_script")
+bus_name = &"Music"
+
+[node name="Menu" type="Node" parent="."]
+script = ExtResource("2_group")
+
+[node name="DigitalHope" type="AudioStreamPlayer" parent="Menu"]
+stream = ExtResource("10_menu")
+volume_db = -12.0
+
+[node name="Combate" type="Node" parent="."]
+script = ExtResource("2_group")
+
+[node name="Musica3" type="AudioStreamPlayer" parent="Combate"]
+stream = ExtResource("3_music")
+volume_db = -12.0
+
+[node name="Musica4" type="AudioStreamPlayer" parent="Combate"]
+stream = ExtResource("4_music")
+volume_db = -12.0
+
+[node name="Musica6" type="AudioStreamPlayer" parent="Combate"]
+stream = ExtResource("6_music")
+volume_db = -12.0
+
+[node name="Musica9" type="AudioStreamPlayer" parent="Combate"]
+stream = ExtResource("9_music")
+volume_db = -12.0

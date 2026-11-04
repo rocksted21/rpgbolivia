@@ -1,0 +1,233 @@
+{
+	"besteiro": {
+		"cell_h": 264,
+		"cell_w": 264,
+		"directions": true,
+		"feet_y": 222,
+		"frames": 9,
+		"height": 180,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			9,
+			9,
+			8,
+			8,
+			9,
+			9,
+			9,
+			9
+		]
+	},
+	"cerbero": {
+		"cell_h": 248,
+		"cell_w": 248,
+		"directions": true,
+		"feet_y": 206,
+		"frames": 9,
+		"height": 166,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			9,
+			9,
+			8,
+			8,
+			9,
+			9,
+			9,
+			9
+		]
+	},
+	"diabrete": {
+		"cell_h": 224,
+		"cell_w": 224,
+		"directions": true,
+		"feet_y": 188,
+		"frames": 9,
+		"height": 154,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			8,
+			9,
+			8,
+			8,
+			8,
+			8,
+			9,
+			9
+		]
+	},
+	"druida": {
+		"cell_h": 248,
+		"cell_w": 248,
+		"directions": true,
+		"feet_y": 210,
+		"frames": 9,
+		"height": 172,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			9,
+			9,
+			8,
+			8,
+			9,
+			9,
+			9,
+			9
+		]
+	},
+	"duelista": {
+		"cell_h": 248,
+		"cell_w": 248,
+		"directions": true,
+		"feet_y": 208,
+		"frames": 16,
+		"height": 168,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			16,
+			9,
+			8,
+			8,
+			16,
+			16,
+			9,
+			9
+		]
+	},
+	"esqueleto": {
+		"cell_h": 248,
+		"cell_w": 248,
+		"directions": true,
+		"feet_y": 208,
+		"frames": 9,
+		"height": 170,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			8,
+			9,
+			8,
+			8,
+			8,
+			8,
+			9,
+			9
+		]
+	},
+	"feiticeira": {
+		"cell_h": 248,
+		"cell_w": 248,
+		"directions": true,
+		"feet_y": 208,
+		"frames": 9,
+		"height": 170,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			9,
+			9,
+			8,
+			8,
+			9,
+			9,
+			9,
+			9
+		]
+	},
+	"guardiao": {
+		"cell_h": 248,
+		"cell_w": 248,
+		"directions": true,
+		"feet_y": 210,
+		"frames": 9,
+		"height": 174,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			8,
+			9,
+			8,
+			8,
+			8,
+			8,
+			9,
+			9
+		]
+	},
+	"mago": {
+		"cell_h": 240,
+		"cell_w": 240,
+		"directions": true,
+		"feet_y": 204,
+		"frames": 9,
+		"height": 168,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			9,
+			9,
+			8,
+			8,
+			9,
+			9,
+			9,
+			9
+		]
+	},
+	"mago_agua": {
+		"cell_h": 256,
+		"cell_w": 256,
+		"directions": true,
+		"feet_y": 212,
+		"frames": 9,
+		"height": 168,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			9,
+			9,
+			8,
+			8,
+			9,
+			9,
+			9,
+			9
+		]
+	},
+	"mumia": {
+		"cell_h": 256,
+		"cell_w": 256,
+		"directions": true,
+		"feet_y": 218,
+		"frames": 9,
+		"height": 180,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			8,
+			9,
+			8,
+			8,
+			8,
+			8,
+			9,
+			9
+		]
+	}
+}

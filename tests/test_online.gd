@@ -1,0 +1,131 @@
+extends SceneTree
+## Integração real: relay Node + duas conexões WebSocket + combate do dono.
+const Session = preload("res://net/online_session.gd")
+var host
+var guest
+var view
+var failed := false
+var previous_config := ""
+var config_existed := false
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+func _check(value: bool, message: String) -> void:
+	print(("PASS " if value else "FAIL ") + message)
+	if not value: failed = true
+
+func _until(predicate: Callable, timeout_ms := 15000) -> bool:
+	var deadline := Time.get_ticks_msec() + timeout_ms
+	while not predicate.call() and Time.get_ticks_msec() < deadline:
+		await process_frame
+	return predicate.call()
+
+func _run() -> void:
+	config_existed = FileAccess.file_exists("user://online.cfg")
+	if config_existed: previous_config = FileAccess.get_file_as_string("user://online.cfg")
+	host = root.get_node("OnlineSession")
+	host.configure(_relay())
+	host.player_name = "Dono"
+	guest = Session.new()
+	root.add_child(guest)
+	guest.configure(_relay())
+	guest.player_name = "Amigo"
+	host.create_room()
+	if not await _until(func(): return host.relay.in_room()):
+		_check(false, "criar sala no relay real")
+		quit(1)
+		return
+	_check(true, "criar sala confirmada pelo servidor")
+	var listed := []
+	guest.relay.room_list_changed.connect(func(rooms): listed.assign(rooms))
+	guest.relay.refresh_room_list()
+	_check(await _until(func(): return not listed.is_empty()), "sala aparece na listagem HTTP")
+	guest.join_room(host.relay.room_code)
+	_check(await _until(func(): return host.players.size() == 2 and guest.players.size() == 2), "entrada e nomes sincronizados")
+	var host_id: int = host.relay.my_id
+	var guest_id: int = guest.relay.my_id
+	host.start_match()
+	await _until(func(): return guest.playing, 1500)
+	_check(not host.playing and not guest.playing, "não inicia antes de todos escolherem")
+	guest.pick_hero(3)
+	_check(await _until(func(): return guest.picks.get(3) == guest_id), "amigo escolhe o mago pela rede")
+	host.pick_hero(3)
+	await _until(func(): return host.picks.get(3) != guest_id, 300)
+	_check(host.picks.get(3) == guest_id, "herói de outro jogador não pode ser tomado")
+	host.pick_hero(4)
+	guest.pick_hero(0)
+	guest.pick_hero(0)
+	_check(await _until(func(): return guest.picks.get(4) == host_id and not guest.picks.has(0)), "escolher e liberar sincronizam")
+	_check(host.can_start(), "todos escolheram: pode iniciar")
+	host.start_match()
+	_check(await _until(func(): return guest.playing), "início compartilhado")
+	_check(host.owners.size() == 5 and host.owners == guest.owners, "heróis distribuídos entre dono e amigo")
+	_check(host.owners[3] == guest_id and host.owners[4] == host_id, "cada um controla o herói que escolheu")
+	_check(host.owners.count(host_id) + host.owners.count(guest_id) == 5 and absi(host.owners.count(host_id) - host.owners.count(guest_id)) <= 1, "heróis livres divididos com equilíbrio")
+	view = load("res://main.tscn").instantiate()
+	root.add_child(view)
+	_check(await _until(func(): return not view.busy), "combate fica pronto")
+	var revision: int = host.revision
+	var active = host.state.active_unit()
+	var clock: int = active.clock
+	var owner: int = host.owner_of(active)
+	var other: int = guest.relay.my_id if owner == host.relay.my_id else host.relay.my_id
+	view._network_command(other, {kind = "wait", cell = Vector2i(-1, -1), revision = revision})
+	_check(active.clock == clock, "recusa comando de quem não controla o herói")
+	view._network_command(owner, {kind = "wait", cell = Vector2i(-1, -1), revision = revision - 1})
+	_check(active.clock == clock, "recusa comando de turno antigo")
+	view._network_command(owner, {kind = "step", cell = Vector2i(99, 99), revision = revision})
+	_check(active.clock == clock, "recusa destino fora do mapa")
+	var guest_acted := false
+	for i in 8:
+		await _until(func(): return not view.busy)
+		active = host.state.active_unit()
+		clock = active.clock
+		owner = host.owner_of(active)
+		if owner == guest.relay.my_id:
+			guest.revision = host.revision
+			guest.submit({kind = "wait", cell = Vector2i(-1, -1)})
+			guest_acted = await _until(func(): return active.clock > clock)
+			break
+		host.submit({kind = "wait", cell = Vector2i(-1, -1)})
+	_check(guest_acted, "amigo envia ação real pela rede e dono a executa")
+	await _until(func(): return not view.busy and not guest.packets.is_empty() and guest.packets.back().revision == host.revision)
+	guest.apply_snapshot(guest.packets.back().snapshot)
+	_check(guest.snapshot() == host.snapshot(), "estado final idêntico após turnos e IA")
+	var third = Session.new()
+	root.add_child(third)
+	third.configure(_relay())
+	third.join_room(host.relay.room_code)
+	_check(await _until(func(): return third.relay.last_error() != ""), "recusa entrada durante combate")
+	third.leave()
+	third.queue_free()
+	guest.leave()
+	_check(await _until(func(): return host.players.size() == 1), "saída do convidado detectada")
+	_check(not host.owners.has(guest_id), "heróis do convidado passam ao dono")
+	view.queue_free()
+	await process_frame
+	host.leave()
+	guest.queue_free()
+	var menu = load("res://scenes/main_menu.tscn").instantiate()
+	root.add_child(menu)
+	menu.queue_free()
+	await process_frame
+	var lobby = load("res://scenes/online_lobby.tscn").instantiate()
+	root.add_child(lobby)
+	lobby.queue_free()
+	host.relay.stop_room_list()
+	await process_frame
+	print("ONLINE: " + ("FAIL" if failed else "PASS"))
+	if config_existed:
+		var file := FileAccess.open("user://online.cfg", FileAccess.WRITE)
+		file.store_string(previous_config)
+		file.close()
+	else:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://online.cfg"))
+	quit(1 if failed else 0)
+
+## COMBATE_RELAY=wss://combate-tatico-relay.fly.dev testa contra o servidor publicado.
+func _relay() -> String:
+	var address := OS.get_environment("COMBATE_RELAY")
+	return "ws://127.0.0.1:18787" if address.is_empty() else address

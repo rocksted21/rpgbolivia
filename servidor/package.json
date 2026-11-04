@@ -1,0 +1,13 @@
+{
+  "name": "combate-tatico-relay-node",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Relay de sala do Raid Alien para uma maquina propria (mesmo protocolo do Worker)",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  }
+}

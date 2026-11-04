@@ -1,0 +1,15 @@
+.godot/
+build/
+servidor/node_modules/
+export_credentials.cfg
+update/runtime.cfg
+
+# Configuracoes locais e credenciais
+.env
+.env.*
+!.env.example
+.godot/export_credentials.cfg
+
+# Copias de repositorios criadas dentro da pasta do projeto
+/rpg bolivia/
+/rpgbolivia/

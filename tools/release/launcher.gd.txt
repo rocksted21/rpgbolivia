@@ -1,0 +1,92 @@
+extends Control
+## This script is exported at res://bootstrap/launcher.gd in a separate project.
+## No game script is parsed until the verified content pack has been mounted.
+const Updater := preload("res://bootstrap/pck_updater.gd")
+var status: Label
+var detail: Label
+var bar: ProgressBar
+var retry: Button
+var busy := false
+
+func _ready() -> void:
+	var background := ColorRect.new()
+	background.color = Color("0c0c12")
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(background)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+	var column := VBoxContainer.new()
+	column.custom_minimum_size = Vector2(580, 0)
+	column.add_theme_constant_override("separation", 24)
+	center.add_child(column)
+	var title := Label.new()
+	title.text = "COMBATE TÁTICO"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 52)
+	title.add_theme_color_override("font_color", Color("f2ca76"))
+	column.add_child(title)
+	status = Label.new()
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(status)
+	bar = ProgressBar.new()
+	bar.show_percentage = false
+	bar.custom_minimum_size.y = 12
+	column.add_child(bar)
+	detail = Label.new()
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail.text = "Na primeira abertura, vamos baixar o jogo neste aparelho."
+	column.add_child(detail)
+	retry = Button.new()
+	retry.text = "TENTAR NOVAMENTE"
+	retry.custom_minimum_size.y = 56
+	retry.pressed.connect(_start)
+	column.add_child(retry)
+	_start.call_deferred()
+
+func update_status(label: String, fraction: float, message: String) -> void:
+	status.text = label
+	bar.value = fraction * 100.0
+	if not message.is_empty(): detail.text = message
+
+func _start() -> void:
+	if busy: return
+	busy = true
+	retry.hide()
+	await get_tree().process_frame
+	if not await Updater.prepare_launcher(self):
+		busy = false
+		retry.show()
+		return
+	update_status("PREPARANDO O JOGO", 1.0, "")
+	# Pack mounting does not reload project settings or instantiate autoloads.
+	var config := ConfigFile.new()
+	if config.load("res://update/runtime.cfg") != OK:
+		_fail("O conteúdo precisa ser atualizado. Tente novamente mais tarde.")
+		return
+	for section in config.get_sections():
+		if section == "autoload": continue
+		for key in config.get_section_keys(section):
+			if section == "application" and key in ["config/name", "run/main_scene", "config/patch_id", "config/version"]:
+				continue
+			ProjectSettings.set_setting(section + "/" + key, config.get_value(section, key))
+	if config.has_section("autoload"):
+		for singleton in config.get_section_keys("autoload"):
+			if singleton == "PatchLoader": continue
+			var path: String = str(config.get_value("autoload", singleton)).trim_prefix("*")
+			var resource = load(path)
+			if resource == null:
+				_fail("Não foi possível preparar o jogo. Feche e abra novamente.")
+				return
+			var instance: Node = resource.instantiate() if resource is PackedScene else resource.new()
+			instance.name = singleton
+			get_tree().root.add_child(instance)
+	ProjectSettings.set_setting("application/config/launcher_checked", true)
+	# The game boot confirms that the downloaded content started successfully.
+	if get_tree().change_scene_to_file("res://scenes/main_menu.tscn") != OK:
+		_fail("Não foi possível abrir o jogo. Feche e abra novamente.")
+
+func _fail(message: String) -> void:
+	update_status("NÃO FOI POSSÍVEL ABRIR O JOGO", 0.0, message)
+	busy = false
+	# A content initialization failure requires a fresh process, not duplicate nodes.
