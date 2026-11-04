@@ -42,8 +42,184 @@ func _initialize() -> void:
 	test_turn_order()
 	test_attack_reach()
 	test_full_battles()
+	test_skills()
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
+
+
+## Árvores: dados coerentes, build válida, efeitos nas regras, IA e save.
+func test_skills() -> void:
+	var Skills = preload("res://scripts/skill_data.gd")
+	var HeroProgress = preload("res://scripts/hero_progress.gd")
+	# Toda habilidade inicial + árvore cobre as magias, sem nó ou id quebrado.
+	var seen := {}
+	for type_id in Skills.hero_types():
+		check(Data.UNIT_TYPES.has(type_id), "árvore de herói existente: " + type_id)
+		var total := 0
+		for branch in Skills.tree(type_id):
+			check(branch["nodes"].size() == Skills.TIER_COST.size(), "ramo com 4 níveis: " + branch["name"])
+			for node in branch["nodes"]:
+				check(not seen.has(node["id"]), "id único: " + node["id"])
+				seen[node["id"]] = true
+				total += Skills.cost_of(type_id, node["id"])
+				if node.has("unlock"):
+					check(Data.ABILITIES.has(node["unlock"]), "habilidade existe: " + node["unlock"])
+					check(node["unlock"] not in Data.UNIT_TYPES[type_id]["abilities"], "não libera o que já tem: " + node["unlock"])
+				for ability_id in node.get("mods", {}):
+					check(Data.ABILITIES.has(ability_id), "mod em habilidade existente: " + ability_id)
+		check(total > Skills.MAX_POINTS, "a árvore custa mais que o teto: " + type_id)
+	for id in Data.ABILITIES:
+		var ability: Dictionary = Data.ABILITIES[id]
+		if ability["kind"] == "charge" and not id in ["chama"]:
+			check(ability.has("cast_time") and ability.has("radius"), "magia carregada completa: " + id)
+
+	# Regras de compra e limpeza do que vem de fora.
+	check(not Skills.can_unlock("besteiro", [], "bes_longo", 12), "exige o nó anterior")
+	check(Skills.can_unlock("besteiro", ["bes_mira"], "bes_longo", 12), "libera com o anterior")
+	check(not Skills.can_unlock("besteiro", ["bes_mira"], "bes_longo", 1), "sem pontos não compra")
+	check(Skills.sanitize("besteiro", ["bes_longo", "bes_mira", "bes_mira", "x", 5]) == ["bes_mira", "bes_longo"], "limpa e ordena a build")
+	check(Skills.sanitize("besteiro", ["bes_longo"]).is_empty(), "remove nó sem requisito")
+	check(Skills.sanitize("besteiro", "lixo").is_empty(), "ignora build inválida")
+	var everything := []
+	for branch in Skills.tree("mago"):
+		for node in branch["nodes"]:
+			everything.append(node["id"])
+	check(Skills.spent("mago", Skills.sanitize("mago", everything)) <= Skills.MAX_POINTS, "a rede não passa do teto")
+
+	# Atributos e habilidades.
+	var plain = flat().add_unit("guardiao", PLAYER, Vector2i(0, 0))
+	var built = flat().add_unit("guardiao", PLAYER, Vector2i(0, 0), ["gua_ferro", "gua_passo"])
+	check(built.max_hp == plain.max_hp + 6 and built.hp == built.max_hp, "vida sobe")
+	check(built.speed == plain.speed + 1, "velocidade sobe")
+	check(built.clock < plain.clock, "relógio inicial usa a velocidade nova")
+	check("guarda" in Data.UNIT_TYPES["guardiao"]["abilities"] and Data.UNIT_TYPES["guardiao"]["abilities"].size() == 2, "a build não altera os dados")
+	var bow = flat().add_unit("besteiro", PLAYER, Vector2i(0, 0), ["bes_rapido", "bes_aljava"])
+	check("tiro_rapido" in bow.abilities, "libera habilidade")
+	check(bow.ability("tiro")["time"] == 150 and Data.ABILITIES["tiro"]["time"] == 170, "mod não altera o dado original")
+
+	# Conjuração menor conserva o custo total.
+	var state := flat()
+	var mage = state.add_unit("mago", PLAYER, Vector2i(0, 0), ["fog_pavio"])
+	var base_mage = state.add_unit("mago", PLAYER, Vector2i(4, 4))
+	check(state.cast_time_for(mage, "explosao") < state.cast_time_for(base_mage, "explosao"), "Pavio Curto adianta o impacto")
+	check(state.cast_time_for(mage, "explosao") + state.recovery_time_for(mage, "explosao") == state.time_for(220, mage), "custo total igual")
+
+	# Proteção, Muralha e Contragolpe.
+	state = flat()
+	var tank = state.add_unit("guardiao", PLAYER, Vector2i(2, 2), ["gua_ferro", "gua_placas", "gua_protecao"])
+	var friend = state.add_unit("duelista", PLAYER, Hex.neighbor(Vector2i(2, 2), 0))
+	var foe = state.add_unit("cerbero", ENEMY, Hex.neighbor(friend.pos, 0))
+	var open_hit: int = state.preview_attack(foe, "golpe", friend)["amount"]
+	state.do_ability(tank, "guarda", tank.pos)
+	check(state.preview_attack(foe, "golpe", friend)["amount"] < open_hit, "Proteção reduz dano no vizinho")
+	state = flat()
+	var wall = state.add_unit("guardiao", PLAYER, Vector2i(2, 2), ["gua_forca", "gua_pesado", "gua_contra"])
+	var biter = state.add_unit("cerbero", ENEMY, Hex.neighbor(Vector2i(2, 2), 0))
+	state.do_ability(wall, "guarda", wall.pos)
+	var hp_before: int = biter.hp
+	var events: Array = state.do_ability(biter, "golpe", wall.pos)
+	check(biter.hp < hp_before and events.any(func(e): return e.get("label", "") == "contragolpe"), "Contragolpe revida")
+
+	# Perfurante, Raízes, Executor e Sede de Sangue.
+	state = flat()
+	var archer = state.add_unit("besteiro", PLAYER, Vector2i(0, 2), ["bes_mira", "bes_longo", "bes_certeiro", "bes_perfurante"])
+	var armored = state.add_unit("guardiao", ENEMY, Vector2i(3, 2))
+	var expected := roundi(archer.atk * 1.0)
+	check(state.preview_attack(archer, "perfurante", armored)["amount"] == expected, "Perfurante ignora defesa")
+	var healthy: int = state.preview_attack(archer, "tiro", armored)["amount"]
+	armored.hp = 5
+	check(state.preview_attack(archer, "tiro", armored)["amount"] > healthy, "Olho de Falcão pune alvo ferido")
+	state = flat()
+	var elf = state.add_unit("druida", PLAYER, Vector2i(0, 2), ["dru_espinho", "dru_raizes", "dru_ira", "dru_cipos"])
+	var rooted = state.add_unit("mumia", ENEMY, Vector2i(2, 2))
+	var clock_before: int = rooted.clock
+	state.do_ability(elf, "raizes", rooted.pos)
+	check(rooted.clock == clock_before + 80, "Raízes e Cipós atrasam o alvo")
+	state = flat()
+	var killer = state.add_unit("duelista", PLAYER, Vector2i(2, 2), ["due_couro", "due_aparar", "due_casca", "due_sede"])
+	var weak = state.add_unit("diabrete", ENEMY, Hex.neighbor(Vector2i(2, 2), 0))
+	weak.hp = 1
+	killer.hp = 10
+	state.do_ability(killer, "golpe", weak.pos)
+	check(not weak.alive() and killer.hp == 18, "Sede de Sangue cura ao derrotar")
+
+	# Escapada, Clareira, Comunhão e Abrigo.
+	state = flat()
+	var slip = state.add_unit("duelista", PLAYER, Vector2i(2, 2), ["due_leve", "due_escape"])
+	var neighbor := Hex.neighbor(Vector2i(2, 2), 0)
+	state.add_unit("esqueleto", ENEMY, neighbor)
+	var away := Hex.neighbor(Vector2i(2, 2), 3)
+	var hp_full: int = slip.hp
+	state.do_step(slip, away)
+	check(slip.hp == hp_full, "Escapada evita oportunidade")
+	state = flat()
+	var healer = state.add_unit("druida", PLAYER, Vector2i(2, 2), ["dru_seiva", "dru_alcance", "dru_clareira", "dru_comunhao", "dru_vigor", "dru_casca", "dru_agil", "dru_abrigo"])
+	var left = state.add_unit("guardiao", PLAYER, Vector2i(1, 2))
+	var right = state.add_unit("besteiro", PLAYER, Hex.neighbor(Vector2i(1, 2), 3))
+	left.hp = 10
+	right.hp = 10
+	healer.hp = 10
+	state.do_ability(healer, "clareira", left.pos)
+	check(left.hp == 20 and right.hp == 20, "Clareira cura o alvo e o vizinho")
+	check(healer.hp > 10, "Comunhão devolve cura para ela")
+	check(left.guarding, "Abrigo dá Guarda a quem foi curado")
+
+	# Provocar obriga a IA a perseguir e não trava a unidade.
+	state = flat()
+	var bait = state.add_unit("guardiao", PLAYER, Vector2i(2, 2), ["gua_passo", "gua_vigia", "gua_provocar"])
+	var other = state.add_unit("mago", PLAYER, Vector2i(4, 3))
+	var hound = state.add_unit("cerbero", ENEMY, Vector2i(4, 2))
+	state.do_ability(bait, "provocar", bait.pos)
+	check(bait.guarding and hound.taunted_by == bait, "Provocar dá Guarda e marca o inimigo")
+	var action: Dictionary = AI.decide(state, hound)
+	check(action["kind"] == "step", "provocado ignora quem está colado e persegue")
+	check(other.alive(), "alvo ignorado continua vivo")
+	AI.apply(state, hound, action)
+	bait.hp = 0
+	check(AI.decide(state, hound)["kind"] != "wait", "provocador morto solta a unidade")
+
+	# Save: pontos, compra, teto e arquivo estranho.
+	HeroProgress.path = "user://test_progress.cfg"
+	DirAccess.remove_absolute(HeroProgress.path)
+	check(HeroProgress.earned("mago") == Skills.START_POINTS, "começa com os pontos iniciais")
+	check(HeroProgress.unlock("mago", "fog_labareda"), "compra um nó")
+	check(not HeroProgress.unlock("mago", "fog_solar"), "não pula nó")
+	check(HeroProgress.available("mago") == Skills.START_POINTS - 1, "desconta o ponto")
+	check(HeroProgress.award(["mago", "esqueleto"], Skills.WIN_POINTS) == 1, "só herói com árvore ganha")
+	check(HeroProgress.earned("mago") == Skills.START_POINTS + Skills.WIN_POINTS, "vitória dá pontos")
+	check("fog_labareda" in HeroProgress.unlocked("mago"), "nó continua salvo")
+	HeroProgress.reset("mago")
+	check(HeroProgress.unlocked("mago").is_empty() and HeroProgress.available("mago") == HeroProgress.earned("mago"), "redistribuir devolve tudo")
+	for i in 20:
+		HeroProgress.award(["mago"], Skills.LOSS_POINTS)
+	check(HeroProgress.earned("mago") == Skills.MAX_POINTS, "para no teto")
+	check(HeroProgress.award(["mago"], Skills.WIN_POINTS) == 0, "no teto não ganha mais")
+	check(Skills.journey_points(0, 3) == Skills.LOSS_POINTS, "jornada curta vale o mínimo")
+	check(Skills.journey_points(10, 40) == 4, "jornada paga por abates e distância")
+	var junk := ConfigFile.new()
+	junk.set_value("mago", "earned", "muito")
+	junk.set_value("mago", "unlocked", ["fog_fenix", 3])
+	junk.save(HeroProgress.path)
+	check(HeroProgress.earned("mago") == Skills.START_POINTS and HeroProgress.unlocked("mago").is_empty(), "save estranho não quebra")
+	DirAccess.remove_absolute(HeroProgress.path)
+	HeroProgress.path = "user://progress.cfg"
+
+	# Luta completa com builds e igual nos dois lados da rede.
+	var builds := {0: ["gua_ferro"], 3: Skills.sanitize("mago", ["fog_pavio", "fog_explosao"])}
+	var a = BattleState.from_data(builds)
+	var b = BattleState.from_data(builds)
+	check(a.units[0].max_hp == 52 and "explosao" in a.units[3].abilities, "from_data aplica builds por índice")
+	check(a.units.map(func(u): return u.clock) == b.units.map(func(u): return u.clock), "mesma build, mesmo relógio")
+	check(a.units[6].max_hp == Data.UNIT_TYPES["esqueleto"]["hp"], "inimigo sem build")
+	var actions := 0
+	while a.winner() < 0 and actions < 2000:
+		var unit = a.active_unit()
+		if not unit.pending.is_empty():
+			a.resolve_pending(unit)
+		else:
+			AI.apply(a, unit, AI.decide(a, unit))
+		actions += 1
+	check(a.winner() >= 0, "luta com builds termina")
 
 
 func check(condition: bool, label: String) -> void:

@@ -9,6 +9,8 @@ const Hex = preload("res://scripts/hex.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Unit = preload("res://scripts/unit.gd")
 
+const TAUNT_ACTIONS := 3 # ações em que a IA persegue quem a provocou
+
 var terrain: Array
 var elevation: Array
 var units := []
@@ -19,17 +21,19 @@ func _init(map_terrain: Array = Data.MAP_TERRAIN, map_elevation: Array = Data.MA
 	elevation = map_elevation
 
 
-func add_unit(type_id: String, team: int, pos: Vector2i):
-	var unit = Unit.new(type_id, team, pos)
+func add_unit(type_id: String, team: int, pos: Vector2i, build: Array = []):
+	var unit = Unit.new(type_id, team, pos, build)
 	unit.clock = time_for(Data.STEP_TIME, unit)
 	units.append(unit)
 	return unit
 
 
-static func from_data():
+## `builds` traz os nós comprados: {índice em Data.BATTLE_UNITS: [nós]}.
+static func from_data(builds := {}):
 	var state = new()
-	for entry in Data.BATTLE_UNITS:
-		state.add_unit(entry[0], entry[1], entry[2])
+	for i in Data.BATTLE_UNITS.size():
+		var entry: Array = Data.BATTLE_UNITS[i]
+		state.add_unit(entry[0], entry[1], entry[2], builds.get(i, []))
 	return state
 
 
@@ -47,8 +51,21 @@ func in_bounds(cell: Vector2i) -> bool:
 	return cell.y >= 0 and cell.y < rows() and cell.x >= 0 and cell.x < cols()
 
 
+## Se a casa faz parte do mapa, mesmo longe da área em jogo.
+func exists(cell: Vector2i) -> bool:
+	return in_bounds(cell)
+
+
+func terrain_id_at(cell: Vector2i) -> int:
+	return terrain[cell.y][cell.x]
+
+
 func tile_at(cell: Vector2i) -> Dictionary:
 	return Data.TERRAIN[terrain[cell.y][cell.x]]
+
+
+func tile_name_at(cell: Vector2i) -> String:
+	return tile_at(cell)["name"]
 
 
 func elevation_at(cell: Vector2i) -> int:
@@ -112,13 +129,13 @@ func cast_wait(unit, ability_id: String) -> int:
 
 
 func cast_time_for(unit, ability_id: String) -> int:
-	var ability: Dictionary = Data.ABILITIES[ability_id]
+	var ability: Dictionary = unit.ability(ability_id)
 	return time_for(ability.get("cast_time", ability["time"]), unit)
 
 
 func recovery_time_for(unit, ability_id: String) -> int:
 	# Subtrair os tempos já arredondados conserva exatamente o custo total.
-	return maxi(0, time_for(Data.ABILITIES[ability_id]["time"], unit) - cast_time_for(unit, ability_id))
+	return maxi(0, time_for(unit.ability(ability_id)["time"], unit) - cast_time_for(unit, ability_id))
 
 
 ## Unidades vivas na ordem em que vão agir: a primeira é a ativa.
@@ -201,8 +218,8 @@ func do_step(unit, to: Vector2i) -> Array:
 
 	# Ataque de oportunidade: sair do alcance corpo a corpo de quem está colado.
 	for enemy in enemies_of(unit):
-		if Hex.distance(enemy.pos, from) == 1 and Hex.distance(enemy.pos, to) > 1 and _can_react(enemy):
-			var amount := maxi(1, roundi(enemy.atk * Data.OPPORTUNITY_POWER) - unit.def)
+		if Hex.distance(enemy.pos, from) == 1 and Hex.distance(enemy.pos, to) > 1 and _can_react(enemy) and not unit.passive("opportunity_immune", false):
+			var amount := maxi(1, roundi(enemy.atk * Data.OPPORTUNITY_POWER * enemy.passive("opportunity_mult", 1.0)) - unit.def)
 			events.append({"type": "attack", "unit": enemy, "target": unit, "label": "oportunidade"})
 			_apply_damage(unit, amount, events, {"opportunity": true})
 			if not unit.alive():
@@ -223,7 +240,7 @@ func _can_react(unit) -> bool:
 	if not unit.pending.is_empty():
 		return false
 	return unit.abilities.any(func(id):
-		var ability: Dictionary = Data.ABILITIES[id]
+		var ability: Dictionary = unit.ability(id)
 		return ability["kind"] == "attack" and ability["min_range"] == 1)
 
 
@@ -231,7 +248,7 @@ func _can_react(unit) -> bool:
 
 ## Casas dentro do alcance da habilidade, a partir de onde a unidade está.
 func cells_in_range(unit, ability_id: String) -> Array:
-	var ability: Dictionary = Data.ABILITIES[ability_id]
+	var ability: Dictionary = unit.ability(ability_id)
 	var out := []
 	for row in rows():
 		for col in cols():
@@ -243,7 +260,7 @@ func cells_in_range(unit, ability_id: String) -> Array:
 
 
 func valid_targets(unit, ability_id: String) -> Array:
-	var ability: Dictionary = Data.ABILITIES[ability_id]
+	var ability: Dictionary = unit.ability(ability_id)
 	var out := []
 	for cell in cells_in_range(unit, ability_id):
 		var occupant = unit_at(cell)
@@ -263,7 +280,7 @@ func valid_targets(unit, ability_id: String) -> Array:
 func attack_reach(unit) -> Array:
 	var reach := {}
 	for id in unit.abilities:
-		var ability: Dictionary = Data.ABILITIES[id]
+		var ability: Dictionary = unit.ability(id)
 		if ability["kind"] != "attack" and ability["kind"] != "charge":
 			continue
 		for cell in cells_in_range(unit, id):
@@ -275,20 +292,34 @@ func attack_reach(unit) -> Array:
 
 ## Dano que um ataque causaria agora, com os motivos (a tela mostra antes do clique).
 func preview_attack(attacker, ability_id: String, target) -> Dictionary:
-	var ability: Dictionary = Data.ABILITIES[ability_id]
+	var ability: Dictionary = attacker.ability(ability_id)
 	var flank := false
 	var mult := 1.0
 	if ability["range"] == 1:
 		flank = is_flanked(attacker, target)
 		if flank:
-			mult *= Data.FLANK_MULT
+			mult *= attacker.passive("flank_mult", Data.FLANK_MULT)
 	var height: int = clampi(elevation_at(attacker.pos) - elevation_at(target.pos), -2, 2)
 	mult *= 1.0 + Data.HEIGHT_MULT_PER_LEVEL * height
 	mult *= tile_at(target.pos)["damage"]
-	if target.guarding:
-		mult *= Data.GUARD_MULT
-	var amount := maxi(1, roundi(attacker.atk * ability["power"] * mult) - target.def)
+	mult *= _protection_mult(target)
+	if target.hp * 2 <= target.max_hp:
+		mult *= attacker.passive("execute", 1.0)
+	var defense: int = 0 if ability.get("pierce", false) else target.def
+	var amount := maxi(1, roundi(attacker.atk * ability["power"] * mult) - defense)
 	return {"amount": amount, "flank": flank, "height": height, "guard": target.guarding, "cover": tile_at(target.pos)["damage"] < 1.0}
+
+
+## Redução de dano por Guarda própria e por aliado vizinho com Proteção.
+func _protection_mult(target) -> float:
+	var mult := 1.0
+	if target.guarding:
+		mult *= target.passive("guard_mult", Data.GUARD_MULT)
+	for ally in allies_of(target):
+		if ally != target and ally.guarding and ally.passives.has("guard_aura") and Hex.distance(ally.pos, target.pos) == 1:
+			mult *= ally.passives["guard_aura"]
+			break
+	return mult
 
 
 ## Flanqueio: um aliado do atacante está do lado exatamente oposto do alvo.
@@ -301,7 +332,7 @@ func is_flanked(attacker, target) -> bool:
 
 
 func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
-	var ability: Dictionary = Data.ABILITIES[ability_id]
+	var ability: Dictionary = unit.ability(ability_id)
 	unit.guarding = false
 	var events := []
 	match ability["kind"]:
@@ -311,15 +342,29 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			unit.clock += time_for(ability["time"], unit)
 			events.append({"type": "attack", "unit": unit, "target": target, "ability": ability_id, "label": ability["name"]})
 			_apply_damage(target, result["amount"], events, result)
+			if target.alive():
+				target.clock += ability.get("delay", 0)
+				_counter(unit, target, ability, events)
+			else:
+				_on_kill(unit, events)
 		"heal":
-			var target = unit_at(cell)
 			unit.clock += time_for(ability["time"], unit)
-			var healed := mini(ability["heal"], target.max_hp - target.hp)
-			target.hp += healed
-			events.append({"type": "heal", "unit": unit, "target": target, "amount": healed, "hp": target.hp})
+			var total := 0
+			for target in units:
+				if target.alive() and target.team == unit.team and Hex.distance(target.pos, cell) <= ability.get("radius", 0):
+					total += _heal(unit, target, ability["heal"], events)
+					if unit.passive("heal_guard", false):
+						target.guarding = true
+			if unit.passives.has("heal_self") and total > 0:
+				_heal(unit, unit, roundi(total * unit.passives["heal_self"]), events)
 		"guard":
 			unit.clock += time_for(ability["time"], unit)
 			unit.guarding = true
+			if ability.has("taunt"):
+				for enemy in enemies_of(unit):
+					if Hex.distance(enemy.pos, unit.pos) <= ability["taunt"]:
+						enemy.taunted_by = unit
+						enemy.taunt_actions = TAUNT_ACTIONS
 			events.append({"type": "guard", "unit": unit, "ability": ability_id})
 		"charge":
 			unit.clock += cast_time_for(unit, ability_id)
@@ -331,18 +376,18 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 ## Solta a magia carregada: acerta quem estiver na área agora, aliado ou não.
 func resolve_pending(unit) -> Array:
 	var ability_id: String = unit.pending["ability"]
-	var ability: Dictionary = Data.ABILITIES[ability_id]
+	var ability: Dictionary = unit.ability(ability_id)
 	var tile: Vector2i = unit.pending["tile"]
 	unit.pending = {}
 	unit.clock += recovery_time_for(unit, ability_id)
 	var events := [{"type": "cast_resolve", "unit": unit, "ability": ability, "id": ability_id, "tile": tile, "cells": area_of(tile, ability["radius"])}]
 	for target in units.duplicate():
 		if target.alive() and Hex.distance(target.pos, tile) <= ability["radius"]:
-			var mult: float = tile_at(target.pos)["damage"]
-			if target.guarding:
-				mult *= Data.GUARD_MULT
+			var mult: float = tile_at(target.pos)["damage"] * _protection_mult(target)
 			var amount := maxi(1, roundi(unit.atk * ability["power"] * mult) - target.def)
 			_apply_damage(target, amount, events, {})
+			if not target.alive() and target.team != unit.team:
+				_on_kill(unit, events)
 	return events
 
 
@@ -354,6 +399,27 @@ func area_of(tile: Vector2i, radius: int) -> Array:
 			if Hex.distance(cell, tile) <= radius:
 				out.append(cell)
 	return out
+
+
+func _heal(unit, target, amount: int, events: Array) -> int:
+	var healed := mini(amount, target.max_hp - target.hp)
+	target.hp += healed
+	events.append({"type": "heal", "unit": unit, "target": target, "amount": healed, "hp": target.hp})
+	return healed
+
+
+func _on_kill(unit, events: Array) -> void:
+	if unit.alive() and unit.passives.has("kill_heal"):
+		_heal(unit, unit, unit.passives["kill_heal"], events)
+
+
+## Contragolpe de quem está em Guarda ao apanhar corpo a corpo.
+func _counter(attacker, target, ability: Dictionary, events: Array) -> void:
+	if not target.guarding or not target.passives.has("counter") or ability["range"] != 1:
+		return
+	var amount := maxi(1, roundi(target.atk * target.passives["counter"]) - attacker.def)
+	events.append({"type": "attack", "unit": target, "target": attacker, "label": "contragolpe"})
+	_apply_damage(attacker, amount, events, {"opportunity": true})
 
 
 func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void:

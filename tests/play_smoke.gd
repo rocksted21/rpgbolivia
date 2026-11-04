@@ -6,6 +6,7 @@ extends SceneTree
 const Hex = preload("res://scripts/hex.gd")
 const AI = preload("res://scripts/ai.gd")
 const Data = preload("res://scripts/game_data.gd")
+const HeroProgress = preload("res://scripts/hero_progress.gd")
 
 const MAX_TURNS := 200
 const TIMEOUT_SECONDS := 170.0
@@ -20,6 +21,9 @@ var failed := false
 
 func _initialize() -> void:
 	shots_dir = OS.get_cmdline_user_args()[0]
+	# A luta de teste não pode dar pontos no save de verdade.
+	HeroProgress.path = "user://test_progress_smoke.cfg"
+	DirAccess.remove_absolute(HeroProgress.path)
 	create_timer(TIMEOUT_SECONDS, true, false, true).timeout.connect(func():
 		print("TIMEOUT: a luta não terminou")
 		quit(2))
@@ -190,13 +194,13 @@ func _test_ground_aim() -> void:
 	var mage = _unit("mago")
 	await _make_active(mage)
 	var target: Vector2i = view.NO_CELL
-	for cell in view.state.cells_in_range(mage, "explosao"):
+	for cell in view.state.cells_in_range(mage, "flor_fogo"):
 		if view.state.unit_at(cell) == null and view.state.tile_at(cell)["walkable"]:
 			target = cell
 			break
 	_click(target)
 	await _frames(2)
-	var index := _option_index("ability", "explosao")
+	var index := _option_index("ability", "flor_fogo")
 	_expect(index >= 0 and mage.pos != target, "tocar numa casa vazia ao alcance oferece a magia")
 	_shot("9_mirar_no_chao")
 	await _press(view.hud.menu_buttons[index])

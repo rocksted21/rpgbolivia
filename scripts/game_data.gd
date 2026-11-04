@@ -42,12 +42,31 @@ const MAP_ELEVATION := [
 	[0, 0, 0, 0, 0, 0, 0, 0],
 ]
 
+# abilities em UNIT_TYPES são as iniciais; os heróis liberam o resto em skill_data.gd.
 # time = custo total até poder agir de novo. Em charge, cast_time é a parte
 # anterior ao impacto; o restante vira recuperação depois de soltar a magia.
 const ABILITIES := {
 	"golpe": {"name": "Golpe", "kind": "attack", "min_range": 1, "range": 1, "power": 1.0, "time": 150},
 	"rapido": {"name": "Golpe rápido", "kind": "attack", "min_range": 1, "range": 1, "power": 0.7, "time": 90},
-	"tiro": {"name": "Tiro", "kind": "attack", "min_range": 2, "range": 4, "power": 0.9, "time": 170},
+	"tiro": {"name": "Tiro", "kind": "attack", "min_range": 2, "range": 4, "power": 0.9, "time": 170, "shot": "kit/arrow"},
+	# Liberadas nas árvores de skills (scripts/skill_data.gd).
+	# shot: projétil do kit; taunt: raio da provocação; pierce: ignora defesa; delay: atrasa o alvo.
+	"golpe_pesado": {"name": "Golpe Pesado", "kind": "attack", "min_range": 1, "range": 1, "power": 1.5, "time": 220},
+	"provocar": {"name": "Provocar", "kind": "guard", "min_range": 0, "range": 0, "time": 130, "taunt": 2},
+	"estocada": {"name": "Estocada", "kind": "attack", "min_range": 1, "range": 1, "power": 1.4, "time": 190},
+	"aparar": {"name": "Aparar", "kind": "guard", "min_range": 0, "range": 0, "time": 60},
+	"tiro_longo": {"name": "Tiro Longo", "kind": "attack", "min_range": 3, "range": 6, "power": 0.8, "time": 190, "shot": "kit/arrow"},
+	"perfurante": {"name": "Virote Perfurante", "kind": "attack", "min_range": 2, "range": 4, "power": 1.0, "time": 230, "shot": "kit/arrow", "pierce": true},
+	"tiro_rapido": {"name": "Tiro Rápido", "kind": "attack", "min_range": 2, "range": 3, "power": 0.55, "time": 100, "shot": "kit/arrow"},
+	"saraivada": {"name": "Saraivada", "kind": "charge", "min_range": 2, "range": 4, "radius": 1, "power": 1.0, "time": 210, "cast_time": 100, "shot": "kit/arrow"},
+	"chuva_virotes": {"name": "Chuva de Virotes", "kind": "charge", "min_range": 2, "range": 5, "radius": 2, "power": 1.0, "time": 300, "cast_time": 180, "shot": "kit/arrow"},
+	"adaga": {"name": "Adaga", "kind": "attack", "min_range": 1, "range": 1, "power": 0.7, "time": 100},
+	"clareira": {"name": "Clareira", "kind": "heal", "min_range": 0, "range": 3, "radius": 1, "heal": 10, "time": 220},
+	"espinho": {"name": "Espinho", "kind": "attack", "min_range": 2, "range": 3, "power": 0.8, "time": 140, "shot": "kit/magic"},
+	"raizes": {"name": "Raízes", "kind": "attack", "min_range": 1, "range": 3, "power": 0.5, "time": 150, "delay": 40, "shot": "kit/magic"},
+	"casca": {"name": "Casca", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
+	"agua_vital": {"name": "Água Vital", "kind": "heal", "min_range": 0, "range": 3, "heal": 9, "time": 170},
+	"manto_agua": {"name": "Manto d'Água", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
 	# Mago de Fogo: uma magia por animação do pack de fogo (ver SPELL_FX na battle_view).
 	"faisca": {"name": "Faísca", "kind": "attack", "min_range": 1, "range": 3, "power": 0.5, "time": 100},
 	"labareda": {"name": "Labareda", "kind": "attack", "min_range": 1, "range": 2, "power": 1.0, "time": 150},
@@ -77,15 +96,16 @@ const ABILITIES := {
 	"chama": {"name": "Chama", "kind": "charge", "min_range": 2, "range": 4, "radius": 1, "power": 1.2, "time": 240, "cast_time": 140},
 	"cura": {"name": "Cura", "kind": "heal", "min_range": 0, "range": 3, "heal": 14, "time": 170},
 	"guarda": {"name": "Guarda", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
+	"coronhada": {"name": "Coronhada", "kind": "attack", "min_range": 1, "range": 1, "power": 0.6, "time": 120},
 }
 
 const UNIT_TYPES := {
 	"guardiao": {"name": "Guardião", "role": "Tanque · segura a linha", "hp": 46, "atk": 11, "def": 5, "speed": 9, "abilities": ["golpe", "guarda"]},
 	"duelista": {"name": "Duelista", "role": "Ágil · age mais vezes", "hp": 28, "atk": 12, "def": 2, "speed": 14, "abilities": ["golpe", "rapido"]},
 	"besteiro": {"name": "Besteiro", "role": "Atirador · ataca de longe", "hp": 26, "atk": 13, "def": 1, "speed": 10, "abilities": ["tiro"]},
-	"mago": {"name": "Mago de Fogo", "role": "Magia · fogo em área", "hp": 24, "atk": 15, "def": 1, "speed": 9, "abilities": ["faisca", "labareda", "bola_fogo", "pilar_fogo", "golpe_solar", "flor_fogo", "explosao", "poca_lava", "chuva_lava", "geiser_magma", "furacao_fogo", "fenix", "escudo_fogo"]},
+	"mago": {"name": "Mago de Fogo", "role": "Magia · fogo em área", "hp": 24, "atk": 15, "def": 1, "speed": 9, "abilities": ["faisca", "bola_fogo", "flor_fogo", "escudo_fogo"]},
 	"druida": {"name": "Druida Élfica", "role": "Suporte · cura aliados", "hp": 26, "atk": 10, "def": 1, "speed": 11, "abilities": ["golpe", "cura"]},
-	"mago_agua": {"name": "Mago de Água", "role": "Magia · água e gelo", "hp": 24, "atk": 14, "def": 1, "speed": 10, "abilities": ["gota", "chicote_agua", "bola_agua", "estaca_gelo", "cristal_gelo", "floco_neve", "estilhaco_gelo", "onda", "geiser", "redemoinho", "kraken"]},
+	"mago_agua": {"name": "Mago de Água", "role": "Magia · água e gelo", "hp": 24, "atk": 14, "def": 1, "speed": 10, "abilities": ["gota", "bola_agua", "floco_neve"]},
 	"esqueleto": {"name": "Esqueleto", "role": "Soldado · morto-vivo comum", "hp": 22, "atk": 10, "def": 1, "speed": 10, "abilities": ["golpe"]},
 	"mumia": {"name": "Múmia", "role": "Tanque · lenta e resistente", "hp": 40, "atk": 11, "def": 3, "speed": 7, "abilities": ["golpe"]},
 	"diabrete": {"name": "Diabrete", "role": "Ágil · fraco, mas age muito", "hp": 16, "atk": 8, "def": 0, "speed": 15, "abilities": ["golpe"]},
@@ -117,3 +137,57 @@ const BATTLE_UNITS := [
 	["feiticeira", Team.ENEMY, Vector2i(7, 3)],
 	["cerbero", Team.ENEMY, Vector2i(6, 4)],
 ]
+
+
+# --- Exploração (modo solo) ---------------------------------------------------
+
+const WORLD_HEROES := ["guardiao", "duelista", "besteiro", "mago", "mago_agua", "druida"]
+const WORLD := {
+	"active_radius": 14, # até onde a IA procura caminho a partir do herói
+	"despawn_radius": 13, # inimigo mais longe que isso se perde na névoa
+	"spawn_min": 7,
+	"spawn_max": 9,
+	"first_spawn_steps": 6,
+	"spawn_steps": [5, 10], # passos entre um grupo e outro
+	"rest_radius": 7, # sem inimigo perto, andar recupera vida
+	"rest_heal": 2,
+	"kill_heal": 5,
+	"danger_distance": 20, # a cada tantas casas longe do início, o perigo sobe um nível
+	"danger_max": 12,
+	"danger_hp": 0.08, # vida extra do inimigo por nível de perigo
+	"danger_atk": 0.05, # ataque extra do inimigo por nível de perigo
+}
+# Sozinho, o herói não tem quem o proteja: quem só ataca de longe ganha uma arma de perto.
+const WORLD_EXTRA_ABILITIES := {"besteiro": ["coronhada"]}
+# Inimigos liberados conforme o nível de perigo. O peso decide quem aparece mais.
+const WORLD_SPAWNS := [
+	{"danger": 1, "type": "esqueleto", "weight": 5},
+	{"danger": 1, "type": "diabrete", "weight": 4},
+	{"danger": 2, "type": "mumia", "weight": 3},
+	{"danger": 3, "type": "feiticeira", "weight": 2},
+	{"danger": 4, "type": "cerbero", "weight": 2},
+]
+
+
+# Biomas da exploração. forest, water, hills e rocks são os limites do ruído em
+# world_gen.gd: quanto mais fácil o limite, mais daquele terreno aparece.
+# names troca o nome das casas (a chave é o terreno); o que falta usa TERRAIN.
+# A arte fica em assets/biomes/<chave>; ver tools/build_biomes.py.
+const BIOMES := {
+	"floresta": {
+		"name": "Floresta", "forest": 0.22, "water": 0.3, "hills": -0.42, "rocks": -0.4,
+		"names": {},
+	},
+	"selva": {
+		"name": "Selva", "forest": 0.04, "water": 0.22, "hills": -0.46, "rocks": -0.42,
+		"names": {1: "Clareira", 9: "Clareira", 3: "Selva", 5: "Rio", 6: "Rochedo", 11: "Ruínas"},
+	},
+	"neve": {
+		"name": "Neve", "forest": 0.28, "water": 0.34, "hills": -0.36, "rocks": -0.4,
+		"names": {1: "Neve", 9: "Neve", 2: "Pedras geladas", 3: "Pinheiral", 5: "Lago gelado", 6: "Rochedo", 7: "Montes de neve"},
+	},
+	"deserto": {
+		"name": "Deserto", "forest": 0.34, "water": 0.5, "hills": -0.3, "rocks": -0.3,
+		"names": {1: "Areia", 9: "Areia", 2: "Rochas", 3: "Cactos", 5: "Oásis", 6: "Rochedo", 7: "Dunas"},
+	},
+}

@@ -9,12 +9,16 @@ var sound_manager:
 
 ## Entrada do jogo; o combate continua em main.tscn.
 
+const Data = preload("res://scripts/game_data.gd")
+const WORLD_META := "world_hero"
+
 const INK := Color("191e2a")
 const GOLD := Color("f2ca76")
 const TEXT := Color("f5efdf")
 
 var single_player: Button
 var options: AcceptDialog
+var hero_picker: Control
 
 
 func _ready() -> void:
@@ -35,20 +39,101 @@ func _ready() -> void:
 	_label(column, "COMBATE\nTÁTICO", 54, TEXT)
 	_spacer(column, 20)
 	single_player = _button(column, "Single Player", true)
-	single_player.pressed.connect(_start_single_player)
+	single_player.pressed.connect(_open_hero_picker)
 	var online_button := _button(column, "Online")
 	online_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/online_lobby.tscn"))
+	var heroes_button := _button(column, "Heróis")
+	heroes_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
 	var options_button := _button(column, "Options")
 	options_button.pressed.connect(_open_options)
 	_spacer(column, 10)
 	_label(column, "Sua próxima batalha começa aqui.", 16, Color("9da5b5"))
 
 	_build_options()
+	_build_hero_picker()
 	single_player.grab_focus()
 	preload("res://update/pck_updater.gd").confirm_boot()
 
 
-func _start_single_player() -> void:
+func _open_hero_picker() -> void:
+	hero_picker.visible = true
+	hero_picker.find_child("Hero0", true, false).grab_focus()
+
+
+func _close_hero_picker() -> void:
+	hero_picker.visible = false
+	single_player.grab_focus()
+
+
+func _build_hero_picker() -> void:
+	hero_picker = ColorRect.new()
+	hero_picker.color = INK
+	hero_picker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hero_picker.visible = false
+	add_child(hero_picker)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hero_picker.add_child(center)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 22)
+	center.add_child(column)
+	_label(column, "Escolha seu herói", 40, TEXT)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 16)
+	column.add_child(grid)
+	var units_meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
+	for i in Data.WORLD_HEROES.size():
+		var id: String = Data.WORLD_HEROES[i]
+		var button := _button(grid, "")
+		button.name = "Hero%d" % i
+		_fill_hero_button(button, id, units_meta[id])
+	var back := _button(column, "Voltar")
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.pressed.connect(_close_hero_picker)
+
+
+func _fill_hero_button(button: Button, id: String, info: Dictionary) -> void:
+	var data: Dictionary = Data.UNIT_TYPES[id]
+	button.custom_minimum_size = Vector2(350, 150)
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	button.add_child(row)
+	var portrait := TextureRect.new()
+	var atlas := AtlasTexture.new()
+	atlas.atlas = load("res://assets/units/%s.png" % id)
+	atlas.region = Rect2(0, 0, info["cell_w"], info["cell_h"])
+	portrait.texture = atlas
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	portrait.custom_minimum_size = Vector2(130, 130)
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(portrait)
+	var text := VBoxContainer.new()
+	text.alignment = BoxContainer.ALIGNMENT_CENTER
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(text)
+	var title := Label.new()
+	title.text = data["name"]
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", TEXT)
+	text.add_child(title)
+	var role := Label.new()
+	role.text = data["role"]
+	role.autowrap_mode = TextServer.AUTOWRAP_WORD
+	role.add_theme_font_size_override("font_size", 16)
+	role.add_theme_color_override("font_color", Color("c3c8d3"))
+	text.add_child(role)
+	button.pressed.connect(func(): _start_single_player(id))
+
+
+func _start_single_player(hero_type: String) -> void:
+	get_tree().root.set_meta(WORLD_META, hero_type)
 	online_session.leave()
 	var error := get_tree().change_scene_to_file("res://main.tscn")
 	if error != OK:

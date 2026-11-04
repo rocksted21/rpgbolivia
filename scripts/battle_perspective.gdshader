@@ -9,8 +9,11 @@ uniform bool upright = false;
 uniform vec2 ground_anchor = vec2(0.0);
 uniform float elevation = 0.0;
 uniform bool tile_surface = false;
-uniform vec2 tile_origin = vec2(0.0);
 uniform float tile_scale = 0.5;
+// Névoa da exploração: fim 0 desliga. A distância conta a partir do centro da câmera.
+uniform float fog_start = 0.0;
+uniform float fog_end = 0.0;
+uniform vec3 fog_color = vec3(0.14, 0.15, 0.18);
 uniform bool scenery = false;
 uniform sampler2D scenery_base : filter_nearest, repeat_disable;
 // 0 = inteiro; 1 = copa ao fundo; 2 = árvores da frente.
@@ -18,6 +21,7 @@ uniform int scenery_slice = 0;
 uniform float forest_split = 105.0;
 
 varying float distance_fade;
+varying float fog;
 
 float depth_scale(float y) {
 	return 1.0 / max(0.25, 1.0 - (y - focus.y) * perspective);
@@ -32,11 +36,14 @@ void vertex() {
 	float height = elevation;
 	if (tile_surface) {
 		// A lateral do hex é uma parede vertical, não mais uma parte do chão.
-		vec2 local = (VERTEX - tile_origin) / tile_scale;
+		// A UV dá a posição dentro do tile mesmo com o tabuleiro em movimento.
+		vec2 local = UV / TEXTURE_PIXEL_SIZE;
 		float front_edge = 213.0 - abs(local.x - 93.0) * (53.0 / 93.0);
 		height -= max(0.0, local.y - front_edge) * tile_scale;
 	}
-	float ground_y = (upright ? ground_anchor.y : VERTEX.y) + height;
+	vec2 ground_point = (upright ? ground_anchor : VERTEX) + vec2(0.0, height);
+	float ground_y = ground_point.y;
+	fog = fog_end > 0.0 ? smoothstep(fog_start, fog_end, length((ground_point - focus) * vec2(0.6, 1.0))) : 0.0;
 	if (upright) {
 		// A altura do personagem não recebe o achatamento do chão.
 		VERTEX = project_ground(ground_anchor, elevation) + (VERTEX - ground_anchor) * depth_scale(ground_anchor.y + elevation);
@@ -74,5 +81,6 @@ void fragment() {
 	vec4 ink = COLOR;
 	// Atmosfera discreta: as fileiras distantes perdem um pouco de contraste.
 	ink.rgb = mix(ink.rgb, vec3(0.47, 0.54, 0.61), distance_fade);
+	ink.rgb = mix(ink.rgb, fog_color, fog);
 	COLOR = ink;
 }

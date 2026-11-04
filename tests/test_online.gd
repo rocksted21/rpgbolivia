@@ -1,6 +1,7 @@
 extends SceneTree
 ## Integração real: relay Node + duas conexões WebSocket + combate do dono.
 const Session = preload("res://net/online_session.gd")
+const HeroProgress = preload("res://scripts/hero_progress.gd")
 var host
 var guest
 var view
@@ -24,6 +25,11 @@ func _until(predicate: Callable, timeout_ms := 15000) -> bool:
 func _run() -> void:
 	config_existed = FileAccess.file_exists("user://online.cfg")
 	if config_existed: previous_config = FileAccess.get_file_as_string("user://online.cfg")
+	# Cada lado com o próprio save: o Mago vai para o amigo e leva a build dele.
+	HeroProgress.path = "user://test_progress_host.cfg"
+	DirAccess.remove_absolute(HeroProgress.path)
+	HeroProgress.unlock("mago", "fog_labareda")
+	HeroProgress.unlock("druida", "dru_vigor")
 	host = root.get_node("OnlineSession")
 	host.configure(_relay())
 	host.player_name = "Dono"
@@ -41,6 +47,9 @@ func _run() -> void:
 	guest.relay.room_list_changed.connect(func(rooms): listed.assign(rooms))
 	guest.relay.refresh_room_list()
 	_check(await _until(func(): return not listed.is_empty()), "sala aparece na listagem HTTP")
+	HeroProgress.path = "user://test_progress_guest.cfg"
+	DirAccess.remove_absolute(HeroProgress.path)
+	HeroProgress.unlock("mago", "fog_pavio")
 	guest.join_room(host.relay.room_code)
 	_check(await _until(func(): return host.players.size() == 2 and guest.players.size() == 2), "entrada e nomes sincronizados")
 	var host_id: int = host.relay.my_id
@@ -60,9 +69,15 @@ func _run() -> void:
 	_check(host.can_start(), "todos escolheram: pode iniciar")
 	host.start_match()
 	_check(await _until(func(): return guest.playing), "início compartilhado")
-	_check(host.owners.size() == 5 and host.owners == guest.owners, "heróis distribuídos entre dono e amigo")
+	_check(host.owners.size() == Session.hero_count() and host.owners == guest.owners, "heróis distribuídos entre dono e amigo")
 	_check(host.owners[3] == guest_id and host.owners[4] == host_id, "cada um controla o herói que escolheu")
-	_check(host.owners.count(host_id) + host.owners.count(guest_id) == 5 and absi(host.owners.count(host_id) - host.owners.count(guest_id)) <= 1, "heróis livres divididos com equilíbrio")
+	_check(host.owners.count(host_id) + host.owners.count(guest_id) == Session.hero_count() and absi(host.owners.count(host_id) - host.owners.count(guest_id)) <= 1, "heróis livres divididos com equilíbrio")
+	var host_mage = host.state.units[3]
+	var guest_mage = guest.state.units[3]
+	_check(host_mage.passives.has("cast_mult") and guest_mage.passives.has("cast_mult"), "herói usa a build de quem o controla")
+	_check(not "labareda" in host_mage.abilities, "build do dono não entra no herói do amigo")
+	_check(host.state.units[4].max_hp == 32 and guest.state.units[4].max_hp == 32, "build do dono chega ao amigo")
+	_check(host.state.units.map(func(u): return u.clock) == guest.state.units.map(func(u): return u.clock), "relógios iguais com builds")
 	view = load("res://main.tscn").instantiate()
 	root.add_child(view)
 	_check(await _until(func(): return not view.busy), "combate fica pronto")
@@ -117,6 +132,8 @@ func _run() -> void:
 	host.relay.stop_room_list()
 	await process_frame
 	print("ONLINE: " + ("FAIL" if failed else "PASS"))
+	DirAccess.remove_absolute("user://test_progress_host.cfg")
+	DirAccess.remove_absolute("user://test_progress_guest.cfg")
 	if config_existed:
 		var file := FileAccess.open("user://online.cfg", FileAccess.WRITE)
 		file.store_string(previous_config)

@@ -15,22 +15,42 @@ var sound_manager:
 const Hex = preload("res://scripts/hex.gd")
 const Data = preload("res://scripts/game_data.gd")
 const BattleState = preload("res://scripts/battle_state.gd")
+const WorldState = preload("res://scripts/world_state.gd")
+const WorldGen = preload("res://scripts/world_gen.gd")
 const AI = preload("res://scripts/ai.gd")
 const UnitView = preload("res://scripts/unit_view.gd")
 const Hud = preload("res://scripts/hud.gd")
 const BattleCamera = preload("res://scripts/battle_camera.gd")
+const BiomeArt = preload("res://scripts/biome_art.gd")
 
 const BOARD_POS := Vector2(250, 142) # sem painel lateral: o tabuleiro fica no meio, a fila à esquerda
 const BOARD_SCALE := 0.5
 const TILE_WIDTH := 186
 const ROW_STEP := 160
+const TILE_FRONT := 213.0 # ponta da frente do topo do hexágono, na textura (igual ao shader)
+const TILE_SLOPE := 53.0 # quanto as bordas inclinadas descem do centro até o lado
+const TILE_WALL := 31.0 # altura da parede abaixo da borda da frente
 const SIDE_HEIGHT := 29 # altura da lateral do tile; empilhar tiles a cada 29 px forma o penhasco
 const LAYERS_PER_LEVEL := 4 # 116 px por nível; a altura é projetada na vertical
+# Na exploração os degraus são mais baixos: num mapa gerado, uma casa atrás de um
+# degrau precisa continuar visível e clicável.
+const WORLD_LAYERS_PER_LEVEL := 2
 const FOREST_HEIGHT := 1.65
+const TREE_SEE_THROUGH := 0.45
 const FEET := Vector2(93, 125)
-const NO_CELL := Vector2i(-1, -1)
+const NO_CELL := Vector2i(-999999, -999999) # coordenadas negativas existem na exploração
 const HOLD_TIME := 0.45
 const SCENERY_BASE := {3: 1, 6: 7, 10: 9, 11: 9}
+const TILE_PATH := "res://assets/tiles/%d.png"
+const WORLD_META := "world_hero" # o menu guarda aqui o herói escolhido para explorar
+const FOG_START := 520.0
+const FOG_END := 880.0
+const FOG_SIDE_SQUEEZE := 0.6 # igual ao peso lateral da névoa no shader
+const VIEW_ROWS_FRONT := 7
+const VIEW_ROWS_BACK := 11
+const UNLOAD_MARGIN := 2
+const Z_REBASE_ROWS := 20
+const QUIET_DISTANCE := 11 # inimigo mais longe que isso age sem animação nem espera
 
 const STEP_COLOR := Color(0.27, 0.67, 1.0, 0.35)
 const REACH_FILL := Color(1.0, 0.55, 0.1, 0.3)
@@ -106,6 +126,14 @@ var focus_ring: Line2D
 var focus_tween: Tween
 var remote_playing := false
 var room_label: Label
+var exploring := false
+var cell_nodes := {} # nós desenhados de cada casa, para descarregar o que ficou para trás
+var building: Array # casa em construção
+var row_range := Vector2i(0, -1)
+var col_range := Vector2i(0, -1)
+var z_origin := 0
+var level_layers := LAYERS_PER_LEVEL
+var tile_meshes := {}
 
 
 func _ready() -> void:
@@ -140,8 +168,20 @@ func _exit_tree() -> void:
 
 
 func _start_battle() -> void:
-	state = online_session.state if online_session.playing else BattleState.from_data()
+	var world_hero: String = get_tree().root.get_meta(WORLD_META, "")
+	exploring = not online_session.playing and world_hero != ""
+	level_layers = WORLD_LAYERS_PER_LEVEL if exploring else LAYERS_PER_LEVEL
+	if online_session.playing:
+		state = online_session.state
+	elif exploring:
+		state = WorldState.new(world_hero, randi())
+	else:
+		state = BattleState.from_data()
 	views.clear()
+	cell_nodes.clear()
+	row_range = Vector2i(0, -1)
+	col_range = Vector2i(0, -1)
+	z_origin = 0
 	overlays.clear()
 	reach_lines.clear()
 	forests.clear()
@@ -162,6 +202,10 @@ func _start_battle() -> void:
 	add_child(board)
 	battle_camera = BattleCamera.new()
 	add_child(battle_camera)
+	if exploring:
+		battle_camera.set_fog(FOG_START, FOG_END)
+		board.position = _camera_target(state.hero.pos)
+		z_origin = state.hero.pos.y
 	_build_tiles()
 	for unit in state.units:
 		_add_unit_view(unit)
@@ -181,6 +225,9 @@ func _start_battle() -> void:
 	if online_session.playing:
 		for child in hud.end_label.get_parent().get_children():
 			if child is Button: child.text = "Voltar ao Online"
+	if exploring:
+		hud.setup_exploration()
+		hud.menu_pressed.connect(_back_to_menu)
 	_advance()
 
 
@@ -203,7 +250,7 @@ func _sync_focus() -> void:
 		focus_ring.visible = false
 		return
 	_place_ground_marker(focus_ring, shown.pos)
-	focus_ring.z_index = shown.pos.y * 10 + 4 # abaixo do personagem (+5)
+	focus_ring.z_index = _z(shown.pos.y) + 4 # abaixo do personagem (+5)
 	focus_ring.visible = true
 
 
@@ -218,29 +265,127 @@ func _on_timeline_pick(unit) -> void:
 
 
 func _build_tiles() -> void:
+	if exploring:
+		_sync_world(state.hero.pos)
+		return
 	for row in state.rows():
 		for col in state.cols():
+			_build_cell(Vector2i(col, row))
+
+
+func _build_cell(cell: Vector2i) -> void:
+	building = []
+	var row := cell.y
+	var base := Vector2(_column_x(cell), row * ROW_STEP)
+	var layers: int = state.elevation_at(cell) * level_layers
+	# Só a parede que aparece: o que as casas da frente cobrem não precisa ser desenhado.
+	var terrain_id: int = state.terrain_id_at(cell)
+	# Só a exploração tem biomas; o Online continua com os tiles do mapa fixo.
+	var biome: String = state.biome_at(cell) if exploring else ""
+	var wall := BiomeArt.wall(biome) if exploring else TILE_PATH % 9
+	var ground := BiomeArt.ground(biome, terrain_id, state.detail_at(cell)) if exploring else TILE_PATH % SCENERY_BASE.get(terrain_id, terrain_id)
+	for layer in range(_hidden_layers(cell, layers), layers):
+		_add_tile(wall, base - Vector2(0, layer * SIDE_HEIGHT), row, layer * SIDE_HEIGHT)
+	_add_tile(ground, cell_origin(cell), row, layers * SIDE_HEIGHT)
+	if exploring:
+		_add_biome_props(biome, terrain_id, cell)
+	elif SCENERY_BASE.has(terrain_id):
+		_add_scenery(terrain_id, cell)
+	var overlay := Polygon2D.new()
+	overlay.polygon = hex_poly
+	_place_ground_marker(overlay, cell)
+	overlay.z_index = _z(row) + 1
+	overlay.visible = false
+	board.add_child(overlay)
+	building.append(overlay)
+	overlays[cell] = overlay
+	var line := _new_hex_line(REACH_LINE, 5)
+	_place_ground_marker(line, cell)
+	line.z_index = _z(row) + 2
+	line.visible = false
+	building.append(line)
+	reach_lines[cell] = line
+	cell_nodes[cell] = building
+	_include_in_range(cell)
+
+
+func _include_in_range(cell: Vector2i) -> void:
+	if row_range.y < row_range.x:
+		row_range = Vector2i(cell.y, cell.y)
+		col_range = Vector2i(cell.x, cell.x)
+		return
+	row_range = Vector2i(mini(row_range.x, cell.y), maxi(row_range.y, cell.y))
+	col_range = Vector2i(mini(col_range.x, cell.x), maxi(col_range.y, cell.x))
+
+
+func _hidden_layers(cell: Vector2i, layers: int) -> int:
+	var hidden := layers
+	for dir in [1, 2]: # as duas vizinhas de baixo, as únicas na frente da parede
+		var front: Vector2i = Hex.neighbor(cell, dir)
+		hidden = mini(hidden, state.elevation_at(front) * level_layers if state.exists(front) else 0)
+	return hidden
+
+
+## Profundidade de desenho de uma linha. A conta é relativa porque o Godot limita o
+## z_index, e numa caminhada longa o número da linha passaria desse limite.
+func _z(row: int) -> int:
+	return (row - z_origin) * 10
+
+
+func _rebase_depth(row: int) -> void:
+	if absi(row - z_origin) < Z_REBASE_ROWS:
+		return
+	var shift := (row - z_origin) * 10
+	z_origin = row
+	for child in board.get_children():
+		if child.z_index < 800: # marcadores e efeitos ficam sempre por cima
+			child.z_index -= shift
+
+
+# --- Mapa infinito -----------------------------------------------------------
+
+func _camera_target(cell: Vector2i) -> Vector2:
+	var feet := Vector2(_column_x(cell), cell.y * ROW_STEP) + FEET
+	return BattleCamera.FOCUS - feet * BOARD_SCALE
+
+
+## Desenha as casas que cabem na tela em volta de `center` e descarrega as distantes.
+func _sync_world(center: Vector2i) -> void:
+	for row in range(center.y - VIEW_ROWS_BACK, center.y + VIEW_ROWS_FRONT + 1):
+		var half := _visible_columns(row - center.y)
+		for col in range(center.x - half, center.x + half + 1):
 			var cell := Vector2i(col, row)
-			var base := Vector2(_column_x(cell), row * ROW_STEP)
-			var layers: int = state.elevation_at(cell) * LAYERS_PER_LEVEL
-			for layer in layers:
-				_add_tile(9, base - Vector2(0, layer * SIDE_HEIGHT), row, layer * SIDE_HEIGHT)
-			var terrain_id: int = state.terrain[row][col]
-			_add_tile(SCENERY_BASE.get(terrain_id, terrain_id), cell_origin(cell), row, layers * SIDE_HEIGHT)
-			if SCENERY_BASE.has(terrain_id):
-				_add_scenery(terrain_id, cell)
-			var overlay := Polygon2D.new()
-			overlay.polygon = hex_poly
-			_place_ground_marker(overlay, cell)
-			overlay.z_index = row * 10 + 1
-			overlay.visible = false
-			board.add_child(overlay)
-			overlays[cell] = overlay
-			var line := _new_hex_line(REACH_LINE, 5)
-			_place_ground_marker(line, cell)
-			line.z_index = row * 10 + 2
-			line.visible = false
-			reach_lines[cell] = line
+			if not cell_nodes.has(cell):
+				_build_cell(cell)
+	var removed := false
+	for cell in cell_nodes.keys():
+		var gap: int = cell.y - center.y
+		if gap < -VIEW_ROWS_BACK - UNLOAD_MARGIN or gap > VIEW_ROWS_FRONT + UNLOAD_MARGIN or absi(cell.x - center.x) > _visible_columns(gap) + UNLOAD_MARGIN:
+			_unload_cell(cell)
+			removed = true
+	if removed:
+		row_range = Vector2i(0, -1)
+		col_range = Vector2i(0, -1)
+		for cell in cell_nodes:
+			_include_in_range(cell)
+
+
+## Quantas colunas para cada lado cabem na tela nessa linha: mais ao fundo, mais colunas.
+func _visible_columns(row_gap: int) -> int:
+	var depth := 1.0 / maxf(0.25, 1.0 - row_gap * ROW_STEP * BOARD_SCALE * BattleCamera.PERSPECTIVE)
+	var on_screen := 760.0 / depth / (TILE_WIDTH * BOARD_SCALE)
+	var row_distance := row_gap * ROW_STEP * BOARD_SCALE
+	var in_fog := sqrt(maxf(0.0, FOG_END * FOG_END - row_distance * row_distance)) / FOG_SIDE_SQUEEZE / (TILE_WIDTH * BOARD_SCALE)
+	return ceili(minf(on_screen, in_fog)) + 1
+
+
+func _unload_cell(cell: Vector2i) -> void:
+	for node in cell_nodes[cell]:
+		node.queue_free()
+	cell_nodes.erase(cell)
+	overlays.erase(cell)
+	reach_lines.erase(cell)
+	forests.erase(cell)
 
 
 func _new_hex_line(color: Color, width: float) -> Line2D:
@@ -254,34 +399,75 @@ func _new_hex_line(color: Color, width: float) -> Line2D:
 	return line
 
 
-func _add_tile(id: int, pos: Vector2, row: int, height := 0.0) -> void:
+func _add_tile(path: String, pos: Vector2, row: int, height := 0.0) -> void:
 	# Malha subdividida: a perspectiva acompanha a textura até nas bordas dos hexes.
 	# Um Sprite2D teria só quatro vértices e abriria frestas entre casas vizinhas.
 	var tile := Polygon2D.new()
-	var texture: Texture2D = load("res://assets/tiles/%d.png" % id)
+	var texture: Texture2D = load(path)
 	tile.texture = texture
+	var mesh: Dictionary = _tile_mesh(texture)
+	tile.polygon = mesh["vertices"]
+	tile.uv = mesh["vertices"]
+	tile.polygons = mesh["faces"]
+	tile.material = battle_camera.tile_material(height * BOARD_SCALE, BOARD_SCALE)
+	tile.position = pos
+	tile.z_index = _z(row)
+	board.add_child(tile)
+	battle_camera.keep_drawn(tile)
+	building.append(tile)
+
+
+func _tile_mesh(texture: Texture2D) -> Dictionary:
+	var key := texture.get_size()
+	if tile_meshes.has(key):
+		return tile_meshes[key]
+	# As fileiras seguem as bordas do hexágono. Com a dobra entre o topo e a parede bem
+	# em cima de um vértice, o shader não entorta a borda nem abre frestas nas junções.
 	var vertices := PackedVector2Array()
 	var faces: Array[PackedInt32Array] = []
 	const COLUMNS := 6
-	const ROWS := 8
-	for y in ROWS + 1:
-		for x in COLUMNS + 1:
-			vertices.append(Vector2(x * texture.get_width() / float(COLUMNS), y * texture.get_height() / float(ROWS)))
-	for y in ROWS:
-		for x in COLUMNS:
-			var i := y * (COLUMNS + 1) + x
-			faces.append(PackedInt32Array([i, i + 1, i + COLUMNS + 2, i + COLUMNS + 1]))
-	tile.polygon = vertices
-	tile.uv = vertices
-	tile.polygons = faces
-	var mat: ShaderMaterial = battle_camera.surface_material(height * BOARD_SCALE).duplicate()
-	mat.set_shader_parameter("tile_surface", true)
-	mat.set_shader_parameter("tile_origin", board.global_transform * pos)
-	mat.set_shader_parameter("tile_scale", BOARD_SCALE)
-	tile.material = mat
-	tile.position = pos
-	tile.z_index = row * 10
-	board.add_child(tile)
+	const TOP_ROWS := 8
+	const ROWS := TOP_ROWS + 1
+	var width: float = texture.get_width()
+	var slope := TILE_SLOPE / (TILE_WIDTH / 2.0)
+	for x in COLUMNS + 1:
+		var px := x * width / float(COLUMNS)
+		var off_center := absf(px - TILE_WIDTH / 2.0)
+		var back := off_center * slope
+		var front := TILE_FRONT - off_center * slope
+		for y in TOP_ROWS + 1:
+			vertices.append(Vector2(px, lerpf(back, front, y / float(TOP_ROWS))))
+		vertices.append(Vector2(px, minf(front + TILE_WALL, texture.get_height())))
+	for x in COLUMNS:
+		for y in ROWS:
+			var i := x * (ROWS + 1) + y
+			faces.append(PackedInt32Array([i, i + ROWS + 1, i + ROWS + 2, i + 1]))
+	tile_meshes[key] = {"vertices": vertices, "faces": faces}
+	return tile_meshes[key]
+
+
+func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
+	var detail: float = state.detail_at(cell)
+	var made := {}
+	for prop in BiomeArt.props(biome, terrain_id, detail):
+		made[prop["layer"]] = _biome_prop(prop, cell, detail)
+	if terrain_id == WorldGen.FOREST:
+		forests[cell] = made
+
+
+func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
+	var sprite := Sprite2D.new()
+	sprite.texture = load(prop["path"])
+	sprite.centered = false
+	# O ponto de apoio de cada arte é o centro da imagem.
+	var foot: Vector2 = sprite.texture.get_size() / 2.0
+	sprite.position = cell_origin(cell) + Vector2(93, prop["ground_y"]) - foot
+	sprite.flip_h = fmod(detail * 13.0, 1.0) < 0.5
+	sprite.z_index = _z(cell.y) + prop["depth"]
+	board.add_child(sprite)
+	building.append(sprite)
+	battle_camera.add_billboard(sprite, foot, _cell_elevation(cell))
+	return sprite
 
 
 func _add_scenery(id: int, cell: Vector2i) -> void:
@@ -300,8 +486,9 @@ func _scenery_layer(id: int, cell: Vector2i, depth: int, height := 1.0, slice :=
 	prop.scale.y = height
 	prop.position = cell_origin(cell) + Vector2(0, 160 * (1.0 - height))
 	prop.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	prop.z_index = cell.y * 10 + depth
+	prop.z_index = _z(cell.y) + depth
 	board.add_child(prop)
+	building.append(prop)
 	battle_camera.add_billboard(prop, Vector2(93, 160 * height), _cell_elevation(cell))
 	prop.material.set_shader_parameter("scenery", true)
 	prop.material.set_shader_parameter("scenery_base", load("res://assets/tiles/%d.png" % SCENERY_BASE[id]))
@@ -314,19 +501,20 @@ func _add_unit_view(unit) -> void:
 	board.add_child(view)
 	view.setup(unit, Hud.PLAYER_COLOR if unit.team == Data.Team.PLAYER else Hud.ENEMY_COLOR, meta[unit.type_id])
 	view.position = feet_of(unit.pos)
-	view.z_index = unit.pos.y * 10 + 5
+	view.z_index = _z(unit.pos.y) + 5
 	views[unit] = view
 	battle_camera.add_billboard(view, Vector2.ZERO, _cell_elevation(unit.pos))
 
 
 ## Altura em unidades da tela lógica; a grade e os custos continuam iguais.
 func _cell_elevation(cell: Vector2i) -> float:
-	return state.elevation_at(cell) * LAYERS_PER_LEVEL * SIDE_HEIGHT * BOARD_SCALE
+	return state.elevation_at(cell) * level_layers * SIDE_HEIGHT * BOARD_SCALE
 
 
 func _place_ground_marker(item: CanvasItem, cell: Vector2i) -> void:
 	item.position = cell_origin(cell)
 	item.material = battle_camera.surface_material(_cell_elevation(cell))
+	battle_camera.keep_drawn(item)
 
 
 func _height_at_point(point: Vector2) -> float:
@@ -349,7 +537,7 @@ func _column_x(cell: Vector2i) -> int:
 
 
 func cell_origin(cell: Vector2i) -> Vector2:
-	var level: int = state.elevation_at(cell) * LAYERS_PER_LEVEL
+	var level: int = state.elevation_at(cell) * level_layers
 	return Vector2(_column_x(cell), cell.y * ROW_STEP - level * SIDE_HEIGHT)
 
 
@@ -363,9 +551,11 @@ func cell_to_screen(cell: Vector2i) -> Vector2:
 
 
 func _cell_at(screen: Vector2) -> Vector2i:
-	for row in range(state.rows() - 1, -1, -1): # as linhas da frente cobrem as de trás
-		for col in state.cols():
+	for row in range(row_range.y, row_range.x - 1, -1): # as linhas da frente cobrem as de trás
+		for col in range(col_range.x, col_range.y + 1):
 			var cell := Vector2i(col, row)
+			if not overlays.has(cell) or screen.distance_squared_to(cell_to_screen(cell)) > 67600.0:
+				continue
 			var projected := PackedVector2Array()
 			for point in hex_poly:
 				projected.append(battle_camera.project(board.global_transform * (cell_origin(cell) + point), _cell_elevation(cell)))
@@ -377,6 +567,11 @@ func _cell_at(screen: Vector2) -> Vector2i:
 ## Com a câmera baixa, a cabeça pode estar sobre outra casa. Seleciona o
 ## personagem visível por seus pixels opacos, respeitando a ordem do desenho.
 func _pick_cell(screen: Vector2) -> Vector2i:
+	# Num mapa gerado, um degrau pode cobrir o centro da casa vizinha: o passo continua possível.
+	if exploring and not busy:
+		for cell in Hex.neighbors(state.active_unit().pos):
+			if overlays.has(cell) and state.can_step(state.active_unit(), cell) and screen.distance_to(cell_to_screen(cell)) <= 14.0:
+				return cell
 	var ground_cell := _cell_at(screen)
 	# Mantém o centro de cada hex acessível para movimento e mira no chão,
 	# mesmo quando o corpo de alguém na fileira da frente passa por cima dele.
@@ -410,11 +605,16 @@ func _advance() -> void:
 		if result >= 0:
 			online_session.publish([], true)
 			sound_manager.play_sfx(&"victory" if result == Data.Team.PLAYER else &"defeat")
-			hud.show_end("Vitória!" if result == Data.Team.PLAYER else "Derrota")
+			hud.show_end(_end_text() if exploring else ("Vitória!" if result == Data.Team.PLAYER else "Derrota"))
 			return
+		if exploring:
+			var changes: Array = state.tick()
+			if not changes.is_empty():
+				await _play(changes)
+			hud.set_journey(state.hero.hp, state.hero.max_hp, state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(state.hero.pos)]["name"])
 		var unit = state.active_unit()
 		_place_ground_marker(active_outline, unit.pos)
-		active_outline.z_index = unit.pos.y * 10 + 3
+		active_outline.z_index = _z(unit.pos.y) + 3
 		_refresh_turn_markers()
 		hud.refresh(state)
 		hud.set_hint("")
@@ -422,11 +622,15 @@ func _advance() -> void:
 			await _play(state.resolve_pending(unit))
 			continue
 		if unit.team == Data.Team.ENEMY:
-			await get_tree().create_timer(0.2).timeout
+			if not _is_quiet(unit):
+				await get_tree().create_timer(0.2).timeout
 			await _play(AI.apply(state, unit, AI.decide(state, unit)))
 			continue
 		break
 	busy = false
+	if exploring:
+		hud.set_journey(state.hero.hp, state.hero.max_hp, state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(state.hero.pos)]["name"])
+		_refresh_hover()
 	hud.refresh(state)
 	_refresh_turn_markers()
 	_refresh_overlays()
@@ -567,7 +771,7 @@ func _show_card(unit) -> void:
 	hud.show_card(info)
 
 
-const ABILITY_ICONS := {"golpe": "sword", "rapido": "sword", "tiro": "arrow", "cura": "heart", "guarda": "shield", "escudo_fogo": "shield"} # o resto das magias usa o fogo
+const ABILITY_ICONS := {"golpe": "sword", "rapido": "sword", "tiro": "arrow", "cura": "heart", "guarda": "shield", "escudo_fogo": "shield", "coronhada": "sword"} # o resto das magias usa o fogo
 
 
 # Magias sem ícone próprio usam o do elemento: a pasta do efeito (fogo/, agua/).
@@ -644,7 +848,7 @@ func _terrain_notes(unit, cell: Vector2i) -> Array:
 	if cost != normal:
 		var reasons := []
 		if tile["cost"] > 0:
-			reasons.append(tile["name"].to_lower())
+			reasons.append(state.tile_name_at(cell).to_lower())
 		if state.elevation_at(cell) > state.elevation_at(unit.pos):
 			reasons.append("subida")
 		notes.append("Passo custa %d de tempo (normal %d): %s" % [cost, normal, " e ".join(reasons)])
@@ -668,7 +872,7 @@ func _open_menu(cell: Vector2i) -> void:
 	menu_options = options
 	# Sem ações, um menu só cobriria o alcance que a pessoa quer ver: a informação vai na dica.
 	if not options.is_empty():
-		var title: String = occupant.display_name if occupant != null else state.tile_at(cell)["name"]
+		var title: String = occupant.display_name if occupant != null else state.tile_name_at(cell)
 		var info: String = _menu_info(occupant) if occupant != null else "\n".join(_terrain_notes(state.active_unit(), cell))
 		hud.show_menu(cell_to_screen(cell), title, occupant.team if occupant != null else -1, info, options)
 	# A fila mostra onde a magia seria solta, antes de confirmar.
@@ -788,7 +992,9 @@ func _refresh_overlays() -> void:
 	for cell in forests:
 		# A frente ainda encobre as pernas, mas deixa uma pista do ocupante.
 		var occupant = state.unit_at(cell)
-		forests[cell].front.modulate.a = 0.82 if occupant != null and occupant.alive() else 1.0
+		var clear := _covers_a_unit(cell)
+		forests[cell].back.modulate.a = TREE_SEE_THROUGH if clear else 1.0
+		forests[cell].front.modulate.a = TREE_SEE_THROUGH if clear else (0.82 if occupant != null and occupant.alive() else 1.0)
 	_refresh_order_badges()
 	for cell in overlays:
 		overlays[cell].visible = false
@@ -812,7 +1018,7 @@ func _mark_free_look() -> void:
 	var focus: Vector2i = menu_cell if menu_cell != NO_CELL else (shown.pos if shown != null else NO_CELL)
 	if focus != NO_CELL:
 		_place_ground_marker(inspect_outline, focus)
-		inspect_outline.z_index = focus.y * 10 + 4
+		inspect_outline.z_index = _z(focus.y) + 4
 		inspect_outline.visible = true
 	var spell := _menu_spell()
 	if spell != "":
@@ -875,6 +1081,16 @@ func _mark_reach_cell(cell: Vector2i) -> void:
 		_mark(cell, REACH_FILL)
 
 
+## As árvores são altas: as das duas fileiras da frente podem esconder quem está atrás.
+func _covers_a_unit(cell: Vector2i) -> bool:
+	if not exploring:
+		return false
+	for unit in state.units:
+		if unit.alive() and cell.y > unit.pos.y and Hex.distance(cell, unit.pos) <= 2:
+			return true
+	return false
+
+
 func _mark(cell: Vector2i, color: Color) -> void:
 	if overlays.has(cell):
 		overlays[cell].color = color
@@ -907,7 +1123,7 @@ func _update_hint() -> void:
 		hud.set_hint(text)
 	elif hover != NO_CELL and state.can_step(unit, hover):
 		var tile: Dictionary = state.tile_at(hover)
-		hud.set_hint("%s: passo custa tempo %d" % [tile["name"], state.time_for(state.step_cost(unit.pos, hover), unit)])
+		hud.set_hint("%s: passo custa tempo %d" % [state.tile_name_at(hover), state.time_for(state.step_cost(unit.pos, hover), unit)])
 	else:
 		hud.set_hint(DEFAULT_HINT)
 
@@ -939,6 +1155,12 @@ func _play(events: Array) -> void:
 				await _play_cast_start(event)
 			"cast_resolve":
 				await _play_cast_resolve(event)
+			"spawn":
+				_play_spawn(event)
+			"despawn":
+				_remove_view(event["unit"])
+			"regen":
+				_play_regen(event)
 	for unit in views:
 		if unit.alive():
 			_show_status(unit)
@@ -1023,22 +1245,76 @@ func _show_status(unit) -> void:
 		views[unit].set_status("em guarda" if unit.guarding else "")
 
 
+# --- Exploração --------------------------------------------------------------
+
+func _is_quiet(unit) -> bool:
+	return exploring and Hex.distance(unit.pos, state.hero.pos) > QUIET_DISTANCE
+
+
+func _play_spawn(event: Dictionary) -> void:
+	_add_unit_view(event["unit"])
+	var view = views[event["unit"]]
+	view.modulate.a = 0.0
+	create_tween().tween_property(view, "modulate:a", 1.0, 0.4)
+
+
+func _remove_view(unit) -> void:
+	if views.has(unit):
+		views[unit].queue_free()
+		views.erase(unit)
+
+
+func _play_regen(event: Dictionary) -> void:
+	var view = views[event["unit"]]
+	view.set_hp(event["hp"])
+	_float_text(view.position + Vector2(-20, -200), "+%d" % event["amount"], Color(0.4, 1.0, 0.5))
+
+
+## A câmera andou: o que está sob o mouse mudou. Toque não tem hover, então fica como está.
+func _refresh_hover() -> void:
+	if hover == NO_CELL:
+		return
+	hover = _pick_cell(get_viewport().get_mouse_position())
+	_refresh_overlays()
+	_update_hint()
+
+
+func _end_text() -> String:
+	return "Fim da jornada\n%d casas de distância · %d inimigos derrotados" % [state.farthest, state.kills]
+
+
+func _back_to_menu() -> void:
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
 func _play_move(event: Dictionary) -> void:
 	var view = views[event["unit"]]
 	var from: Vector2 = feet_of(event["from"])
 	var to: Vector2 = feet_of(event["to"])
+	var walker_is_hero: bool = exploring and event["unit"] == state.hero
+	if exploring and not walker_is_hero and Hex.distance(event["to"], state.hero.pos) > QUIET_DISTANCE:
+		view.position = to
+		view.z_index = _z(event["to"].y) + 5
+		battle_camera.set_elevation(_cell_elevation(event["to"]), view)
+		return
+	if walker_is_hero:
+		_sync_world(event["to"])
 	view.face_toward(to - from)
-	view.z_index = maxi(event["from"].y, event["to"].y) * 10 + 5
+	view.z_index = _z(maxi(event["from"].y, event["to"].y)) + 5
 	view.set_walking(true)
 	sound_manager.play_sfx(&"step")
 	var height_delta: int = state.elevation_at(event["to"]) - state.elevation_at(event["from"])
 	var duration := 0.22 if height_delta == 0 else 0.48
 	var tween := create_tween()
 	tween.tween_method(_move_frame.bind(view, from, to, _cell_elevation(event["from"]), _cell_elevation(event["to"]), height_delta), 0.0, 1.0, duration)
+	if walker_is_hero:
+		tween.parallel().tween_property(board, "position", _camera_target(event["to"]), duration)
 	await tween.finished
 	view.set_walking(false)
 	view.set_jump_height(0.0)
-	view.z_index = event["to"].y * 10 + 5
+	view.z_index = _z(event["to"].y) + 5
+	if walker_is_hero:
+		_rebase_depth(event["to"].y)
 	_refresh_overlays()
 
 

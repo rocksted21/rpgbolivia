@@ -9,12 +9,16 @@ signal connection_lost(reason: String)
 const Relay = preload("res://net/relay_connection.gd")
 const BattleState = preload("res://scripts/battle_state.gd")
 const Data = preload("res://scripts/game_data.gd")
+const Skills = preload("res://scripts/skill_data.gd")
+const HeroProgress = preload("res://scripts/hero_progress.gd")
 var relay
 var player_name := "Jogador"
 var players := {}
 var owners := []
 ## Herói (índice em Data.BATTLE_UNITS) -> jogador que o escolheu na sala.
 var picks := {}
+## Jogador -> {tipo do herói: [nós]}. Só o dono guarda; a partida usa match_builds().
+var player_builds := {}
 var playing := false
 var state
 var revision := 0
@@ -83,6 +87,7 @@ func leave() -> void:
 	players.clear()
 	owners.clear()
 	picks.clear()
+	player_builds.clear()
 	playing = false
 	state = null
 	packets.clear()
@@ -94,12 +99,13 @@ func leave() -> void:
 func _host_joined() -> void:
 	original_host = relay.my_id
 	players = {relay.my_id: player_name}
+	player_builds = {relay.my_id: HeroProgress.all_builds()}
 	notice = "Aguardando jogadores."
 	changed.emit()
 
 func _client_joined() -> void:
 	original_host = relay.master_id
-	_send({type = "hello", name = player_name}, true)
+	_send({type = "hello", name = player_name, builds = HeroProgress.all_builds()}, true)
 	notice = "Aguardando confirmação do dono…"
 	changed.emit()
 
@@ -170,12 +176,34 @@ func start_match() -> void:
 	if not relay.is_master or playing or not can_start():
 		return
 	owners = planned_owners()
-	state = BattleState.from_data()
+	var builds := match_builds()
+	state = BattleState.from_data(builds)
 	revision = 0
 	playing = true
 	relay.set_props({locked = true, fase = "Combate"})
-	_send({type = "start", owners = owners, players = players})
+	_send({type = "start", owners = owners, players = players, builds = builds})
 	match_started.emit()
+
+## Cada herói usa a build de quem ficou com ele: {índice em Data.BATTLE_UNITS: [nós]}.
+func match_builds() -> Dictionary:
+	var builds := {}
+	for hero in owners.size():
+		var type_id: String = Data.BATTLE_UNITS[hero][0]
+		var saved: Variant = player_builds.get(owners[hero], {})
+		if saved is Dictionary:
+			builds[hero] = Skills.sanitize(type_id, saved.get(type_id, []))
+	return builds
+
+
+## Confere o que veio do dono, para uma mensagem estranha não derrubar o cliente.
+static func clean_builds(received: Variant) -> Dictionary:
+	var builds := {}
+	if received is Dictionary:
+		for hero in received:
+			if hero is int and hero >= 0 and hero < Data.BATTLE_UNITS.size():
+				builds[hero] = Skills.sanitize(Data.BATTLE_UNITS[hero][0], received[hero])
+	return builds
+
 
 func owner_of(unit) -> int:
 	var index: int = state.units.find(unit)
@@ -228,6 +256,7 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 		if sender not in relay.peer_ids: return
 		if kind == "hello" and not playing:
 			players[sender] = str(message.get("name", "Jogador")).strip_edges().left(20)
+			player_builds[sender] = message.get("builds", {})
 			_roster()
 		elif kind == "pick" and message.get("hero") is int:
 			_toggle_pick(sender, message.hero)
@@ -246,7 +275,7 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 			playing = true
 			players = message.players
 			owners = message.owners
-			state = BattleState.from_data()
+			state = BattleState.from_data(clean_builds(message.get("builds", {})))
 			revision = 0
 			match_started.emit()
 		"battle":
@@ -263,6 +292,7 @@ func _peer_left(id: int) -> void:
 		return
 	if relay.is_master:
 		players.erase(id)
+		player_builds.erase(id)
 		for hero in heroes_of(id): picks.erase(hero)
 		for i in owners.size():
 			if owners[i] == id: owners[i] = relay.my_id

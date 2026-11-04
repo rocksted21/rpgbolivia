@@ -9,6 +9,8 @@ var sound_manager:
 signal option_pressed(index: int)
 signal order_toggled(on: bool)
 signal restart_pressed
+signal skills_pressed
+signal menu_pressed
 signal unit_picked(unit)
 
 const Data = preload("res://scripts/game_data.gd")
@@ -63,6 +65,8 @@ var menu: PanelContainer
 var menu_buttons := []
 var end_panel: PanelContainer
 var end_label: Label
+var end_note: Label
+var skills_button: Button
 var card: Control
 var card_spell: Control
 var title_font: Font
@@ -76,6 +80,9 @@ var last_state = null
 var timeline_units := []
 var timeline_tween: Tween
 var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magia carregada
+
+
+var journey: Label
 
 
 func setup(p_meta: Dictionary) -> void:
@@ -131,12 +138,24 @@ func setup(p_meta: Dictionary) -> void:
 	end_label.add_theme_font_size_override("font_size", 32)
 	end_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_column.add_child(end_label)
+	end_note = Label.new()
+	end_note.add_theme_font_size_override("font_size", 17)
+	end_note.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	end_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	end_note.visible = false
+	end_column.add_child(end_note)
 	var restart := Button.new()
 	restart.text = "Lutar de novo"
 	restart.custom_minimum_size.y = 56
 	sound_manager.bind_button(restart, &"click3")
 	restart.pressed.connect(func(): restart_pressed.emit())
 	end_column.add_child(restart)
+	skills_button = Button.new()
+	skills_button.text = "Árvore de skills"
+	skills_button.custom_minimum_size.y = 48
+	sound_manager.bind_button(skills_button)
+	skills_button.pressed.connect(func(): skills_pressed.emit())
+	end_column.add_child(skills_button)
 
 	# Cartão de detalhes: cobre a tela toda para que o toque que fecha não caia no tabuleiro.
 	card = ColorRect.new()
@@ -564,12 +583,44 @@ func _on_order_toggled(on: bool) -> void:
 	order_toggled.emit(on)
 
 
+## Prepara a tela para a exploração: mostra o progresso e oferece voltar ao menu no fim.
+func setup_exploration() -> void:
+	order_button.visible = false
+	journey = _label("", 22, Color(1.0, 0.95, 0.8))
+	journey.position = Vector2(0, 16)
+	journey.custom_minimum_size = Vector2(SCREEN.x, 0)
+	journey.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	journey.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	journey.add_theme_color_override("font_outline_color", Color.BLACK)
+	journey.add_theme_constant_override("outline_size", 6)
+	add_child(journey)
+	var end_column: Node = end_label.get_parent()
+	end_panel.position = Vector2(320, 240)
+	end_panel.custom_minimum_size = Vector2(640, 200)
+	end_label.add_theme_font_size_override("font_size", 26)
+	for child in end_column.get_children():
+		if child is Button and child != skills_button:
+			child.text = "Nova jornada"
+	var menu_button := Button.new()
+	menu_button.text = "Menu principal"
+	menu_button.custom_minimum_size.y = 56
+	sound_manager.bind_button(menu_button, &"click3")
+	menu_button.pressed.connect(func(): menu_pressed.emit())
+	end_column.add_child(menu_button)
+
+
+func set_journey(hp: int, max_hp: int, distance: int, kills: int, danger: int, biome := "") -> void:
+	journey.text = "%s   ·   Vida %d/%d   ·   Distância %d   ·   Abates %d   ·   Perigo %d" % [biome, hp, max_hp, distance, kills, danger]
+
+
 func set_hint(text: String) -> void:
 	hint.text = text
 
 
-func show_end(text: String) -> void:
+func show_end(text: String, note := "") -> void:
 	end_label.text = text
+	end_note.text = note
+	end_note.visible = note != ""
 	end_panel.visible = true
 
 
@@ -600,6 +651,8 @@ func _refresh_timeline(state) -> void:
 	if timeline_tween != null:
 		timeline_tween.kill()
 	timeline.position.y = TIMELINE_Y
+	# Sozinho no mapa não há fila para mostrar: seria o herói repetido dez vezes.
+	timeline.visible = state.units.filter(func(u): return u.alive()).size() > 1
 	var order: Array = state.timeline(TIMELINE_SIZE, cast_preview)
 	# Magia que sai depois do fim da fila: a última vaga vira o selo dela, com as ações que faltam além.
 	var beyond := 0

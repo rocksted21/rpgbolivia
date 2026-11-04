@@ -7,10 +7,13 @@ const FOCUS := Vector2(660, 450)
 const SCREEN_FOCUS := Vector2(660, 470)
 const GROUND_TILT := 0.60
 const PERSPECTIVE := 0.001
+const NO_CULL_RECT := Rect2(-100000, -100000, 200000, 200000)
 
 var billboards: Array[Dictionary] = []
 var ground_material: ShaderMaterial
 var surface_materials := {}
+var tile_materials := {}
+var fog_range := Vector2.ZERO # início e fim da névoa; zero desliga
 
 
 func _init() -> void:
@@ -45,6 +48,41 @@ func surface_material(elevation: float) -> ShaderMaterial:
 	return surface_materials[elevation]
 
 
+## Tiles na mesma altura dividem o material, o que deixa mapas grandes bem mais leves.
+func tile_material(elevation: float, tile_scale: float) -> ShaderMaterial:
+	if not tile_materials.has(elevation):
+		var mat := _material(false)
+		mat.set_shader_parameter("elevation", elevation)
+		mat.set_shader_parameter("tile_surface", true)
+		mat.set_shader_parameter("tile_scale", tile_scale)
+		tile_materials[elevation] = mat
+	return tile_materials[elevation]
+
+
+## O Godot descarta o que está fora da tela antes do shader mover o desenho. Com o mapa
+## grande, as fileiras do fundo sumiriam mesmo projetadas para dentro da tela.
+func keep_drawn(item: CanvasItem) -> void:
+	if fog_range != Vector2.ZERO:
+		RenderingServer.canvas_item_set_custom_rect(item.get_canvas_item(), true, NO_CULL_RECT)
+
+
+func _keep_drawn_tree(item: Node) -> void:
+	if item is CanvasItem:
+		keep_drawn(item)
+	for child in item.get_children():
+		_keep_drawn_tree(child)
+
+
+func set_fog(from: float, to: float) -> void:
+	fog_range = Vector2(from, to)
+	_apply_fog(ground_material)
+
+
+func _apply_fog(mat: ShaderMaterial) -> void:
+	mat.set_shader_parameter("fog_start", fog_range.x)
+	mat.set_shader_parameter("fog_end", fog_range.y)
+
+
 func _material(upright: bool) -> ShaderMaterial:
 	var result := ShaderMaterial.new()
 	result.shader = SHADER
@@ -53,6 +91,7 @@ func _material(upright: bool) -> ShaderMaterial:
 	result.set_shader_parameter("ground_tilt", GROUND_TILT)
 	result.set_shader_parameter("perspective", PERSPECTIVE)
 	result.set_shader_parameter("upright", upright)
+	_apply_fog(result)
 	return result
 
 
@@ -60,6 +99,7 @@ func _material(upright: bool) -> ShaderMaterial:
 func add_billboard(item: CanvasItem, ground_offset := Vector2.ZERO, elevation := 0.0) -> void:
 	var mat := _material(true)
 	_apply_material(item, mat)
+	_keep_drawn_tree(item)
 	var entry := {"item": weakref(item), "material": mat, "offset": ground_offset}
 	billboards.append(entry)
 	item.set_meta("camera_elevation", elevation)
@@ -90,8 +130,13 @@ func _update_anchor(entry: Dictionary) -> bool:
 	if item == null:
 		return false
 	var anchor: Vector2 = item.get_parent().get_global_transform() * (item.position + entry.offset)
-	entry.material.set_shader_parameter("ground_anchor", anchor)
-	entry.material.set_shader_parameter("elevation", elevation_of(item))
+	var height := elevation_of(item)
+	# Só avisa o shader se mudou: há muitas árvores paradas no mapa.
+	if anchor != entry.get("anchor") or height != entry.get("height"):
+		entry.anchor = anchor
+		entry.height = height
+		entry.material.set_shader_parameter("ground_anchor", anchor)
+		entry.material.set_shader_parameter("elevation", height)
 	return true
 
 

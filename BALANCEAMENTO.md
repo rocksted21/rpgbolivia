@@ -84,3 +84,26 @@ O cenário é determinístico e a IA é simples. Estes resultados validam a
 implementação e a conclusão da luta, não uma taxa de vitória balanceada.
 Ainda falta validar a sensação em partidas jogadas, especialmente contra
 duas ou mais unidades agrupadas e com o mago sob pressão do Cérbero.
+
+# Árvores de skills — 03/11/2026
+
+Dados em `scripts/skill_data.gd`; save em `user://progress.cfg`.
+
+- Cada um dos 6 heróis tem 3 ramos com 4 níveis. Custos por nível: 1, 1, 2 e 3
+  (21 pontos para a árvore toda). O teto é de 12 pontos, então não dá para ter tudo.
+- Pontos por herói: começa com 2. Na exploração, o herói da jornada ganha +1 a
+  cada 5 abates e a cada 20 casas de distância, com mínimo de 1. Na batalha
+  online: vitória +2, derrota +1. Redistribuir é grátis.
+- Online: cada herói usa a build de quem o controla. O dono da sala valida
+  requisitos e o teto de 12, mas não confere quantos pontos o jogador ganhou:
+  o save é local.
+- Magos agora começam com poucas magias e liberam as demais: Mago de Fogo com
+  Faísca, Bola de Fogo, Flor de Fogo e Escudo de Fogo; Mago de Água com Gota,
+  Bola d'Água e Floco de Neve.
+- A tabela de classes acima descreve o herói sem skills, salvo as magias que
+  agora precisam ser compradas.
+
+**Ainda não balanceado.** Na batalha, os inimigos não evoluem. Na exploração, o
+perigo sobe com a distância, mas não considera a build. Proteção e Pelas Costas
+dependem de aliados e não servem para o herói sozinho na exploração. As habilidades novas receberam
+valores iniciais e passaram só por testes de regra, não por partidas jogadas.
