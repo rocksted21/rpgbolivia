@@ -104,15 +104,16 @@ func test_biomes() -> void:
 	for row in range(-60, 60):
 		for col in range(-60, 60):
 			var cell := Vector2i(col, row)
-			if state.biome_at(cell) == "deserto" and state.terrain_id_at(cell) == WorldGen.FOREST:
+			if state.biome_at(cell) == "deserto" and state.terrain_id_at(cell) == WorldGen.TREE:
 				check(state.tile_name_at(cell) == "Cactos", "floresta no deserto tem outro nome")
-				check(state.tile_at(cell)["cost"] == Data.TERRAIN[WorldGen.FOREST]["cost"], "regra igual em todo bioma")
+				check(not state.tile_at(cell)["walkable"], "árvore é sólida em todo bioma")
 				return
 
 
 ## Cada bioma é um pedaço só, e a terra alta ocupa boa parte do mapa.
 func _check_one_piece(gen) -> void:
 	const RADIUS := 90
+	var trees := 0
 	var middle := Vector2i(roundi(gen.biome_center.x), roundi(gen.biome_center.y / 0.866))
 	var seen := {}
 	var pieces := {}
@@ -126,6 +127,8 @@ func _check_one_piece(gen) -> void:
 			total += 1
 			if gen.sample(cell)["elevation"] >= 2:
 				high += 1
+			if gen.sample(cell)["terrain"] == WorldGen.TREE:
+				trees += 1
 			if seen.has(cell):
 				continue
 			var biome: String = gen.sample(cell)["biome"]
@@ -141,6 +144,7 @@ func _check_one_piece(gen) -> void:
 	check(pieces.size() == Data.BIOMES.size(), "os quatro biomas estão no mapa (semente %d)" % gen.world_seed)
 	for biome in pieces:
 		check(pieces[biome] == 1, "%s é um pedaço só (%d, semente %d)" % [biome, pieces[biome], gen.world_seed])
+	check(trees * 100.0 / total < 15.0, "as árvores não fecham o mapa (%.0f%%, semente %d)" % [trees * 100.0 / total, gen.world_seed])
 	var share := high * 100.0 / total
 	check(share >= 15.0, "há terra alta (%.0f%%, semente %d)" % [share, gen.world_seed])
 
@@ -258,7 +262,7 @@ func test_rules() -> void:
 	check(not state.in_bounds(far), "IA não procura caminho longe do herói")
 	check(state.exists(far), "o mapa continua existindo longe do herói")
 	var found: Dictionary = state.search(state.hero)
-	check(found["cost"].size() <= 1 + 3 * 14 * 15, "busca limitada à área em jogo")
+	check(found["cost"].size() <= 1 + 3 * Data.WORLD["active_radius"] * (Data.WORLD["active_radius"] + 1), "busca limitada à área em jogo")
 	state.hero.hp = 0
 	check(state.winner() == Data.Team.ENEMY, "herói morto encerra a jornada")
 
@@ -502,6 +506,12 @@ func test_network() -> void:
 	host.engaged.erase(foe)
 	guest.apply_snapshot(host.snapshot())
 	check(not guest.units.has(copy) and guest.unit_by_uid(foe.uid) == copy, "quem saiu continua conhecido para os eventos")
+	# O turno em andamento também viaja: quem joga do outro lado vê os passos que sobraram.
+	var walker = host.party[0]
+	walker.moved = 150
+	guest.apply_snapshot(host.snapshot())
+	check(guest.unit_by_uid(walker.uid).moved == 150, "snapshot leva os passos gastos")
+	walker.moved = 0
 	for i in 3:
 		var added = host.add_unit("esqueleto", Data.Team.ENEMY, host.party[0].pos + Vector2i(20 + i, 0))
 		check(added.uid > foe.uid, "uid nunca se repete")
@@ -514,6 +524,11 @@ func test_combat_flow() -> void:
 	var far = _foe_at(state, sight + 3)
 	state.tick()
 	check(not state.in_combat(), "inimigo longe não inicia combate")
+	var beside = _foe_at(state, sight + 1)
+	state.tick()
+	check(not state.in_combat(), "dá para passar logo fora da visão sem lutar")
+	state.units.erase(beside)
+	check(sight < Data.WORLD["spawn_min"] - 3, "inimigo surge longe o bastante para ser desviado")
 	check(state.active_unit() == state.hero, "fora de combate só o herói age")
 	check(state.turn_order() == [state.hero], "fila só com o herói")
 	var near = _foe_at(state, sight)
@@ -554,11 +569,21 @@ func test_combat_flow() -> void:
 	check(_kinds(fled).has("combat_end") and fled.filter(func(e): return e["type"] == "combat_end")[0]["fled"], "longe o bastante, o herói escapa")
 	check(chase.units.has(hunter), "quem perdeu o herói continua no mundo")
 	check(not chase.takes_turns(hunter), "e sai da fila")
-	# Sem caminho e sem ver a party, o inimigo desiste.
+	# Com um herói caído perto do inimigo, o combate não acaba como fuga.
+	var left = WorldState.new(Data.DEFAULT_PARTY, 28)
+	var guard = left.add_unit("esqueleto", Data.Team.ENEMY, left.party[1].pos + Vector2i(1, 0))
+	left.engage([guard], false, left.party[1])
+	left.party[1].hp = 0
+	for member in left.party:
+		if member != left.party[1]:
+			member.pos = guard.pos + Vector2i(-Data.WORLD["flee_radius"] - 2, 0)
+	left.tick()
+	check(left.in_combat(), "herói caído ao lado do inimigo mantém o combate")
+	# Sem caminho e longe da party, o inimigo desiste.
 	var stuck = WorldState.new("duelista", 28)
 	var island = _foe_at(stuck, sight)
 	stuck.tick()
-	island.pos = stuck.hero.pos + Vector2i(sight + 2, 0)
+	island.pos = stuck.hero.pos + Vector2i(Data.WORLD["give_up_radius"] + 1, 0)
 	stuck.do_wait(island)
 	check(not stuck.engaged.has(island), "inimigo sem caminho desiste")
 	# Ataque de surpresa.
@@ -683,7 +708,7 @@ func _walk_on(state, unit) -> void:
 			best = far
 			goal = cell
 	var path: Array = state.path_from_search(found, goal)
-	if path.is_empty():
-		state.do_wait(unit)
+	if path.is_empty() or (state.in_combat() and not state.can_step(unit, path[0])):
+		state.do_wait(unit) # sem passos ou já agiu: encerra o turno
 	else:
 		state.do_step(unit, path[0])

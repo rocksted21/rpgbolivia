@@ -11,6 +11,7 @@ const TERRAIN_WATER := 5
 const TERRAIN_STONE := 12
 const TERRAIN_ROCK := 6
 const BUILDING_GROUND := 138
+const MODEL_GROUND := 107 # centro do hexágono
 const PERSON_GROUND := 160
 const BEHIND_UNIT := 3
 
@@ -64,8 +65,16 @@ func _build_places() -> void:
 		var ready: bool = building.get("needs", "") == "" or building["needs"] in rescued
 		for cell in _disc(building["cell"], building["radius"]):
 			ground[cell] = TERRAIN_BUILT
+		if ready and building["art"] in Town.MODELS:
+			_put_model(building["cell"], building["art"], building.get("face", building["cell"]))
+			continue
 		var path: String = (Town.TOWN_ROOT % building["art"]) if ready else Town.RUBBLE
 		_put(building["cell"], path, BUILDING_GROUND)
+	for i in Town.TREES.size():
+		var spot: Vector2i = Town.TREES[i]
+		if ground.has(spot):
+			ground[spot] = TERRAIN_BUILT
+			_put(spot, Town.TREE_ART % ("a" if i % 2 == 0 else "b"), BUILDING_GROUND, 0, BEHIND_UNIT, i % 3 == 0)
 	for decor in Town.DECOR:
 		var cell: Vector2i = decor["cell"]
 		if ground.has(cell) and ground[cell] != TERRAIN_WATER and decor.get("solid", true):
@@ -83,6 +92,18 @@ func _put(cell: Vector2i, path: String, ground_y: int, offset := 0, depth := BEH
 	if not props.has(cell):
 		props[cell] = []
 	props[cell].append({"path": path, "ground_y": ground_y, "depth": depth, "layer": "main", "fixed": true, "offset_x": offset, "flip": flip})
+
+
+## Construção em 3D: o pé do modelo fica no centro da casa, e o desenho muda com a câmera.
+func _put_model(cell: Vector2i, model: String, face: Vector2i) -> void:
+	if not props.has(cell):
+		props[cell] = []
+	# A frente do modelo olha para `face`: a casa fica de frente para a rua.
+	var turn := 0.0
+	if face != cell:
+		var toward: Vector2 = _flat(face) - _flat(cell)
+		turn = toward.angle() - PI / 2.0
+	props[cell].append({"path": Town.MODEL_ROOT % model, "model": model, "turn": turn, "ground_y": MODEL_GROUND, "depth": BEHIND_UNIT, "layer": "main", "fixed": true})
 
 
 func _line(from: Vector2i, to: Vector2i) -> Array:

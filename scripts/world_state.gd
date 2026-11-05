@@ -252,11 +252,20 @@ func _cells_within(unit, steps: int) -> Array:
 ## Quem vê a party agora, junto com os companheiros próximos de quem viu.
 func _spotters() -> Array:
 	var idle: Array = foes().filter(func(u): return not engaged.has(u))
-	var seen: Array = idle.filter(func(u): return party_distance(u.pos) <= Data.WORLD["sight_radius"])
+	var seen: Array = idle.filter(func(u): return party_distance(u.pos) <= Data.WORLD["sight_radius"] and _can_reach_party(u))
 	if seen.is_empty():
 		return []
 	return idle.filter(func(u):
-		return seen.any(func(s): return Hex.distance(u.pos, s.pos) <= Data.WORLD["group_radius"]))
+		return seen.any(func(s): return Hex.distance(u.pos, s.pos) <= Data.WORLD["group_radius"]) and _can_reach_party(u))
+
+
+## Atrás de uma serra ou no alto de um penhasco, o inimigo não entra na luta: ninguém chegaria nele.
+func _can_reach_party(unit) -> bool:
+	var reach: Dictionary = search(unit, Data.WORLD["sight_walk"])["cost"]
+	for member in alive_party():
+		if Hex.neighbors(member.pos).any(func(cell): return reach.has(cell)):
+			return true
+	return false
 
 
 func sight_cells(unit) -> Array:
@@ -289,10 +298,10 @@ func do_step(unit, to: Vector2i) -> Array:
 	return events
 
 
-## Inimigo sem caminho até a party e sem vê-la desiste, para o combate não ficar preso.
+## Inimigo sem caminho até a party e longe dela desiste, para o combate não ficar preso.
 func do_wait(unit) -> Array:
 	var events: Array = super(unit)
-	if engaged.has(unit) and party_distance(unit.pos) > Data.WORLD["sight_radius"]:
+	if engaged.has(unit) and party_distance(unit.pos) > Data.WORLD["give_up_radius"]:
 		engaged.erase(unit)
 	return events
 
@@ -308,6 +317,13 @@ func _wander(events: Array) -> void:
 		var to: Vector2i = options[rng.randi_range(0, options.size() - 1)]
 		events.append({"type": "wander", "unit": unit, "from": unit.pos, "to": to})
 		unit.pos = to
+
+
+func _distance_to_any_hero(cell: Vector2i) -> int:
+	var best := 999999
+	for member in party:
+		best = mini(best, Hex.distance(member.pos, cell))
+	return best
 
 
 func _rest(unit, events: Array) -> void:
@@ -358,7 +374,8 @@ func tick() -> Array:
 		if party.has(unit):
 			continue
 		var distance := party_distance(unit.pos)
-		if engaged.has(unit) and unit.alive() and distance > Data.WORLD["flee_radius"] and unit.pending.is_empty():
+		# Quem caiu conta: senão o combate acaba ao lado dele, ele levanta ali e tudo recomeça.
+		if engaged.has(unit) and unit.alive() and _distance_to_any_hero(unit.pos) > Data.WORLD["flee_radius"] and unit.pending.is_empty():
 			engaged.erase(unit)
 			escaped = true
 		var lost: bool = distance > Data.WORLD["despawn_radius"] and unit.pending.is_empty()
@@ -381,6 +398,7 @@ func tick() -> Array:
 ## Fim do combate: ninguém fica com magia pela metade, e quem caiu volta ferido.
 func _after_combat(events: Array) -> void:
 	for member in party:
+		member.moved = 0
 		member.guarding = false
 		member.pending = {}
 		if not member.alive():
@@ -468,7 +486,7 @@ func snapshot() -> Dictionary:
 	for unit in units:
 		rows.append({
 			uid = unit.uid, type = unit.type_id, pos = unit.pos, hp = unit.hp, max_hp = unit.max_hp, atk = unit.atk,
-			clock = unit.clock, guarding = unit.guarding, pending = unit.pending.duplicate(true), engaged = engaged.has(unit),
+			clock = unit.clock, moved = unit.moved, guarding = unit.guarding, pending = unit.pending.duplicate(true), engaged = engaged.has(unit),
 		})
 	return {units = rows, kills = kills, farthest = farthest}
 
@@ -491,6 +509,7 @@ func apply_snapshot(data: Dictionary) -> void:
 		unit.max_hp = row.max_hp
 		unit.atk = row.atk
 		unit.clock = row.clock
+		unit.moved = row.moved
 		unit.guarding = row.guarding
 		unit.pending = row.pending.duplicate(true)
 		if row.engaged:

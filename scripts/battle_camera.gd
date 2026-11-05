@@ -15,9 +15,11 @@ var surface_materials := {}
 var tile_materials := {}
 var ground_materials := {}
 var ground_noise: Texture2D
+var soil_edge := 0.8
 var fog_range := Vector2.ZERO # início e fim da névoa; zero desliga
 var lights := PackedVector4Array() # luz no chão; casas novas também recebem
 var view_angle := 0.0 # giro da câmera, em radianos, em volta do centro da tela
+var zoom := 1.0 # menor que 1 afasta a câmera; só muda o desenho
 
 
 func _init() -> void:
@@ -50,9 +52,15 @@ func set_view_angle(angle: float) -> void:
 		entry.material.set_shader_parameter("view_angle", angle)
 
 
-## Escala de um ponto em pé sobre esse lugar do chão, já com o giro.
+## Afasta a câmera. Chamar antes de criar o mapa: os materiais novos já nascem com o valor.
+func set_zoom(value: float) -> void:
+	zoom = value
+	ground_material.set_shader_parameter("zoom", value)
+
+
+## Escala de um ponto em pé sobre esse lugar do chão, já com o giro e o afastamento.
 func depth_at(anchor: Vector2, elevation: float) -> float:
-	return depth_scale(turned(anchor + Vector2(0, elevation)).y)
+	return depth_scale(turned(anchor + Vector2(0, elevation)).y) * zoom
 
 
 func depth_scale(world_y: float) -> float:
@@ -64,7 +72,7 @@ func project(world: Vector2, elevation := 0.0) -> Vector2:
 	# Altura não é distância: subir um penhasco não pode diminuir o personagem.
 	var ground := turned(world + Vector2(0, elevation))
 	var depth := depth_scale(ground.y)
-	return SCREEN_FOCUS + Vector2(ground.x - FOCUS.x, (ground.y - FOCUS.y) * GROUND_TILT - elevation) * depth
+	return SCREEN_FOCUS + Vector2(ground.x - FOCUS.x, (ground.y - FOCUS.y) * GROUND_TILT - elevation) * depth * zoom
 
 
 func surface_material(elevation: float) -> ShaderMaterial:
@@ -94,6 +102,7 @@ func soil_material(elevation: float) -> ShaderMaterial:
 		mat.set_shader_parameter("elevation", elevation)
 		mat.set_shader_parameter("ground_surface", true)
 		mat.set_shader_parameter("ground_noise", ground_noise)
+		mat.set_shader_parameter("ground_edge", soil_edge)
 		mat.set_shader_parameter("lights", lights)
 		ground_materials[elevation] = mat
 	return ground_materials[elevation]
@@ -139,6 +148,7 @@ func _material(upright: bool) -> ShaderMaterial:
 	result.set_shader_parameter("screen_focus", SCREEN_FOCUS)
 	result.set_shader_parameter("ground_tilt", GROUND_TILT)
 	result.set_shader_parameter("perspective", PERSPECTIVE)
+	result.set_shader_parameter("zoom", zoom)
 	result.set_shader_parameter("upright", upright)
 	_apply_fog(result)
 	result.set_shader_parameter("view_angle", view_angle)

@@ -340,7 +340,7 @@ func _one_action(state) -> void:
 	if action["kind"] == "ability":
 		view._perform(state.do_ability(hero, action["id"], action["cell"]))
 	elif action["kind"] == "step":
-		view._perform(state.do_step(hero, action["cell"]))
+		view._perform(state.do_move(hero, action["cell"]))
 	else:
 		view._perform(state.do_wait(hero))
 	await _idle()

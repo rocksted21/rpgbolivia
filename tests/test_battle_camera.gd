@@ -48,8 +48,24 @@ func _run() -> void:
 		root.get_texture().get_image().save_png(path)
 		print("Prévia: ", path)
 	await _test_forest_and_jump(battle)
+	await _test_walk_during_attack(battle)
 	print("Câmera: ", "FALHOU" if failed else "OK")
 	quit(1 if failed else 0)
+
+
+# O turno espera a animação do golpe: o fim da caminhada não pode cancelá-la.
+func _test_walk_during_attack(battle) -> void:
+	var actor = battle.views.values()[0]
+	var done := [false]
+	actor.set_walking(true)
+	var attack := func():
+		await actor.play_once(actor.Anim.ATTACK)
+		done[0] = true
+	attack.call()
+	actor.set_walking(false)
+	await create_timer(3.0).timeout
+	_expect(done[0], "parar de andar no meio do golpe não prende o turno")
+	_expect(actor.row == actor.Anim.IDLE, "depois do golpe, volta a ficar parado")
 
 
 func _test_forest_and_jump(battle) -> void:

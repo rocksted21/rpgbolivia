@@ -6,6 +6,12 @@ enum Team { PLAYER, ENEMY }
 const STEP_TIME := 100
 const CLIMB_TIME := 40
 const WAIT_TIME := 50
+# Turno em combate: anda até gastar os pontos de movimento e usa uma ação, em qualquer ordem.
+# Um passo em chão plano gasta STEP_TIME pontos: velocidade 10 dá 4 casas; 15 dá 5; 7 dá 3.
+const MOVE_BASE := 200
+const MOVE_PER_SPEED := 25
+const MOVE_ONLY_TIME := 100 # andar e não agir atrasa menos que atacar
+const TURN_TIME := 150 # quanto a fila supõe que um turno dura, para prever a ordem
 const FLANK_MULT := 1.5
 const HEIGHT_MULT_PER_LEVEL := 0.2
 const GUARD_MULT := 0.5
@@ -27,6 +33,7 @@ const TERRAIN := {
 	13: {"name": "Trilha", "walkable": true, "cost": 0, "damage": 1.0},
 	14: {"name": "Ponte", "walkable": true, "cost": 0, "damage": 1.0},
 	15: {"name": "Estrada", "walkable": true, "cost": 0, "damage": 1.0},
+	16: {"name": "Árvore", "walkable": false, "cost": 0, "damage": 1.0},
 }
 
 const MAP_TERRAIN := [
@@ -149,13 +156,15 @@ const WORLD_HEROES := ["guardiao", "duelista", "besteiro", "mago", "mago_agua", 
 const PARTY_SIZE := 4
 const DEFAULT_PARTY := ["guardiao", "duelista", "mago", "druida"]
 const WORLD := {
-	"active_radius": 14, # até onde a IA procura caminho a partir do herói
-	"despawn_radius": 13, # inimigo mais longe que isso se perde na névoa
-	"spawn_min": 8,
-	"spawn_max": 10,
+	"active_radius": 17, # até onde a IA procura caminho a partir do herói
+	"despawn_radius": 16, # inimigo mais longe que isso se perde na névoa
+	"spawn_min": 10,
+	"spawn_max": 12,
 	"first_spawn_steps": 6,
 	"spawn_steps": [5, 10], # passos entre um grupo e outro
-	"sight_radius": 5, # o inimigo inicia o combate ao ver o herói a essa distância
+	"sight_radius": 3, # o inimigo inicia o combate ao ver o herói a essa distância
+	"sight_walk": 900, # pontos de movimento: mais longe que isso a pé, o inimigo não entra na luta
+	"give_up_radius": 5, # inimigo em combate, sem caminho e mais longe que isso, desiste
 	"group_radius": 3, # quem está perto de quem viu entra na luta junto
 	"flee_radius": 10, # inimigo em combate mais longe que isso perde o herói de vista
 	"wander_chance": 0.3, # chance de um inimigo parado dar um passo a cada passo do herói
@@ -191,18 +200,18 @@ const WORLD_SPAWNS := [
 const BIOMES := {
 	"floresta": {
 		"name": "Floresta das Ruínas", "forest": 0.2, "water": 0.22, "hills": -0.42, "rocks": -0.3,
-		"names": {1: "Musgo", 9: "Musgo", 2: "Pedras", 3: "Árvores mortas", 5: "Água escura", 6: "Ruínas", 7: "Colinas", 10: "Casa", 11: "Arco", 13: "Trilha", 14: "Ponte", 15: "Estrada"},
+		"names": {1: "Musgo", 9: "Musgo", 2: "Pedras", 3: "Árvores mortas", 16: "Árvores mortas", 5: "Água escura", 6: "Ruínas", 7: "Colinas", 10: "Casa", 11: "Arco", 13: "Trilha", 14: "Ponte", 15: "Estrada"},
 	},
 	"selva": {
 		"name": "Pântano de Tinta", "forest": 0.08, "water": 0.12, "hills": -0.46, "rocks": -0.38,
-		"names": {1: "Lama", 9: "Lama", 2: "Cristais", 3: "Mangue", 5: "Água de tinta", 6: "Destroços", 7: "Montes", 10: "Casa", 11: "Estufa", 13: "Trilha de lama", 14: "Ponte", 15: "Passarela"},
+		"names": {1: "Lama", 9: "Lama", 2: "Cristais", 3: "Mangue", 16: "Mangue", 5: "Água de tinta", 6: "Destroços", 7: "Montes", 10: "Casa", 11: "Estufa", 13: "Trilha de lama", 14: "Ponte", 15: "Passarela"},
 	},
 	"neve": {
 		"name": "Neve de Cinzas", "forest": 0.24, "water": 0.28, "hills": -0.38, "rocks": -0.26,
-		"names": {1: "Neve", 9: "Neve", 2: "Cristais", 3: "Pinheiral", 5: "Lago gelado", 6: "Destroços", 7: "Montes de neve", 10: "Casa", 11: "Arco", 13: "Trilha batida", 14: "Ponte", 15: "Estrada"},
+		"names": {1: "Neve", 9: "Neve", 2: "Cristais", 3: "Pinheiral", 16: "Pinheiral", 5: "Lago gelado", 6: "Destroços", 7: "Montes de neve", 10: "Casa", 11: "Arco", 13: "Trilha batida", 14: "Ponte", 15: "Estrada"},
 	},
 	"deserto": {
 		"name": "Deserto de Ouro", "forest": 0.38, "water": 0.42, "hills": -0.24, "rocks": -0.2,
-		"names": {1: "Areia", 9: "Areia", 2: "Rochas", 3: "Cactos", 5: "Oásis", 6: "Ossadas", 7: "Dunas", 10: "Casa", 11: "Arco", 13: "Caminho", 14: "Ponte", 15: "Estrada"},
+		"names": {1: "Areia", 9: "Areia", 2: "Rochas", 3: "Cactos", 16: "Cactos", 5: "Oásis", 6: "Ossadas", 7: "Dunas", 10: "Casa", 11: "Arco", 13: "Caminho", 14: "Ponte", 15: "Estrada"},
 	},
 }

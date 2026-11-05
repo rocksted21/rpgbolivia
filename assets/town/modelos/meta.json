@@ -1,0 +1,106 @@
+{
+	"abrigo": {
+		"columns": 4,
+		"foot_x": 64,
+		"foot_y": 105,
+		"h": 145,
+		"views": 16,
+		"w": 128
+	},
+	"capela": {
+		"columns": 4,
+		"foot_x": 102,
+		"foot_y": 269,
+		"h": 332,
+		"views": 16,
+		"w": 204
+	},
+	"casa_a": {
+		"columns": 4,
+		"foot_x": 69,
+		"foot_y": 155,
+		"h": 198,
+		"views": 16,
+		"w": 138
+	},
+	"casa_b": {
+		"columns": 4,
+		"foot_x": 67,
+		"foot_y": 180,
+		"h": 222,
+		"views": 16,
+		"w": 134
+	},
+	"casa_c": {
+		"columns": 4,
+		"foot_x": 76,
+		"foot_y": 126,
+		"h": 174,
+		"views": 16,
+		"w": 152
+	},
+	"farol": {
+		"columns": 4,
+		"foot_x": 64,
+		"foot_y": 384,
+		"h": 424,
+		"views": 16,
+		"w": 128
+	},
+	"fonte": {
+		"columns": 4,
+		"foot_x": 51,
+		"foot_y": 118,
+		"h": 151,
+		"views": 16,
+		"w": 102
+	},
+	"forja": {
+		"columns": 4,
+		"foot_x": 122,
+		"foot_y": 241,
+		"h": 316,
+		"views": 16,
+		"w": 244
+	},
+	"forno": {
+		"columns": 4,
+		"foot_x": 48,
+		"foot_y": 103,
+		"h": 134,
+		"views": 16,
+		"w": 96
+	},
+	"mansao": {
+		"columns": 4,
+		"foot_x": 130,
+		"foot_y": 241,
+		"h": 321,
+		"views": 16,
+		"w": 260
+	},
+	"taverna": {
+		"columns": 4,
+		"foot_x": 120,
+		"foot_y": 246,
+		"h": 320,
+		"views": 16,
+		"w": 240
+	},
+	"tenda": {
+		"columns": 4,
+		"foot_x": 84,
+		"foot_y": 172,
+		"h": 224,
+		"views": 16,
+		"w": 168
+	},
+	"torre_madeira": {
+		"columns": 4,
+		"foot_x": 69,
+		"foot_y": 233,
+		"h": 276,
+		"views": 16,
+		"w": 138
+	}
+}

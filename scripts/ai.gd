@@ -27,13 +27,15 @@ static func decide(state, unit) -> Dictionary:
 	if not best.is_empty():
 		return best
 
-	var found: Dictionary = state.search(unit)
-	var goal = null
-	for cell in found["cost"]:
-		if _can_hit_from(state, unit, cell, taunter) and (goal == null or found["cost"][cell] < found["cost"][goal]):
-			goal = cell
+	# Quase sempre o alvo está ao alcance deste turno; a busca pelo mapa todo fica para quando não está.
+	var found: Dictionary = state.search(unit, state.move_left(unit))
+	var goal = _nearest_spot(state, unit, found, taunter)
+	if goal == null:
+		found = state.search(unit)
+		goal = _nearest_spot(state, unit, found, taunter)
 	if goal != null and goal != unit.pos:
-		return {"kind": "step", "cell": state.path_from_search(found, goal)[0]}
+		var next: Vector2i = state.path_from_search(found, goal)[0]
+		return {"kind": "step", "cell": next} if state.can_step(unit, next) else {"kind": "wait"}
 	if taunter != null:
 		# Sem caminho até quem provocou: a provocação não pode travar a unidade.
 		unit.taunted_by = null
@@ -41,8 +43,17 @@ static func decide(state, unit) -> Dictionary:
 	return {"kind": "wait"}
 
 
+static func _nearest_spot(state, unit, found: Dictionary, taunter):
+	var goal = null
+	for cell in found["cost"]:
+		if _can_hit_from(state, unit, cell, taunter) and (goal == null or found["cost"][cell] < found["cost"][goal]):
+			goal = cell
+	return goal
+
+
 static func apply(state, unit, action: Dictionary) -> Array:
-	unit.taunt_actions -= 1
+	if action["kind"] == "wait":
+		unit.taunt_actions -= 1 # conta turnos, não passos
 	if action["kind"] == "ability" or unit.taunt_actions <= 0:
 		unit.taunted_by = null
 	match action["kind"]:

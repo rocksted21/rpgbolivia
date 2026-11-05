@@ -39,7 +39,7 @@ func setup(p_view) -> void:
 			_add_light(decor["cell"], Town.LIGHT_ART[decor["art"]], true, FLAME_HEIGHT, decor.get("offset", 0))
 	for building in Town.BUILDINGS:
 		if building["art"] == "farol":
-			_add_light(building["cell"], Town.BEACON_LIGHT, false, 300.0)
+			_add_light(building["cell"], Town.BEACON_LIGHT, false, Town.BEACON_HEIGHT)
 		elif building["art"] == "forja" and state.is_present(building):
 			_add_light(building["cell"], Town.FORGE_LIGHT, true)
 	var count: int = mini(Town.WALKER_BASE + TownProgress.rescued().size() + TownProgress.beacons(), Town.WALKER_MAX)

@@ -3,11 +3,11 @@ extends RefCounted
 ## arquivos são gerados por tools/build_biomes.py.
 
 const ROOT := "res://assets/biomes/%s/%s.png"
-const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra", 13: "campo_a", 14: "agua_a", 15: "campo_a"}
+const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 16: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra", 13: "campo_a", 14: "agua_a", 15: "campo_a"}
 const COMMON := "res://assets/biomes/comum/%s.png"
 # A borda que invade a vizinha: quem vem depois na lista pinta por cima de quem vem antes.
 const BIOME_ORDER := ["deserto", "selva", "floresta", "neve"]
-const SHADED := [3, 6, 10, 11] # terrenos com piso de sombra: o campo em volta avança sobre eles
+const SHADED := [3, 6, 10, 11, 16] # terrenos com piso de sombra: o campo em volta avança sobre eles
 const WET := [5, 14]
 # Tom do chão e do cenário nas expedições: a escuridão cobre o mapa, e a luz vem de world_light.gd.
 const EDGE_NOISE := "res://assets/biomes/comum/ruido_chao.png"
@@ -133,6 +133,8 @@ static func props(biome: String, terrain_id: int, detail: float) -> Array:
 				_prop(biome, "floresta_fundo_" + variant, BACK_Y, BEHIND_UNIT, "back"),
 				_prop(biome, "floresta_frente_" + variant, FRONT_Y, BEFORE_UNIT, "front"),
 			]
+		16:
+			return [_prop(biome, "floresta_fundo_" + variant, MIDDLE_Y, BEHIND_UNIT, "tree")]
 		2:
 			return [_prop(biome, "pedras_" + variant, MIDDLE_Y, BEHIND_UNIT)]
 		6:

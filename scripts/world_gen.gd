@@ -17,6 +17,7 @@ const TOWER := 11
 const PATH := 13
 const BRIDGE := 14
 const ROAD := 15
+const TREE := 16 # árvore sólida: a party contorna, em vez de atravessar
 const MAX_LEVEL := 3
 const START_CLEARING := 2 # raio sem obstáculos em volta do início
 # Entortar as coordenadas tira das manchas o desenho do ruído: bordas de bioma, rios e serras ficam orgânicos.
@@ -36,7 +37,9 @@ const RIVER_WIDTH := 0.016
 const FORD_LIMIT := 0.12 # acima disso o rio dá passagem; ele nunca corta o mundo em dois
 const RANGE_START := 0.5 # serra: o miolo é montanha, a beira vira colinas e pedras
 const RANGE_BAND := 0.08
+const MOUNTAIN_CHANCE := 0.4
 const PASS_LIMIT := 0.28 # as serras têm desfiladeiros por onde passar
+const TREE_CHANCE := 0.3 # nas matas, só parte das casas tem árvore: sobra por onde passar
 const FOREST_EDGE := 0.05 # na borda, as árvores rareiam em vez de parar em linha reta
 const SITE_LIMIT := 0.5 # ruínas: enfeites juntos em um lugar, não espalhados pelo mapa
 const SITE_DECOR := 0.45
@@ -58,6 +61,8 @@ var trail_noise := FastNoiseLite.new()
 var path_cells := {}
 var road_cells := {}
 var carved := {} # casa: {direção: true se esse trecho é estrada}, abertos por carve()
+var layout_levels := {} # casa: altura imposta pela forma tática da expedição (expedition_layout.gd)
+var layout_terrain := {} # casa: terreno imposto; os caminhos têm prioridade
 var warp_x_noise := FastNoiseLite.new()
 var warp_y_noise := FastNoiseLite.new()
 var border_noise := FastNoiseLite.new()
@@ -119,11 +124,25 @@ func _generate(cell: Vector2i) -> Dictionary:
 	var wx := x + warp_x_noise.get_noise_2d(x, y) * WARP
 	var wy := y + warp_y_noise.get_noise_2d(x, y) * WARP
 	var roll := _roll(cell)
-	var level := _level(cell)
+	var level: int = layout_levels.get(cell, _level(cell))
 	var biome := biome_of(cell)
 	var spot := {"elevation": level, "biome": biome, "detail": fmod(roll * 97.0, 1.0)}
 	_shape(cell, wx, wy, level, Data.BIOMES[biome], roll, spot)
+	if layout_terrain.has(cell) and not is_path(cell):
+		spot["terrain"] = layout_terrain[cell]
+		spot["elevation"] = level
+		spot.erase("decor")
+		if spot["detail"] < DECOR_DETAIL:
+			spot["detail"] = DECOR_DETAIL + spot["detail"] * 9.0
 	return spot
+
+
+func clear_cache() -> void:
+	cache.clear()
+
+
+func forget(cell: Vector2i) -> void:
+	cache.erase(cell)
 
 
 ## Nível de uma casa, igual à maioria da vizinhança: não sobra degrau de uma casa só.
@@ -192,8 +211,11 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 		return
 	var ridge := range_noise.get_noise_2d(x, y)
 	if ridge > RANGE_START + RANGE_BAND and crossing < PASS_LIMIT:
-		spot["terrain"] = MOUNTAIN
-		spot["elevation"] = mini(level + 1, MAX_LEVEL)
+		# Serra de blocos soltos, sem degrau em volta de cada um: não vira um muro de casas iguais.
+		if fmod(roll * 61.0, 1.0) < MOUNTAIN_CHANCE:
+			spot["terrain"] = MOUNTAIN
+		else:
+			spot["terrain"] = HILLS if roll < 0.5 else (ROCKS if roll < 0.75 else field)
 		return
 	if ridge > RANGE_START:
 		spot["terrain"] = HILLS if roll < 0.55 else (ROCKS if roll < 0.8 else field)
@@ -204,7 +226,8 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 		return
 	var moisture := moisture_noise.get_noise_2d(x, y)
 	if moisture > biome["forest"] or (moisture > biome["forest"] - FOREST_EDGE and roll > 0.65):
-		spot["terrain"] = FOREST
+		if fmod(roll * 53.0, 1.0) < TREE_CHANCE:
+			spot["terrain"] = TREE
 		return
 	if feature < biome["hills"]:
 		spot["terrain"] = HILLS
@@ -379,7 +402,7 @@ func _route_cost(from: Vector2i, to: Vector2i) -> float:
 			return -1.0
 		WATER:
 			return 24.0 + wander
-		FOREST:
+		FOREST, TREE:
 			return 5.0 + wander
 		HILLS, ROCKS:
 			return 4.0 + wander

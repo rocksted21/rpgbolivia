@@ -66,8 +66,15 @@ Herói é azul e inimigo é vermelho nas barras e marcadores. A fonte ainda não
 - **Sem casas à vista:** as regras continuam em hexágonos, mas o chão é contínuo, com bordas recortadas e cantos fora do lugar. As casas só aparecem no combate, como marcação de movimento e alcance.
 - **Um pedaço de cada bioma:** Floresta, Selva, Neve e Deserto são quatro regiões contínuas que se encontram em um ponto. Neve e Deserto nunca fazem fronteira, a não ser nesse ponto.
 - **Terra alta:** planaltos largos, em até três degraus, com penhascos irregulares.
-- **Cenário solto:** árvores e pedras saem do centro da casa, e as matas têm clareiras.
+- **Cenário solto:** árvores e pedras saem do centro da casa. Nas matas, só parte das casas tem árvore, e cada árvore é sólida: a party contorna, sem atravessar. Uma árvore fica transparente quando esconde alguém.
 - **Texturas:** `tools/build_ground.py` gera o chão a partir das cores das peças de cada bioma. A Cidade-Farol usa o mesmo chão, com calçada de pedras soltas nas ruas e os degraus menos tortos, porque escadas e prédios seguem a planta.
+
+## Cidade-Farol
+
+- **Espaço:** a avenida liga o porto, ao sul, à praça com a fonte e à colina do farol, ao norte. A oeste fica o bairro dos ofícios; a leste, o bairro nobre e a taverna.
+- **Construções de todos os lados:** cada prédio é um modelo 3D simples, renderizado em pixel art de 16 ângulos por `tools/build_town_models.py`. O jogo troca o desenho conforme a câmera gira.
+- **Medidas dos modelos:** 1 casa do mapa tem cerca de 93 pixels de arte. Casas viram a frente para a rua (`face`, em `scripts/town_data.gd`).
+- **Luz:** janelas acesas continuam vivas à noite, e as fachadas seguem os tons de pedra, reboco e madeira das pranchas.
 
 ## Noite e luz nas expedições
 

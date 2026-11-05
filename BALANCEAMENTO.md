@@ -107,3 +107,15 @@ Dados em `scripts/skill_data.gd`; save em `user://progress.cfg`.
 perigo sobe com a distância, mas não considera a build. Proteção e Pelas Costas
 dependem de aliados e não servem para o herói sozinho na exploração. As habilidades novas receberam
 valores iniciais e passaram só por testes de regra, não por partidas jogadas.
+
+# Turno com movimento e ação — 05/11/2026
+
+Antes, cada passo gastava uma ação. Agora cada turno tem pontos de movimento e uma ação; a ação encerra o turno.
+
+- **Movimento:** `MOVE_BASE + velocidade × MOVE_PER_SPEED` pontos (`game_data.gd`). Um passo plano gasta 100, floresta e colinas 150, subida +40. Múmia anda 3 casas; a maioria, 4; Duelista e Diabrete, 5.
+- **Relógio:** andar não conta mais. A ação cobra o `time` dela; quem só andou paga `MOVE_ONLY_TIME` (100); quem fica parado paga `WAIT_TIME` (50).
+- **Ordem:** primeiro anda, depois age. Não dá para bater e recuar no mesmo turno.
+- **Golpe de oportunidade:** continua valendo a cada passo que sai de perto de um inimigo.
+- **Provocação:** agora conta turnos (2), não passos.
+
+Falta medir em partidas jogadas. Sem bater e recuar, Besteiro e magos só se afastam gastando o turno seguinte, então vale observá-los sob pressão.

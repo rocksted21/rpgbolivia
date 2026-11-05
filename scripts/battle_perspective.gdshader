@@ -5,6 +5,8 @@ uniform vec2 focus = vec2(660.0, 450.0);
 uniform vec2 screen_focus = vec2(660.0, 470.0);
 uniform float ground_tilt = 0.60;
 uniform float perspective = 0.001;
+// Afastamento da câmera: tudo encolhe em volta do centro da tela. 1 = perto.
+uniform float zoom = 1.0;
 uniform bool upright = false;
 uniform vec2 ground_anchor = vec2(0.0);
 uniform float elevation = 0.0;
@@ -46,7 +48,7 @@ vec2 turned(vec2 point) {
 
 vec2 project_ground(vec2 point, float height) {
 	vec2 ground = turned(point + vec2(0.0, height));
-	return screen_focus + ((ground - focus) * vec2(1.0, ground_tilt) - vec2(0.0, height)) * depth_scale(ground.y);
+	return screen_focus + ((ground - focus) * vec2(1.0, ground_tilt) - vec2(0.0, height)) * depth_scale(ground.y) * zoom;
 }
 
 void vertex() {
@@ -63,7 +65,7 @@ void vertex() {
 	fog = fog_end > 0.0 ? smoothstep(fog_start, fog_end, length((ground_point - focus) * vec2(0.6, 1.0))) : 0.0;
 	if (upright) {
 		// A altura do personagem não recebe o achatamento do chão.
-		VERTEX = project_ground(ground_anchor, elevation) + (VERTEX - ground_anchor) * depth_scale(turned(ground_anchor + vec2(0.0, elevation)).y);
+		VERTEX = project_ground(ground_anchor, elevation) + (VERTEX - ground_anchor) * depth_scale(turned(ground_anchor + vec2(0.0, elevation)).y) * zoom;
 	} else {
 		VERTEX = project_ground(VERTEX, height);
 	}

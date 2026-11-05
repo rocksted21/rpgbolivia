@@ -40,6 +40,7 @@ func _initialize() -> void:
 	test_charge_timing()
 	test_heal()
 	test_turn_order()
+	test_move_and_act()
 	test_attack_reach()
 	test_full_battles()
 	test_skills()
@@ -281,7 +282,7 @@ func test_step_rules() -> void:
 	check(not state.can_enter(Vector2i(2, 2), Vector2i(2, 0)), "não sobe dois níveis")
 	var before: int = unit.clock
 	state.do_step(unit, Vector2i(2, 3))
-	check(unit.clock - before == state.time_for(150, unit), "passo adianta o relógio pelo custo")
+	check(unit.clock == before and unit.moved == 150, "em combate, o passo gasta movimento pelo custo, não relógio")
 
 
 func test_opportunity() -> void:
@@ -389,7 +390,7 @@ func test_charge_timing() -> void:
 		check(cast < total and recovery > 0, "%s divide conjuração e recuperação" % id)
 		var wait := state.cast_wait(caster, id)
 		var old_wait := state.actions_until(caster, {caster: total})
-		check(wait < old_wait, "%s sai antes da janela antiga" % id)
+		check(wait <= old_wait, "%s não sai depois da janela antiga" % id)
 		state.do_ability(caster, id, enemy.pos)
 		check(caster.clock == before + cast, "%s cobra só a conjuração antes do impacto" % id)
 		check(enemy.hp == enemy.max_hp, "%s continua dando chance de reação" % id)
@@ -403,12 +404,12 @@ func test_charge_timing() -> void:
 
 	var battle: BattleState = BattleState.from_data()
 	var mage = battle.units.filter(func(u): return u.type_id == "mago")[0]
-	# Chega à primeira vez do mago usando a mesma hipótese da fila: um passo por ação.
+	# Chega à primeira vez do mago usando a mesma hipótese da fila.
 	while battle.active_unit() != mage:
 		var unit = battle.active_unit()
-		unit.clock += battle.time_for(Data.STEP_TIME, unit)
+		unit.clock += battle.time_for(Data.TURN_TIME, unit)
 	var old_wait: int = battle.actions_until(mage, {mage: battle.time_for(Data.ABILITIES["explosao"]["time"], mage)})
-	print("Explosão na primeira vez do mago (10 unidades, hipótese de um passo): %d -> %d ações até o impacto" % [old_wait, battle.cast_wait(mage, "explosao")])
+	print("Explosão na primeira vez do mago (10 unidades, hipótese de um turno): %d -> %d ações até o impacto" % [old_wait, battle.cast_wait(mage, "explosao")])
 
 
 func test_turn_order() -> void:
@@ -423,6 +424,67 @@ func test_turn_order() -> void:
 	check(state.active_unit() == state.turn_order()[0], "empate não diverge de active_unit")
 	mid.hp = 0
 	check(not state.turn_order().has(mid), "morto sai da ordem")
+
+
+func test_move_and_act() -> void:
+	# Anda várias casas e ataca na mesma vez; o relógio só corre com a ação.
+	var state := flat()
+	var hero = state.add_unit("duelista", Data.Team.PLAYER, Vector2i(0, 0))
+	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, Vector2i(3, 0))
+	foe.clock = 1000
+	check(state.move_points(hero) / Data.STEP_TIME == 5, "velocidade 14 anda 5 casas")
+	check(state.move_cells(hero).has(Vector2i(2, 0)) and not state.move_cells(hero).has(foe.pos), "alcance de movimento sem casa ocupada")
+	check(state.approach_cell(hero, foe) == Vector2i(2, 0), "acha a casa de onde alcança o alvo")
+	var clock: int = hero.clock
+	var walked: Array = state.do_move(hero, Vector2i(2, 0))
+	check(walked.size() == 2 and walked[0]["type"] == "move", "anda o caminho inteiro em um comando")
+	check(hero.pos == Vector2i(2, 0) and hero.clock == clock and state.active_unit() == hero, "andar não passa a vez")
+	check(state.steps_left(hero) == 3, "sobram 3 casas")
+	state.do_ability(hero, "golpe", foe.pos)
+	check(hero.clock == clock + state.time_for(150, hero), "o ataque cobra o relógio")
+	check(hero.moved == 0, "o ataque encerra o turno: o próximo começa com todos os passos")
+	check(state.active_unit() != hero or hero.clock < foe.clock, "a vez passa depois do ataque")
+	# Sem pontos, não anda; o custo do terreno e da subida conta.
+	var tired := flat()
+	var mummy = tired.add_unit("mumia", Data.Team.PLAYER, Vector2i(0, 0))
+	tired.add_unit("esqueleto", Data.Team.ENEMY, Vector2i(6, 3)).clock = 1000
+	mummy.moved = tired.move_points(mummy)
+	check(tired.move_cells(mummy).is_empty() and not tired.can_step(mummy, Vector2i(1, 0)), "sem pontos não há passo")
+	# Só andar atrasa mais que esperar parado e menos que atacar.
+	var lazy = flat()
+	var idle = lazy.add_unit("esqueleto", Data.Team.PLAYER, Vector2i(0, 0))
+	lazy.add_unit("esqueleto", Data.Team.ENEMY, Vector2i(6, 3)).clock = 1000
+	var start: int = idle.clock
+	lazy.do_wait(idle)
+	check(idle.clock == start + lazy.time_for(Data.WAIT_TIME, idle), "parado custa a espera")
+	lazy.do_step(idle, Vector2i(1, 0))
+	var mid: int = idle.clock
+	lazy.do_wait(idle)
+	check(idle.clock == mid + lazy.time_for(Data.MOVE_ONLY_TIME, idle), "quem só andou paga a caminhada")
+	# Guarda e magia carregada encerram o turno.
+	var stance := flat()
+	var guard = stance.add_unit("guardiao", Data.Team.PLAYER, Vector2i(0, 0))
+	stance.add_unit("esqueleto", Data.Team.ENEMY, Vector2i(6, 3)).clock = 1000
+	stance.do_ability(guard, "guarda", guard.pos)
+	check(guard.moved == 0 and guard.guarding, "guarda encerra o turno")
+	# A IA anda e bate na mesma vez.
+	var chase := flat()
+	var hunter = chase.add_unit("esqueleto", Data.Team.ENEMY, Vector2i(0, 0))
+	var prey = chase.add_unit("mago", Data.Team.PLAYER, Vector2i(3, 0))
+	prey.clock = 1000
+	for i in 8:
+		if chase.active_unit() != hunter or prey.hp < prey.max_hp:
+			break
+		AI.apply(chase, hunter, AI.decide(chase, hunter))
+	check(prey.hp < prey.max_hp, "a IA chega e ataca no mesmo turno")
+	check(hunter.moved == 0, "o ataque encerra o turno da IA")
+	# Golpe de oportunidade no meio do caminho.
+	var slip := flat()
+	var runner = slip.add_unit("mago", Data.Team.PLAYER, Vector2i(1, 0))
+	var blocker = slip.add_unit("esqueleto", Data.Team.ENEMY, Vector2i(0, 0))
+	blocker.clock = 1000
+	var run: Array = slip.do_move(runner, Vector2i(3, 0))
+	check(run.any(func(e): return e["type"] == "attack" and e.get("label") == "oportunidade"), "sair de perto no caminho ainda provoca o golpe")
 
 
 func test_attack_reach() -> void:

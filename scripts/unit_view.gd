@@ -43,6 +43,7 @@ var arrow_gap := ARROW_GAP
 var bounce_time := 0.0
 var row := Anim.IDLE
 var looping := true
+var walking_now := false # o que volta a tocar depois de um ataque ou de um tranco
 var frame_pos := 0.0
 var frames := 10
 var row_frames := []
@@ -154,7 +155,7 @@ func _process(delta: float) -> void:
 			frame_pos = fmod(frame_pos, count)
 		else:
 			looping = true
-			row = Anim.IDLE
+			row = Anim.WALK if walking_now else Anim.IDLE
 			frame_pos = 0.0
 			sheet_row = _sheet_row()
 			anim_done.emit()
@@ -200,9 +201,12 @@ func play_once(anim: Anim) -> void:
 	await anim_done
 
 
+## Não corta uma animação que está tocando: quem espera por ela (o turno inteiro) ficaria
+## preso para sempre. Quem chega andando e já ataca passa por aqui no meio do golpe.
 func set_walking(walking: bool) -> void:
-	row = Anim.WALK if walking else Anim.IDLE
-	looping = true
+	walking_now = walking
+	if looping:
+		row = Anim.WALK if walking else Anim.IDLE
 
 
 func set_jump_height(height: float) -> void:

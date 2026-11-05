@@ -59,11 +59,13 @@ const LAYERS_PER_LEVEL := 4 # 116 px por nível; a altura é projetada na vertic
 # degrau precisa continuar visível e clicável.
 const WORLD_LAYERS_PER_LEVEL := 3
 const TOWN_LAYERS_PER_LEVEL := 2 # a planta da cidade conta com degraus baixos
+const MODEL_META := "res://assets/town/modelos/meta.json"
+const MODEL_SCALE := 2.0 # como os personagens: 1 pixel de arte vale 2 no tabuleiro
+const MODEL_NIGHT_LIFT := Color(1.3, 1.26, 1.05) # desfaz parte do tom de noite: janelas acesas continuam vivas
+const TOWN_GROUND_EDGE := 0.35 # calçada e grama com a borda mais limpa que no mato das expedições
 # Chão natural das expedições: as casas continuam nas regras, mas não aparecem no desenho.
 const CORNER_WOBBLE := Vector2(38, 26) # quanto cada canto sai do lugar: some o desenho da colmeia
 const PROP_WOBBLE := Vector2(74, 50) # árvores e pedras fora do centro da casa
-const FOREST_GAP := 0.28 # parte das casas de mata fica sem árvore, com clareiras
-const FOREST_SPARSE := 0.55 # e outra parte com uma árvore só
 const RING_RADIUS := Vector2(78, 62)
 const TOWN_WOBBLE := 0.55
 const TRAIL_STRENGTH := 0.86 # abaixo de 1 estreita o traço; a estrada é mais larga
@@ -76,16 +78,18 @@ const HOLD_TIME := 0.45
 const SCENERY_BASE := {3: 1, 6: 7, 10: 9, 11: 9}
 const TILE_PATH := "res://assets/tiles/%d.png"
 const WORLD_META := "world_hero" # o menu guarda aqui o herói escolhido para explorar
-const FOG_START := 520.0
-const FOG_END := 880.0
+const EXPLORE_ZOOM := 0.8 # a câmera fica mais longe fora da arena; o resto da lista acompanha
+const FOG_START := 650.0
+const FOG_END := 1100.0
 const FOG_SIDE_SQUEEZE := 0.6 # igual ao peso lateral da névoa no shader
 const VIEW_ROWS_FRONT := 7
-const VIEW_ROWS_BACK := 11
+const VIEW_ROWS_BACK := 14
 const UNLOAD_MARGIN := 2
 const Z_REBASE_ROWS := 12 # em meias linhas: a ordem de desenho fica longe do limite do Godot
 const QUIET_DISTANCE := 11 # inimigo mais longe que isso age sem animação nem espera
 
 const STEP_COLOR := Color(0.27, 0.67, 1.0, 0.35)
+const PATH_COLOR := Color(0.27, 0.67, 1.0, 0.7)
 const REACH_FILL := Color(1.0, 0.55, 0.1, 0.3)
 const REACH_LINE := Color(1.0, 0.6, 0.15, 0.95)
 const TARGET_COLOR := Color(0.92, 0.24, 0.24, 0.55)
@@ -115,6 +119,7 @@ const FILE_RETRY := 0.05
 const FILE_PATIENCE := 1.5
 const SIGHT_COLOR := Color(0.95, 0.25, 0.2, 0.28)
 const DEFAULT_HINT := "Toque numa casa azul para andar ou num personagem para agir. Segure para ver detalhes."
+const END_TURN_KEY_HINT := "Espaço encerra o turno."
 # Magia é roxa para não se confundir com o laranja do alcance.
 const AREA_COLOR := Color(0.72, 0.3, 1.0, 0.6)
 const CHARGE_COLOR := Color(0.72, 0.3, 1.0, 0.42)
@@ -169,6 +174,7 @@ var views := {}
 var overlays := {}
 var reach_lines := {}
 var forests := {}
+var trees := {} # árvores soltas do mapa: ficam transparentes quando escondem alguém
 var active_outline: Line2D
 var inspect_outline: Line2D
 var busy := true
@@ -190,6 +196,8 @@ var expedition := false # solo: cidade, locais especiais e chefe (ver expedition
 var town := false # a Cidade-Farol: mapa fixo, moradores e nada de inimigos
 var town_panels
 var town_life
+var models := {} # construções em 3D à vista: {sprite: {views, turn}}
+var model_meta := {}
 var natural := false # chão contínuo: expedições e jornada, sem a cidade
 var world_light # luz e partículas das expedições e da jornada
 var cell_tint := Color.WHITE # tom da casa em construção
@@ -308,6 +316,7 @@ func _start_battle() -> void:
 	overlays.clear()
 	reach_lines.clear()
 	forests.clear()
+	trees.clear()
 	hover = NO_CELL
 	menu_cell = NO_CELL
 	menu_options = []
@@ -331,12 +340,16 @@ func _start_battle() -> void:
 	add_child(board)
 	battle_camera = BattleCamera.new()
 	add_child(battle_camera)
+	if exploring:
+		battle_camera.set_zoom(EXPLORE_ZOOM)
 	if world_light != null:
 		world_light.queue_free()
 		world_light = null
 	natural = exploring
 	if natural:
 		battle_camera.ground_noise = load(BiomeArt.EDGE_NOISE)
+		if town:
+			battle_camera.soil_edge = TOWN_GROUND_EDGE
 	if exploring:
 		_add_bloom()
 		if not town:
@@ -368,6 +381,7 @@ func _start_battle() -> void:
 	hud.unit_picked.connect(_on_timeline_pick)
 	hud.option_pressed.connect(_on_option_pressed)
 	hud.order_toggled.connect(_on_order_toggled)
+	hud.end_turn_pressed.connect(_end_turn)
 	hud.restart_pressed.connect(_leave_online if online_session.playing else (_back_to_menu if expedition else _start_battle))
 	hud.skills_pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
 	if exploring:
@@ -782,9 +796,9 @@ func _rebase_depth(row: int) -> void:
 	for child in board.get_children():
 		if wall_groups.has(child):
 			for strip in child.get_children():
-				strip.z_index -= shift
+				strip.z_index = clampi(strip.z_index - shift, -RenderingServer.CANVAS_ITEM_Z_MAX, RenderingServer.CANVAS_ITEM_Z_MAX)
 		elif child.z_index < 800: # marcadores e efeitos ficam sempre por cima
-			child.z_index -= shift
+			child.z_index = clampi(child.z_index - shift, -RenderingServer.CANVAS_ITEM_Z_MAX, RenderingServer.CANVAS_ITEM_Z_MAX)
 
 
 # --- Mapa infinito -----------------------------------------------------------
@@ -842,7 +856,7 @@ func _work_on_map(budget: int) -> void:
 ## Quantas colunas para cada lado cabem na tela nessa linha: mais ao fundo, mais colunas.
 func _visible_columns(row_gap: int) -> int:
 	var depth := 1.0 / maxf(0.25, 1.0 - row_gap * ROW_STEP * BOARD_SCALE * BattleCamera.PERSPECTIVE)
-	var on_screen := 760.0 / depth / (TILE_WIDTH * BOARD_SCALE)
+	var on_screen: float = 760.0 / (depth * battle_camera.zoom) / (TILE_WIDTH * BOARD_SCALE)
 	var row_distance := row_gap * ROW_STEP * BOARD_SCALE
 	var in_fog := sqrt(maxf(0.0, FOG_END * FOG_END - row_distance * row_distance)) / FOG_SIDE_SQUEEZE / (TILE_WIDTH * BOARD_SCALE)
 	return ceili(minf(on_screen, in_fog)) + 1
@@ -860,6 +874,7 @@ func _unload_cell(cell: Vector2i) -> void:
 	overlays.erase(cell)
 	reach_lines.erase(cell)
 	forests.erase(cell)
+	trees.erase(cell)
 
 
 ## Marca de um local no chão natural: um círculo, porque não há casas à vista.
@@ -942,18 +957,14 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 		art = [BiomeArt.beacon(biome, state.defeated_boss)]
 	else:
 		art = BiomeArt.props(biome, terrain_id, detail)
-		if natural and not town and terrain_id == WorldGen.FOREST:
-			var thin := fmod(detail * 37.0, 1.0)
-			if thin < FOREST_GAP:
-				art = []
-			elif thin < FOREST_SPARSE:
-				art = art.filter(func(prop): return prop["layer"] == "back")
 		if expedition and state.landmarks.has(cell):
 			var entry: Dictionary = state.landmarks[cell]
 			var special: Array = BiomeArt.landmark(biome, entry["kind"], entry["state"] == "done", detail)
 			art = art if special.is_empty() else special
 	for prop in art:
 		made[prop["layer"]] = _biome_prop(prop, cell, detail)
+		if prop["layer"] == "tree":
+			trees[cell] = made["tree"]
 		if world_light != null:
 			world_light.add_prop(cell, made[prop["layer"]], BiomeArt.prop_tint(biome, prop["path"]))
 			var light := BiomeArt.light_of(biome, prop["path"])
@@ -963,7 +974,46 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 		forests[cell] = made
 
 
+## Construção de todos os lados: uma folha com um quadro por ângulo, trocado conforme o giro.
+func _model_prop(prop: Dictionary, cell: Vector2i) -> Sprite2D:
+	if model_meta.is_empty():
+		model_meta = JSON.parse_string(FileAccess.get_file_as_string(MODEL_META))
+	var info: Dictionary = model_meta[prop["model"]]
+	var sprite := Sprite2D.new()
+	sprite.texture = load(prop["path"])
+	sprite.centered = false
+	sprite.hframes = int(info["columns"])
+	sprite.vframes = int(info["views"]) / int(info["columns"])
+	sprite.scale = Vector2.ONE * MODEL_SCALE
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var foot := Vector2(info["foot_x"], info["foot_y"]) * MODEL_SCALE
+	sprite.position = cell_origin(cell) + Vector2(93, prop["ground_y"]) - foot
+	sprite.z_index = _z(_row(cell)) + prop["depth"]
+	board.add_child(sprite)
+	building.append(sprite)
+	battle_camera.add_billboard(sprite, foot, _cell_elevation(cell))
+	sprite.self_modulate = MODEL_NIGHT_LIFT
+	models[sprite] = {"views": int(info["views"]), "turn": float(prop.get("turn", 0.0))}
+	_set_model_frame(sprite)
+	return sprite
+
+
+func _set_model_frame(sprite: Sprite2D) -> void:
+	var views_count: int = models[sprite]["views"]
+	sprite.frame = posmod(roundi((view_angle + models[sprite]["turn"]) / TAU * views_count), views_count)
+
+
+func _update_model_frames() -> void:
+	for sprite in models.keys():
+		if is_instance_valid(sprite):
+			_set_model_frame(sprite)
+		else:
+			models.erase(sprite)
+
+
 func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
+	if prop.has("model"):
+		return _model_prop(prop, cell)
 	var sprite := Sprite2D.new()
 	sprite.texture = load(prop["path"])
 	sprite.centered = false
@@ -1117,6 +1167,7 @@ func _advance() -> void:
 		busy = true
 		return
 	busy = true
+	_refresh_end_turn()
 	pinned = null
 	_close_menu()
 	_refresh_overlays()
@@ -1145,7 +1196,7 @@ func _advance() -> void:
 			await _play(state.resolve_pending(unit))
 			continue
 		if unit.team == Data.Team.ENEMY:
-			if not _is_quiet(unit):
+			if not _is_quiet(unit) and unit.moved == 0:
 				await get_tree().create_timer(0.2).timeout
 			await _play(AI.apply(state, unit, AI.decide(state, unit)))
 			continue
@@ -1163,6 +1214,7 @@ func _advance() -> void:
 
 func _perform(events: Array) -> void:
 	busy = true
+	_refresh_end_turn()
 	_close_menu()
 	hud.set_hint("")
 	_refresh_overlays()
@@ -1244,12 +1296,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif _free_roam() and event.keycode == KEY_G:
 			hud.set_together(not together)
 		elif event.keycode == KEY_SPACE:
-			if online_session.playing:
-				_submit_online("wait", NO_CELL)
-			elif not _free_roam():
-				_perform(state.do_wait(state.active_unit()))
+			_end_turn()
 		elif event.keycode >= KEY_1 and event.keycode < KEY_1 + menu_options.size():
 			_on_option_pressed(event.keycode - KEY_1)
+
+
+func _end_turn() -> void:
+	if busy or _free_roam():
+		return
+	if online_session.playing:
+		_submit_online("wait", NO_CELL)
+	else:
+		_perform(state.do_wait(state.active_unit()))
+
+
+## O botão só aparece quando é a vez de alguém que este jogador controla.
+func _refresh_end_turn() -> void:
+	var unit = state.active_unit()
+	hud.show_end_turn(not busy and state.winner() < 0 and not _free_roam() and unit != null and unit.team == Data.Team.PLAYER and online_session.can_control(unit))
 
 
 # O toque vira clique ao soltar, para dar tempo de saber se a pessoa está segurando.
@@ -1384,29 +1448,24 @@ func _click(cell: Vector2i) -> void:
 	# Se alguma ação mira essa casa, o menu pergunta: assim dá para mirar no chão
 	# onde o inimigo ainda vai pisar sem o herói sair andando.
 	var aimable := _cell_options(cell).any(func(option): return option["kind"] == "ability")
-	# Casa comum anda na hora; se o terreno muda o jogo (tempo, dano, altura), pergunta antes.
-	if state.unit_at(cell) == null and state.can_step(unit, cell) and not aimable and _terrain_notes(unit, cell).is_empty():
+	# Casa do alcance anda na hora, pelo caminho inteiro.
+	if _can_walk_to(unit, cell) and not aimable:
 		if online_session.playing:
 			_submit_online("step", cell)
 		else:
-			_perform(state.do_step(unit, cell))
+			_perform(state.do_move(unit, cell))
 		return
 	_open_menu(cell)
+
+
+func _can_walk_to(unit, cell: Vector2i) -> bool:
+	return state.unit_at(cell) == null and state.move_cells(unit).has(cell)
 
 
 ## O que muda para o herói se ele for para essa casa, em frases curtas.
 func _terrain_notes(unit, cell: Vector2i) -> Array:
 	var notes := []
 	var tile: Dictionary = state.tile_at(cell)
-	var normal: int = state.time_for(Data.STEP_TIME, unit)
-	var cost: int = state.time_for(state.step_cost(unit.pos, cell), unit)
-	if cost != normal:
-		var reasons := []
-		if tile["cost"] > 0:
-			reasons.append(state.tile_name_at(cell).to_lower())
-		if state.elevation_at(cell) > state.elevation_at(unit.pos):
-			reasons.append("subida")
-		notes.append("Passo custa %d de tempo (normal %d): %s" % [cost, normal, " e ".join(reasons)])
 	if tile["damage"] < 1.0:
 		notes.append("Aqui você leva %d%% menos dano" % roundi((1.0 - tile["damage"]) * 100))
 	var climb: int = state.elevation_at(cell) - state.elevation_at(unit.pos)
@@ -1462,15 +1521,19 @@ func _cell_options(cell: Vector2i) -> Array:
 			options.append(option)
 	if state.unit_at(cell) != null:
 		options.append_array(_blocked_options(unit, state.unit_at(cell)))
+		if not _free_roam() and state.unit_at(cell).team != unit.team and options.all(func(option): return option["kind"] == "blocked"):
+			var spot: Vector2i = state.approach_cell(unit, state.unit_at(cell))
+			if spot != state.NO_MOVE:
+				options.push_front({"kind": "approach", "cell": spot, "label": "Aproximar", "detail": "fica ao alcance"})
 	if _free_roam():
 		if cell != unit.pos:
 			options.append({"kind": "travel", "label": "Ir até lá", "detail": "para ao ser visto"})
 		options.append({"kind": "cancel", "label": "Cancelar", "detail": ""})
 	elif cell == unit.pos:
-		options.append({"kind": "wait", "label": "Esperar", "detail": "passa a vez"})
+		options.append({"kind": "wait", "label": "Encerrar turno", "detail": "passa a vez"})
 	elif state.unit_at(cell) == null:
-		if state.can_step(unit, cell):
-			options.append({"kind": "step", "label": "Andar", "detail": "tempo %d" % state.time_for(state.step_cost(unit.pos, cell), unit)})
+		if _can_walk_to(unit, cell):
+			options.append({"kind": "step", "label": "Andar", "detail": "até aqui"})
 		if not options.is_empty():
 			options.append({"kind": "cancel", "label": "Cancelar", "detail": ""})
 	return options
@@ -1534,6 +1597,9 @@ func _on_option_pressed(index: int) -> void:
 		return
 	var cell := menu_cell
 	var unit = _actor()
+	if option["kind"] == "approach":
+		cell = option["cell"]
+		option = {"kind": "step"}
 	if online_session.playing and option["kind"] != "cancel" and option["kind"] != "travel":
 		_submit_online(option["kind"], cell, option.get("id", ""))
 		return
@@ -1543,7 +1609,7 @@ func _on_option_pressed(index: int) -> void:
 		"wait":
 			_perform(state.do_wait(unit))
 		"step":
-			_perform(state.do_step(unit, cell))
+			_perform(state.do_move(unit, cell))
 		"travel":
 			_travel(cell)
 		"cancel":
@@ -1553,6 +1619,8 @@ func _on_option_pressed(index: int) -> void:
 # --- Destaques e dica --------------------------------------------------------
 
 func _refresh_overlays() -> void:
+	for cell in trees:
+		trees[cell].modulate.a = TREE_SEE_THROUGH if _covers_a_unit(cell) else 1.0
 	for cell in forests:
 		# A frente ainda encobre as pernas, mas deixa uma pista do ocupante.
 		var occupant = state.unit_at(cell)
@@ -1604,9 +1672,12 @@ func _mark_free_look() -> void:
 	if shown != null and shown != unit:
 		_mark_reach(shown)
 		return
-	for cell in Hex.neighbors(unit.pos):
-		if state.can_step(unit, cell):
-			_mark(cell, STEP_COLOR)
+	var reach: Dictionary = state.move_cells(unit)
+	for cell in reach:
+		_mark(cell, STEP_COLOR)
+	if reach.has(hover):
+		for cell in state.straight_path(state.search(unit, state.move_left(unit)), unit.pos, hover):
+			_mark(cell, PATH_COLOR)
 	_mark_aim(unit)
 
 
@@ -1679,6 +1750,7 @@ func _preview_text(unit, id: String, target) -> String:
 
 
 func _update_hint() -> void:
+	_refresh_end_turn()
 	if busy:
 		return
 	var unit = _actor()
@@ -1700,11 +1772,20 @@ func _update_hint() -> void:
 		if menu_cell != NO_CELL and shown.team != unit.team:
 			text += ". Fora do seu alcance, toque de novo para fechar."
 		hud.set_hint(text)
-	elif hover != NO_CELL and state.can_step(unit, hover):
-		var tile: Dictionary = state.tile_at(hover)
-		hud.set_hint("%s: passo custa tempo %d" % [state.tile_name_at(hover), state.time_for(state.step_cost(unit.pos, hover), unit)])
-	else:
+	elif hover != NO_CELL and _can_walk_to(unit, hover):
+		var notes := _terrain_notes(unit, hover)
+		hud.set_hint("%s%s" % [state.tile_name_at(hover), ": " + ". ".join(notes) if not notes.is_empty() else ""])
+	elif _free_roam():
 		hud.set_hint(DEFAULT_HINT)
+	else:
+		hud.set_hint(_turn_hint(unit))
+
+
+## Quanto resta do turno, em palavras.
+func _turn_hint(unit) -> String:
+	var steps: int = state.steps_left(unit)
+	var walk: String = "%d %s" % [steps, "casa" if steps == 1 else "casas"] if steps > 0 else "sem passos"
+	return "%s · Atacar encerra o turno · %s" % [walk, END_TURN_KEY_HINT]
 
 
 # --- Animação dos eventos ----------------------------------------------------
@@ -1810,7 +1891,7 @@ func _network_command(sender: int, command: Dictionary) -> void:
 	match kind:
 		"wait": _perform(state.do_wait(unit))
 		"step":
-			if state.can_step(unit, cell): _perform(state.do_step(unit, cell))
+			if state.unit_at(cell) == null and state.move_cells(unit).has(cell): _perform(state.do_move(unit, cell))
 		"ability":
 			var id: String = str(command.get("ability", ""))
 			if id in unit.abilities and cell in state.valid_targets(unit, id):
@@ -2094,6 +2175,7 @@ func _set_view_angle(angle: float) -> void:
 	battle_camera.set_view_angle(view_angle)
 	_show_facing_walls()
 	_refresh_depths()
+	_update_model_frames()
 	if map_refresh <= 0.0:
 		map_refresh = MAP_REFRESH
 		_sync_world(camera_cell, false)

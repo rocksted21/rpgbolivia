@@ -8,6 +8,7 @@ var sound_manager:
 
 const GameSettings = preload("res://scripts/game_settings.gd")
 const VOLUME_WIDTH := 136
+const END_TURN_WIDTH := 190.0
 const VOLUME_PANEL_WIDTH := 260
 const VOLUME_Y := 74
 
@@ -21,6 +22,7 @@ signal rotate_held(direction: int) # -1 ou 1 enquanto o botão está apertado; 0
 signal together_toggled(on: bool)
 signal unit_picked(unit)
 signal potion_pressed
+signal end_turn_pressed
 
 const Data = preload("res://scripts/game_data.gd")
 const SpellPreview = preload("res://scripts/spell_preview.gd")
@@ -104,6 +106,7 @@ var end_menu_button: Button
 var party_row: HBoxContainer
 var party_cards := {} # herói -> {panel, fill, status}
 var together_button: Button
+var end_turn_button: Button
 var banner: Label
 
 
@@ -747,6 +750,15 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		_show_together(on)
 		together_toggled.emit(on))
 	_show_together(true)
+
+
+func show_end_turn(on: bool) -> void:
+	if end_turn_button == null:
+		if not on:
+			return
+		end_turn_button = _corner_button("Encerrar turno", Vector2(SCREEN.x - END_TURN_WIDTH - MARGIN, SCREEN.y - 118), END_TURN_WIDTH)
+		end_turn_button.pressed.connect(func(): end_turn_pressed.emit())
+	end_turn_button.visible = on
 
 
 func _corner_button(text: String, at: Vector2, width: float) -> Button:

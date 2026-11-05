@@ -5,7 +5,11 @@ extends "res://scripts/world_state.gd"
 
 const Exp = preload("res://scripts/expedition_data.gd")
 const Content = preload("res://scripts/town_content.gd")
+const Layout = preload("res://scripts/expedition_layout.gd")
 
+const SPOT_WALK := 1200 # pontos de movimento até onde os guardas podem nascer
+
+var layout # zonas, passagens e platôs do mapa
 var landmarks := {} # casa: {kind, state ("idle", "fighting" ou "done"), guards, resident}
 var terrain_override := {}
 var beacon_cell: Vector2i
@@ -42,7 +46,9 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 	far_compass = town.get("far_compass", 0) > 0
 	brasa_bonus = town.get("brasa_bonus", 0) > 0
 	items = town.get("items", [])
+	layout = Layout.new(gen, start_cell, _route_radius())
 	_place_landmarks()
+	layout.check_map(landmarks.keys())
 
 
 # --- Locais especiais ----------------------------------------------------------
@@ -346,9 +352,13 @@ func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
 
 
 ## Casas livres perto do local, as mais distantes da party primeiro.
+## Lugares em volta do local por onde a party consegue chegar: quem nasce atrás de uma serra
+## ou no alto de um penhasco nunca poderia ser derrotado, e o local ficaria preso em combate.
 func _spots_around(cell: Vector2i, count: int) -> Array:
+	var walker = last_walker if last_walker != null and last_walker.alive() else hero
+	var reach: Dictionary = search(walker, SPOT_WALK)["cost"]
 	var spots: Array = area_of(cell, 3).filter(func(spot):
-		return spot != cell and tile_at(spot)["walkable"] and unit_at(spot) == null and party_distance(spot) >= 2)
+		return spot != cell and reach.has(spot) and party_distance(spot) >= 2)
 	spots.sort_custom(func(a, b):
 		var gap_a := party_distance(a)
 		var gap_b := party_distance(b)

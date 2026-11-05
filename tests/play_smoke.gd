@@ -59,14 +59,14 @@ func _run() -> void:
 		turns += 1
 		match action["kind"]:
 			"step":
-				var special: bool = not view._terrain_notes(unit, action["cell"]).is_empty()
+				var aimable: bool = view._cell_options(action["cell"]).any(func(option): return option["kind"] == "ability")
 				_click(action["cell"])
 				await _frames(2)
-				if special:
+				if aimable: # dá para mirar ali: o menu pergunta se é para andar ou para mirar
 					var step_index := _option_index("step")
-					_expect(step_index >= 0 and not view.busy, "casa com efeito de terreno pergunta antes de andar")
+					_expect(step_index >= 0 and not view.busy, "casa onde dá para mirar pergunta antes de andar")
 					await _press(view.hud.menu_buttons[step_index])
-				_expect(view.busy or unit.pos == action["cell"], "tocar na casa vizinha anda (direto ou depois do aviso)")
+				_expect(view.busy or unit.pos == action["cell"], "tocar na casa anda (direto ou pelo menu)")
 			"ability":
 				_click(action["cell"])
 				await _frames(2)
@@ -100,9 +100,9 @@ func _run() -> void:
 
 	view.hud.restart_pressed.emit()
 	await _frames(3)
+	_expect(view.state.units.all(func(u): return u.hp == u.max_hp), "todos voltam com vida cheia")
 	await _wait_ready()
 	_expect(view.state.winner() < 0, "lutar de novo reinicia a batalha")
-	_expect(view.state.units.all(func(u): return u.hp == u.max_hp), "todos voltam com vida cheia")
 	await _test_too_close()
 	await _test_far_heal()
 	await _test_terrain_warning()
@@ -122,6 +122,7 @@ func _place(unit, cell: Vector2i) -> void:
 
 
 func _make_active(unit) -> void:
+	unit.moved = 0
 	unit.clock = view.state.units.map(func(u): return u.clock).min() - 1
 	view._advance()
 	await _wait_ready()
@@ -145,7 +146,7 @@ func _test_too_close() -> void:
 	await _frames(2)
 
 
-# Floresta ao lado: o toque mostra o aviso; Cancelar não anda.
+# Floresta ao lado: o mouse mostra o aviso; o toque anda direto.
 func _test_terrain_warning() -> void:
 	var hero = _unit("guardiao")
 	var forest: Vector2i = view.NO_CELL
@@ -159,12 +160,14 @@ func _test_terrain_warning() -> void:
 						forest = cell
 	await _make_active(hero)
 	var start: Vector2i = hero.pos
+	_hover_at(view.cell_to_screen(forest))
+	await _frames(2)
+	_expect("menos dano" in view.hud.hint.text, "passar o mouse na floresta avisa da proteção")
+	_shot("13_aviso_floresta")
 	_click(forest)
 	await _frames(2)
-	_expect(view.hud.menu_open() and _option_index("step") >= 0 and _option_index("cancel") >= 0, "andar para a floresta abre o aviso com Andar e Cancelar")
-	_shot("13_aviso_floresta")
-	await _press(view.hud.menu_buttons[_option_index("cancel")])
-	_expect(not view.hud.menu_open() and hero.pos == start, "Cancelar fecha o aviso sem andar")
+	await _wait_ready()
+	_expect(hero.pos == forest and hero.pos != start, "tocar na floresta anda direto")
 
 
 # Aliado ferido longe da Druida: a Cura aparece apagada, com o motivo.
@@ -374,7 +377,11 @@ func _test_self_menu() -> void:
 func _test_far_click() -> void:
 	var walker = view.state.active_unit()
 	var start: Vector2i = walker.pos
-	_click(FAR_CELL)
+	var far: Vector2i = FAR_CELL
+	for cell in view.overlays:
+		if view.state.unit_at(cell) == null and not view.state.move_cells(walker).has(cell) and view._cell_options(cell).is_empty():
+			far = cell
+	_click(far)
 	await _frames(2)
 	_expect(not view.hud.menu_open() and walker.pos == start, "tocar longe não anda nem abre menu")
 	_shot("5_tocar_longe")

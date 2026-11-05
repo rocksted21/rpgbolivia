@@ -9,7 +9,8 @@ const Hex = preload("res://scripts/hex.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Unit = preload("res://scripts/unit.gd")
 
-const TAUNT_ACTIONS := 3 # ações em que a IA persegue quem a provocou
+const TAUNT_ACTIONS := 2 # turnos em que a IA persegue quem a provocou
+const NO_MOVE := Vector2i(-99999, -99999)
 
 var terrain: Array
 var elevation: Array
@@ -119,7 +120,7 @@ func active_unit():
 	return best
 
 
-## Próximas unidades a agir, supondo que cada uma gaste um passo.
+## Próximas unidades a agir, supondo que cada turno dure TURN_TIME.
 ## `extra` adianta o relógio de algumas unidades ({unidade: tempo}), para prever uma ação.
 func timeline(count: int, extra := {}) -> Array:
 	var clocks := {}
@@ -133,12 +134,12 @@ func timeline(count: int, extra := {}) -> Array:
 			if clocks.has(unit) and (best == null or clocks[unit] < clocks[best]):
 				best = unit
 		out.append(best)
-		clocks[best] += time_for(Data.STEP_TIME, best)
+		clocks[best] += time_for(Data.TURN_TIME, best)
 	return out
 
 
-## Quantas ações dos outros acontecem antes da vez de `unit` (supondo um passo
-## cada, como a fila). Para quem carrega magia, é a contagem até ela sair.
+## Quantos turnos dos outros acontecem antes da vez de `unit` (com a mesma suposição
+## da fila). Para quem carrega magia, é a contagem até ela sair.
 func actions_until(unit, extra := {}) -> int:
 	return timeline(units.size() * 6, extra).find(unit)
 
@@ -186,7 +187,59 @@ func can_enter(from: Vector2i, to: Vector2i) -> bool:
 
 
 func can_step(unit, to: Vector2i) -> bool:
-	return Hex.distance(unit.pos, to) == 1 and can_enter(unit.pos, to)
+	if Hex.distance(unit.pos, to) != 1 or not can_enter(unit.pos, to):
+		return false
+	return not in_combat() or step_cost(unit.pos, to) <= move_left(unit)
+
+
+func move_points(unit) -> int:
+	return Data.MOVE_BASE + unit.speed * Data.MOVE_PER_SPEED
+
+
+## Pontos de movimento que ainda restam neste turno.
+func move_left(unit) -> int:
+	return maxi(0, move_points(unit) - unit.moved)
+
+
+## Quantas casas planas ainda dá para andar, para mostrar na tela.
+func steps_left(unit) -> int:
+	return move_left(unit) / Data.STEP_TIME
+
+
+## Casas ao alcance neste turno: {casa: custo}, sem contar onde a unidade está.
+func move_cells(unit) -> Dictionary:
+	var reach: Dictionary = search(unit, move_left(unit))["cost"]
+	reach.erase(unit.pos)
+	return reach
+
+
+## A casa mais barata de onde `unit` consegue atacar `target` depois de andar; `NO_MOVE` se não houver.
+func approach_cell(unit, target) -> Vector2i:
+	var best := NO_MOVE
+	var best_cost := 999999
+	var reach := move_cells(unit)
+	for cell in reach:
+		if reach[cell] >= best_cost:
+			continue
+		for id in unit.abilities:
+			var ability: Dictionary = unit.ability(id)
+			var dist := Hex.distance(cell, target.pos)
+			if ability["kind"] == "attack" and dist >= ability["min_range"] and dist <= ability["range"]:
+				best = cell
+				best_cost = reach[cell]
+				break
+	return best
+
+
+## Anda até uma casa do alcance, passo a passo. Quem sofre um golpe no caminho e cai para ali.
+func do_move(unit, goal: Vector2i) -> Array:
+	var found := search(unit, move_left(unit))
+	var events := []
+	for cell in straight_path(found, unit.pos, goal):
+		events.append_array(do_step(unit, cell))
+		if not unit.alive():
+			break
+	return events
 
 
 func step_cost(from: Vector2i, to: Vector2i) -> int:
@@ -198,7 +251,8 @@ func step_cost(from: Vector2i, to: Vector2i) -> int:
 
 ## Dijkstra a partir da unidade: {"cost": {célula: custo}, "prev": {célula: anterior}}.
 ## Usa um heap e um mapa de quem ocupa cada casa: a IA e os cliques chamam isto o tempo todo.
-func search(unit) -> Dictionary:
+## `limit` corta a busca nesse custo: o alcance de um turno é bem menor que o mapa.
+func search(unit, limit := 999999) -> Dictionary:
 	var cost := {unit.pos: 0}
 	var prev := {}
 	var occupied := {}
@@ -220,6 +274,8 @@ func search(unit) -> Dictionary:
 			if absi(next_height - height) > 1:
 				continue
 			var total: int = top[0] + Data.STEP_TIME + tile_at(next)["cost"] + (Data.CLIMB_TIME if next_height > height else 0)
+			if total > limit:
+				continue
 			if not cost.has(next) or total < cost[next]:
 				cost[next] = total
 				prev[next] = current
@@ -320,7 +376,10 @@ func do_step(unit, to: Vector2i) -> Array:
 	var events := []
 	var from: Vector2i = unit.pos
 	unit.guarding = false
-	unit.clock += time_for(step_cost(from, to), unit)
+	if in_combat():
+		unit.moved += step_cost(from, to)
+	else:
+		unit.clock += time_for(step_cost(from, to), unit)
 
 	# Ataque de oportunidade: sair do alcance corpo a corpo de quem está colado.
 	for enemy in enemies_of(unit):
@@ -336,9 +395,11 @@ func do_step(unit, to: Vector2i) -> Array:
 	return events
 
 
+## Encerra o turno sem agir: quem só andou atrasa menos que quem atacou.
 func do_wait(unit) -> Array:
 	unit.guarding = false
-	unit.clock += time_for(Data.WAIT_TIME, unit)
+	unit.clock += time_for(Data.MOVE_ONLY_TIME if unit.moved > 0 else Data.WAIT_TIME, unit)
+	unit.moved = 0
 	return [{"type": "wait", "unit": unit}]
 
 
@@ -476,6 +537,7 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			unit.clock += cast_time_for(unit, ability_id)
 			unit.pending = {"ability": ability_id, "tile": cell}
 			events.append({"type": "cast_start", "unit": unit, "ability": ability_id, "tile": cell})
+	unit.moved = 0 # qualquer ação encerra o turno
 	return events
 
 

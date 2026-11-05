@@ -11,6 +11,8 @@ const TownProgress = preload("res://scripts/town_progress.gd")
 
 const SIM_RUNS := 3
 
+var walk_maps := {}
+
 var checks := 0
 var failures := 0
 
@@ -25,6 +27,7 @@ func check(ok: bool, text: String) -> void:
 func _initialize() -> void:
 	TownProgress.path = "user://test_town.cfg"
 	test_placement()
+	test_layout()
 	test_visits()
 	test_levels()
 	test_boss()
@@ -138,6 +141,102 @@ func _visit(state, cell: Vector2i) -> Array:
 
 func _kinds(events: Array) -> Array:
 	return events.map(func(e): return e["type"])
+
+
+func test_layout() -> void:
+	var total_repairs := 0
+	for world_seed in [7, 93, 248, 279, 465, 1054]:
+		var state = ExpeditionState.new(Data.DEFAULT_PARTY, world_seed)
+		var layout = state.layout
+		var area: Dictionary = layout.walk_area()
+		total_repairs += layout.repairs
+		check(layout.zones.size() >= 6, "semente %d: mapa dividido em zonas (%d)" % [world_seed, layout.zones.size()])
+		for zone in layout.zones:
+			check(not zone["passages"].is_empty(), "semente %d: toda zona tem passagem" % world_seed)
+			check(zone["top"] >= 2, "semente %d: toda zona tem platô de nível 2 ou 3" % world_seed)
+			check(zone["plateau"].any(func(cell): return area.has(cell)), "semente %d: dá para subir no platô" % world_seed)
+			check(area.has(zone["center"]) or Hex.neighbors(zone["center"]).any(func(cell): return area.has(cell)), "semente %d: dá para chegar à zona" % world_seed)
+			for strip in zone["passages"]:
+				_check_passage_width(state, strip, world_seed)
+		for cell in state.landmarks:
+			check(area.has(cell) or Hex.neighbors(cell).any(func(next): return area.has(next)), "semente %d: local %s alcançável" % [world_seed, cell])
+	print("Forma do mapa: %d reparos em 6 mapas" % total_repairs)
+	# Atrás da serra o inimigo não entra na luta.
+	var walled = ExpeditionState.new(Data.DEFAULT_PARTY, 93)
+	var hidden_foe = walled.add_unit("esqueleto", Data.Team.ENEMY, walled.start_cell + Vector2i(30, 30))
+	for member in walled.party.slice(1):
+		member.hp = 0
+	var found_wall := false
+	var walled_cells: Array = walled.layout.ridge.keys()
+	walled_cells.sort()
+	for ridge_cell in walled_cells:
+		walled.party[0].pos = ridge_cell # a busca só vale em volta da party
+		var around: Array = walled.area_of(ridge_cell, 2).filter(func(cell): return walled.gen.walkable(cell))
+		for a in around:
+			hidden_foe.pos = a
+			var reach: Dictionary = walled.search(hidden_foe, Data.WORLD["sight_walk"])["cost"]
+			for b in around:
+				if Hex.distance(a, b) <= 3 and not Hex.neighbors(b).any(func(cell): return reach.has(cell)) and not reach.has(b):
+					walled.party[0].pos = b
+					found_wall = true
+					break
+			if found_wall:
+				break
+		if found_wall:
+			break
+	check(found_wall, "achou os dois lados de uma serra")
+	check(not walled._can_reach_party(hidden_foe), "inimigo sem caminho até a party não entra na luta")
+	# Guardas nascem onde a party chega.
+	for world_seed in [93, 248, 279]:
+		var guarded = ExpeditionState.new(Data.DEFAULT_PARTY, world_seed)
+		for cell in guarded.landmarks:
+			var walkers: Array = Hex.neighbors(cell).filter(func(next): return guarded.gen.walkable(next))
+			if walkers.is_empty():
+				continue
+			guarded.hero.pos = walkers[0]
+			guarded.last_walker = guarded.hero
+			var reach: Dictionary = guarded.search(guarded.hero)["cost"]
+			for spot in guarded._spots_around(cell, 4):
+				check(reach.has(spot), "semente %d: guarda em lugar alcançável" % world_seed)
+	# A mesma semente dá o mesmo mapa.
+	var one = ExpeditionState.new(Data.DEFAULT_PARTY, 93)
+	var two = ExpeditionState.new(Data.DEFAULT_PARTY, 93)
+	check(one.layout.ridge == two.layout.ridge and one.beacon_cell == two.beacon_cell, "semente repete o mapa")
+	# A Jornada online não passa por aqui.
+	var journey = preload("res://scripts/world_state.gd").new(Data.DEFAULT_PARTY, 93)
+	check(journey.gen.layout_terrain.is_empty(), "Jornada mantém o mapa sem zonas")
+
+
+## Tirar qualquer casa da passagem ainda deixa atravessar: um herói parado não tranca os outros.
+func _check_passage_width(state, strip: Array, world_seed: int) -> void:
+	var open: Array = strip.filter(func(cell): return state.gen.walkable(cell))
+	check(open.size() >= strip.size() - 2, "semente %d: passagem livre" % world_seed)
+	# As pontas do corredor são as duas casas mais distantes; o miolo é o que não pode afunilar.
+	var first: Vector2i = open[0]
+	var last: Vector2i = open[0]
+	for a in open:
+		for b in open:
+			if Hex.distance(a, b) > Hex.distance(first, last):
+				first = a
+				last = b
+	var length: int = Hex.distance(first, last)
+	var edge: int = length / 3 # as bocas abrem; quem importa é o miolo, onde fica a serra
+	var starts: Array = open.filter(func(cell): return Hex.distance(cell, first) <= edge)
+	var goals: Array = open.filter(func(cell): return Hex.distance(cell, last) <= edge)
+	for blocked in open:
+		if starts.has(blocked) or goals.has(blocked):
+			continue
+		var seen := {}
+		var frontier := starts.duplicate()
+		for cell in frontier:
+			seen[cell] = true
+		while not frontier.is_empty():
+			var current: Vector2i = frontier.pop_back()
+			for next in Hex.neighbors(current):
+				if next != blocked and not seen.has(next) and open.has(next):
+					seen[next] = true
+					frontier.append(next)
+		check(length >= 3 and goals.any(func(cell): return seen.has(cell)), "semente %d: passagem tem 2 casas de largura" % world_seed)
 
 
 func test_visits() -> void:
@@ -322,24 +421,46 @@ func _attack(state, unit) -> Dictionary:
 	return {}
 
 
-## Anda rumo ao local mais perto e, sem nenhum, ao farol.
+## Anda rumo ao local mais perto e, sem nenhum, ao farol, contornando serras como uma pessoa
+## que segue a estrada: o mapa de distâncias diz qual passo aproxima de verdade.
 func _walk(state, unit) -> void:
 	var open: Array = state.open_landmarks(unit.pos)
 	var target: Vector2i = open[0] if not open.is_empty() and Hex.distance(open[0], unit.pos) <= 20 else state.beacon_cell
-	var found: Dictionary = state.search(unit)
-	var goal: Vector2i = unit.pos
-	var best: int = Hex.distance(unit.pos, target)
-	for cell in found["cost"]:
-		var gap: int = Hex.distance(cell, target)
-		if gap < best or (gap == best and found["cost"][cell] < found["cost"].get(goal, 999999)):
-			best = gap
-			goal = cell
-	var path: Array = state.path_from_search(found, goal)
-	if path.is_empty():
-		var options: Array = Hex.neighbors(unit.pos).filter(func(cell): return state.can_enter(unit.pos, cell))
-		if options.is_empty():
-			state.do_wait(unit)
-		else:
-			state.do_step(unit, options[state.rng.randi_range(0, options.size() - 1)])
+	var distances: Dictionary = _distances_to(state, target)
+	var best: int = distances.get(unit.pos, 999999)
+	var step = null
+	for next in Hex.neighbors(unit.pos):
+		if state.can_step(unit, next) and distances.get(next, 999999) < best:
+			best = distances[next]
+			step = next
+	if step != null:
+		state.do_step(unit, step)
+		return
+	var options: Array = Hex.neighbors(unit.pos).filter(func(cell): return state.can_step(unit, cell))
+	if state.in_combat() or options.is_empty():
+		state.do_wait(unit)
 	else:
-		state.do_step(unit, path[0])
+		state.do_step(unit, options[state.rng.randi_range(0, options.size() - 1)]) # alguém na frente
+
+
+## Distância a pé de cada casa do mapa até `target`, guardada por alvo.
+func _distances_to(state, target: Vector2i) -> Dictionary:
+	if walk_maps.get("state") != state:
+		walk_maps = {"state": state}
+	if walk_maps.has(target):
+		return walk_maps[target]
+	var distances := {target: 0}
+	var frontier := [target]
+	var head := 0
+	while head < frontier.size():
+		var current: Vector2i = frontier[head]
+		head += 1
+		for next in Hex.neighbors(current):
+			if distances.has(next) or Hex.distance(next, state.start_cell) > state.layout.radius or not state.gen.walkable(next):
+				continue
+			if current != target and absi(state.gen.sample(next)["elevation"] - state.gen.sample(current)["elevation"]) > 1:
+				continue
+			distances[next] = distances[current] + 1
+			frontier.append(next)
+	walk_maps[target] = distances
+	return distances

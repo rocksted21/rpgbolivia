@@ -64,7 +64,7 @@ func test_walking() -> void:
 	check(state.winner() < 0, "a cidade não acaba")
 	var seen := _reachable(state)
 	check(seen.size() > 120, "a cidade é grande (%d casas)" % seen.size())
-	for spot in [Vector2i(10, 7), Vector2i(6, 11), Vector2i(12, 17)]:
+	for spot in [Vector2i(17, 8), Vector2i(12, 12), Vector2i(18, 24), Vector2i(27, 13)]:
 		check(seen.has(spot), "as ruas sobem aos platôs e descem às docas: %s" % spot)
 	for spot in state.people:
 		var near: Array = Hex.neighbors(spot).filter(func(cell): return seen.has(cell))
@@ -76,6 +76,10 @@ func test_walking() -> void:
 
 func test_art() -> void:
 	var state = _new(["ferreiro", "curandeira"])
+	var model_meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/town/modelos/meta.json"))
+	for model in Town.MODELS:
+		check(model_meta.has(model), "%s tem desenho de todos os lados" % model)
+		check(int(model_meta.get(model, {}).get("views", 0)) >= 8, "%s tem ângulos suficientes" % model)
 	for cell in state.props:
 		for prop in state.props[cell]:
 			check(ResourceLoader.exists(prop["path"]), "arte existe: %s" % prop["path"])

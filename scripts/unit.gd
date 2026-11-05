@@ -16,6 +16,7 @@ var def: int
 var speed: int
 var abilities: Array
 var clock := 0
+var moved := 0 # pontos de movimento gastos neste turno
 var guarding := false
 var pending := {} # magia carregando: {"ability": id, "tile": Vector2i}
 var passives := {} # regras especiais das skills (ver skill_data.gd)
