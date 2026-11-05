@@ -55,24 +55,17 @@ func _idle() -> void:
 		guard += 1
 
 
-func _open_town() -> Node:
-	var scene: Node = load("res://scenes/town.tscn").instantiate()
-	root.add_child(scene)
-	await _wait_frames(5)
-	return scene
-
-
 func _run() -> void:
-	var town := await _open_town()
-	await _shot("1_cidade_inicio")
-	_expect(town.party.size() == 4, "cidade começa com party montada")
-	_expect(town.start_button.text.contains("4 de 4"), "botão mostra a party")
-	town.free()
-
 	root.set_meta("world_hero", ["guardiao", "duelista", "mago", "druida"])
-	root.set_meta("expedition", true)
+	root.set_meta("town", true)
 	view = load("res://main.tscn").instantiate()
 	root.add_child(view)
+	await _idle()
+	await _wait_frames(60)
+	_expect(view.town and view.state.foes().is_empty(), "o jogo começa na cidade")
+	_expect(view.hud.journey.text.contains("Cidade-Farol"), "o topo mostra a cidade")
+	await _shot("1_cidade_inicio")
+	await _test_town()
 	await _idle()
 	await _wait_frames(30)
 	var state = view.state
@@ -144,23 +137,87 @@ func _run() -> void:
 	_expect(view.hud.end_label.text.contains("farol"), "o fim fala do farol")
 	_expect(TownProgress.beacons() == 1 and TownProgress.brasas() > 0, "o resultado foi salvo")
 	_expect(not TownProgress.rescued().is_empty(), "o morador foi salvo na cidade")
-	view.queue_free()
-	await _wait_frames(3)
-
-	town = await _open_town()
+	view.hud.restart_pressed.emit()
+	await _idle()
+	await _wait_frames(60)
+	_expect(view.town and not view.expedition, "a expedição volta para a cidade")
+	_expect(view.hud.objective.text.contains("Faróis acesos 1"), "a cidade mostra o farol")
 	await _shot("11_cidade_depois")
-	_expect(town.status.text.contains("Faróis acesos: 1"), "a cidade mostra o farol")
-	var resident: String = TownProgress.rescued()[0]
-	var before := TownProgress.brasas()
-	TownProgress.record({"won": false, "brasas": 100, "rescued": [], "memories": 0})
-	town._refresh()
-	await _wait_frames(2)
-	_expect(TownProgress.buy(resident), "dá para comprar a melhoria")
-	_expect(TownProgress.brasas() < before + 100, "a melhoria cobra brasas")
+	await _test_growth()
 	print("Expedição: ", "FALHOU" if failed else "OK")
 	DirAccess.remove_absolute(HeroProgress.path)
 	DirAccess.remove_absolute(TownProgress.path)
 	quit(1 if failed else 0)
+
+
+## Anda até um morador, conversa, abre a party e parte.
+func _test_town() -> void:
+	var state = view.state
+	# Andar pela cidade usa o mesmo clique da exploração.
+	var from: Vector2i = view.selected.pos
+	var target: Vector2i = state.area_of(from, 2).filter(func(c): return Hex.distance(c, from) == 2 and state.tile_at(c)["walkable"] and state.unit_at(c) == null)[0]
+	view._click(target)
+	await _wait_frames(90)
+	_expect(view.selected.pos != from, "clicar anda pela cidade")
+	await _idle()
+	var person: Dictionary = state.people.values().filter(func(p): return p["id"] == "taverneira")[0]
+	await _put_party_near(state, person["cell"])
+	await _wait_frames(40)
+	await _shot("1b_taverna")
+	_expect(view.town_panels.nearby == person, "a cidade percebe quem está perto")
+	_expect(view.town_panels.action_button.visible, "aparece o botão de falar")
+	view.town_panels.action_button.pressed.emit()
+	_expect(view.town_panels.window_open(), "falar abre a janela")
+	await _wait_frames(3)
+	await _shot("1c_conversa")
+	view.town_panels.close_window()
+	for other in state.people.values():
+		view.town_panels.open_person(other)
+		_expect(view.town_panels.window_open(), "a conversa abre: %s" % other["name"])
+		view.town_panels.close_window()
+	view.town_panels.open_party()
+	await _wait_frames(3)
+	await _shot("1d_party")
+	var old_state = view.state
+	view.town_panels.start_button.pressed.emit()
+	await _wait_frames(3)
+	_expect(view.state != old_state and view.expedition and not view.town, "partir abre a expedição")
+
+
+## Depois do resgate, a forja ou a tenda existem e vendem melhorias.
+func _test_growth() -> void:
+	var state = view.state
+	var resident: String = TownProgress.rescued()[0]
+	var person: Dictionary = state.people.values().filter(func(p): return p["id"] == resident)[0]
+	_expect(not state.tile_at(person["cell"])["walkable"], "o morador resgatado está na cidade")
+	await _put_party_near(state, person["cell"])
+	await _wait_frames(40)
+	await _shot("12_morador_resgatado")
+	TownProgress.record({"won": false, "brasas": 100, "rescued": [], "memories": 0})
+	var before := TownProgress.brasas()
+	view.town_panels.open_person(person)
+	await _wait_frames(3)
+	await _shot("13_melhoria")
+	_expect(TownProgress.buy(resident), "dá para comprar a melhoria")
+	_expect(TownProgress.brasas() < before, "a melhoria cobra brasas")
+	view.town_panels.close_window()
+	view.town_panels.open_party()
+	view.town_panels.close_window()
+
+
+func _put_party_near(state, cell: Vector2i) -> void:
+	var spots: Array = state.area_of(cell, 3).filter(func(spot):
+		return state.tile_at(spot)["walkable"] and state.unit_at(spot) == null and Hex.distance(spot, cell) <= 2)
+	spots.sort_custom(func(a, b): return Hex.distance(a, cell) < Hex.distance(b, cell))
+	for i in state.party.size():
+		var member = state.party[i]
+		member.pos = spots[i]
+		view.views[member].position = view.feet_of(member.pos)
+		view.views[member].z_index = view._z(view._row(member.pos)) + 5
+		view.battle_camera.set_elevation(view._cell_elevation(member.pos), view.views[member])
+	view._follow(view.selected)
+	view._sync_world(view.camera_cell)
+	await process_frame
 
 
 func _test_volume() -> void:

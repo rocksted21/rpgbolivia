@@ -20,7 +20,12 @@ const WorldGen = preload("res://scripts/world_gen.gd")
 const ExpeditionState = preload("res://scripts/expedition_state.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
-const TOWN_SCENE := "res://scenes/town.tscn"
+const TownState = preload("res://scripts/town_state.gd")
+const TownPanels = preload("res://scripts/town_panels.gd")
+const TownData = preload("res://scripts/town_data.gd")
+const TOWN_META := "town"
+const TOWN_PANELS_LAYER := 50
+const TOWN_TINT := Color(0.8, 0.8, 0.92)
 const EXPEDITION_META := "expedition"
 const BOSS_SCALE := 1.35
 const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
@@ -167,6 +172,8 @@ var room_label: Label
 var rewarded := false # os pontos da luta já foram dados
 var exploring := false
 var expedition := false # solo: cidade, locais especiais e chefe (ver expedition_state.gd)
+var town := false # a Cidade-Farol: mapa fixo, moradores e nada de inimigos
+var town_panels
 var landmark_nodes := {} # casa: marcas no mapa de um local especial
 var selected # o herói que recebe os cliques fora de combate
 var together := true # fora de combate, os heróis do jogador andam em fila atrás do selecionado
@@ -201,7 +208,6 @@ var wall_groups := [] # paredes por lado do hexágono: as de costas para a câme
 
 
 func _ready() -> void:
-	music_manager.play_combat()
 	meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
 	fx_meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/fx/meta.json"))
 	_start_battle()
@@ -235,6 +241,12 @@ func _start_battle() -> void:
 	var chosen: Variant = get_tree().root.get_meta(WORLD_META, [])
 	var party_types: Array = chosen if chosen is Array else ([chosen] if str(chosen) != "" else [])
 	exploring = online_session.playing or not party_types.is_empty()
+	town = not online_session.playing and get_tree().root.get_meta(TOWN_META, false)
+	expedition = false
+	if town:
+		music_manager.play_menu()
+	else:
+		music_manager.play_combat()
 	level_layers = WORLD_LAYERS_PER_LEVEL if exploring else LAYERS_PER_LEVEL
 	if online_session.playing:
 		state = online_session.state
@@ -242,8 +254,10 @@ func _start_battle() -> void:
 		var builds := {}
 		for i in party_types.size():
 			builds[i] = HeroProgress.unlocked(party_types[i])
-		expedition = get_tree().root.get_meta(EXPEDITION_META, false)
-		if expedition:
+		expedition = not town and get_tree().root.get_meta(EXPEDITION_META, false)
+		if town:
+			state = TownState.new(party_types, randi(), builds, TownProgress.expedition_setup())
+		elif expedition:
 			state = ExpeditionState.new(party_types, randi(), builds, TownProgress.expedition_setup())
 		else:
 			state = WorldState.new(party_types, randi(), builds)
@@ -285,6 +299,8 @@ func _start_battle() -> void:
 	board = Node2D.new()
 	board.position = BOARD_POS
 	board.scale = Vector2.ONE * BOARD_SCALE
+	if town:
+		board.modulate = TOWN_TINT
 	add_child(board)
 	battle_camera = BattleCamera.new()
 	add_child(battle_camera)
@@ -321,6 +337,8 @@ func _start_battle() -> void:
 		hud.menu_pressed.connect(_back_to_menu)
 		if expedition:
 			hud.use_town_exit()
+		if town:
+			_setup_town()
 		hud.setup_party(state.party, _owner_names())
 		hud.party_pressed.connect(_on_party_pick)
 		hud.rotate_held.connect(func(direction): turn_hold = direction)
@@ -343,6 +361,9 @@ func _saved_builds() -> Dictionary:
 
 
 func _update_journey() -> void:
+	if town:
+		_update_town()
+		return
 	hud.set_journey(state.alive_party().size(), state.party.size(), state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(camera_cell)]["name"])
 	if expedition:
 		hud.set_objective(_objective_text())
@@ -372,6 +393,7 @@ func _show_result(result: int) -> void:
 			gain = Skills.journey_points(state.kills, state.farthest)
 		if expedition:
 			TownProgress.record(state.result())
+			_set_return_to_town()
 			if won:
 				_rebuild_cell(state.beacon_cell) # o farol acende
 		var types := []
@@ -455,6 +477,8 @@ func _build_cell(cell: Vector2i) -> void:
 		_add_biome_props(biome, terrain_id, cell)
 	if expedition:
 		_add_landmark(cell, row)
+	if town:
+		_add_person_name(cell, row)
 	elif SCENERY_BASE.has(terrain_id):
 		_add_scenery(terrain_id, cell)
 	var overlay := Polygon2D.new()
@@ -679,7 +703,13 @@ func _tile_mesh(texture: Texture2D) -> Dictionary:
 func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	var detail: float = state.detail_at(cell)
 	var made := {}
-	var art: Array = [BiomeArt.beacon(biome, state.defeated_boss)] if expedition and cell == state.beacon_cell else BiomeArt.props(biome, terrain_id, detail)
+	var art: Array
+	if town:
+		art = state.art_at(cell)
+	elif expedition and cell == state.beacon_cell:
+		art = [BiomeArt.beacon(biome, state.defeated_boss)]
+	else:
+		art = BiomeArt.props(biome, terrain_id, detail)
 	for prop in art:
 		made[prop["layer"]] = _biome_prop(prop, cell, detail)
 	if terrain_id == WorldGen.FOREST:
@@ -693,7 +723,7 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	# O ponto de apoio de cada arte é o centro da imagem.
 	var foot: Vector2 = sprite.texture.get_size() / 2.0
 	sprite.position = cell_origin(cell) + Vector2(93, prop["ground_y"]) - foot
-	sprite.flip_h = fmod(detail * 13.0, 1.0) < 0.5
+	sprite.flip_h = not prop.get("fixed", false) and fmod(detail * 13.0, 1.0) < 0.5
 	sprite.z_index = _z(_row(cell)) + prop["depth"]
 	board.add_child(sprite)
 	building.append(sprite)
@@ -1661,6 +1691,8 @@ func _process(delta: float) -> void:
 		return
 	_update_turn(delta)
 	_update_walks(delta)
+	if town and selected != null:
+		town_panels.set_nearby(state.person_near(selected.pos))
 	var goal: Vector2 = camera_look if camera_look != null else BattleCamera.FOCUS - _camera_point() * BOARD_SCALE
 	board.position = board.position.lerp(goal, 1.0 - exp(-delta * CAMERA_SPEED))
 	_work_on_map(BUILD_BUDGET_USEC)
@@ -2181,7 +2213,71 @@ func _end_text() -> String:
 
 
 func _back_to_menu() -> void:
-	get_tree().change_scene_to_file(TOWN_SCENE if expedition else "res://scenes/main_menu.tscn")
+	if expedition:
+		_start_battle() # o fim da expedição já deixou a volta para a cidade marcada
+	else:
+		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
+# --- Cidade-Farol --------------------------------------------------------------
+
+func _set_return_to_town() -> void:
+	var root := get_tree().root
+	root.set_meta(TOWN_META, true)
+	root.set_meta(EXPEDITION_META, false)
+
+
+func _setup_town() -> void:
+	town_panels = TownPanels.new()
+	town_panels.z_index = TOWN_PANELS_LAYER # por cima das linhas do topo, criadas depois
+	hud.add_child(town_panels)
+	town_panels.setup(_party_types())
+	town_panels.depart.connect(_depart)
+	town_panels.skills_requested.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
+	town_panels.menu_requested.connect(_back_to_menu)
+	town_panels.changed.connect(_update_town)
+
+
+func _party_types() -> Array:
+	return state.party.map(func(unit): return unit.type_id)
+
+
+func _depart(party_types: Array) -> void:
+	var root := get_tree().root
+	root.set_meta("world_hero", party_types)
+	root.set_meta(TOWN_META, false)
+	root.set_meta(EXPEDITION_META, true)
+	online_session.leave()
+	_start_battle()
+
+
+func _update_town() -> void:
+	var saved: Array = TownProgress.rescued()
+	var people: int = TownData.BASE_PEOPLE + saved.size() * TownData.PEOPLE_PER_RESCUE + TownProgress.beacons() * TownData.PEOPLE_PER_BEACON
+	var city_level: int = 1 + saved.size() + TownProgress.beacons()
+	hud.set_status("Cidade-Farol   ·   Heróis %d/%d   ·   Habitantes %d" % [state.alive_party().size(), state.party.size(), people])
+	hud.set_objective("Nível da Cidade %d   ·   Brasas %d   ·   Faróis acesos %d" % [city_level, TownProgress.brasas(), TownProgress.beacons()])
+	hud.update_party(selected)
+
+
+## Nome de quem mora aqui, com o aviso de que dá para conversar.
+func _add_person_name(cell: Vector2i, row: int) -> void:
+	if not state.people.has(cell) or not state.is_present(state.people[cell]):
+		return
+	var person: Dictionary = state.people[cell]
+	var name_label := Label.new()
+	name_label.text = "! %s" % person["name"]
+	name_label.position = feet_of(cell) + Vector2(-140, -176)
+	name_label.custom_minimum_size = Vector2(280, 0)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.z_index = _z(row) + 7
+	name_label.add_theme_font_size_override("font_size", 30)
+	name_label.add_theme_color_override("font_color", BEACON_COLOR)
+	name_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	name_label.add_theme_constant_override("outline_size", 8)
+	board.add_child(name_label)
+	building.append(name_label)
+	battle_camera.add_billboard(name_label, Vector2(140, 176), _cell_elevation(cell))
 
 
 func _play_move(event: Dictionary) -> void:

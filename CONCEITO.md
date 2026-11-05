@@ -24,9 +24,9 @@ Ao vencer, a party leva todas as brasas. Na derrota, leva metade. Quem foi resga
 
 ## Primeira versão
 
-Já existe no modo solo: a Cidade-Farol, 2 moradores (Curandeira e Ferreiro), 1 região, 5 tipos de local e 1 chefe.
+Já existe no modo solo: a Cidade-Farol, por onde a party anda e conversa com os moradores, 2 moradores para resgatar (Curandeira e Ferreiro), 1 região, 5 tipos de local e 1 chefe.
 
-Os números e textos ficam em `scripts/expedition_data.gd`. As regras estão em `scripts/expedition_state.gd`, e o save da cidade, em `scripts/town_progress.gd`.
+Os números e textos da expedição ficam em `scripts/expedition_data.gd`, e a planta e os textos da cidade, em `scripts/town_data.gd`. As regras estão em `scripts/expedition_state.gd` e `scripts/town_state.gd`, e o save da cidade, em `scripts/town_progress.gd`.
 
 ## O que falta
 

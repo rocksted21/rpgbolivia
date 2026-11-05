@@ -19,6 +19,8 @@ static func wall(biome: String) -> String:
 
 
 static func ground(biome: String, terrain_id: int, detail := 0.0) -> String:
+	if terrain_id == 12: # calçada: só a Cidade-Farol tem
+		return "res://assets/town/calcada.png"
 	if terrain_id == 5 and detail >= 0.5: # a água tem duas versões: repetida, ela vira padrão
 		return ROOT % [biome, "agua_b"]
 	return ROOT % [biome, GROUND[terrain_id]]

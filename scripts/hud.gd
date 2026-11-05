@@ -803,6 +803,11 @@ func set_hint(text: String) -> void:
 	hint.text = text
 
 
+## Primeira linha do topo, quando o texto padrão da jornada não serve (na cidade).
+func set_status(text: String) -> void:
+	journey.text = text
+
+
 ## Linha da expedição, abaixo do progresso: nível, brasas e bússola.
 func set_objective(text: String) -> void:
 	if objective == null:

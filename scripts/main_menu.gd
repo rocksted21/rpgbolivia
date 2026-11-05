@@ -10,6 +10,7 @@ var sound_manager:
 ## Entrada do jogo; o combate continua em main.tscn.
 
 
+const GameData = preload("res://scripts/game_data.gd")
 const GameSettings = preload("res://scripts/game_settings.gd")
 
 const INK := Color("191e2a")
@@ -21,7 +22,8 @@ var options: AcceptDialog
 
 
 func _ready() -> void:
-	get_tree().root.remove_meta("skills_back")
+	for key in ["skills_back", "town", "expedition"]:
+		get_tree().root.remove_meta(key)
 	GameSettings.apply()
 	var background := ColorRect.new()
 	background.color = INK
@@ -40,7 +42,7 @@ func _ready() -> void:
 	_label(column, "COMBATE\nTÁTICO", 54, TEXT)
 	_spacer(column, 20)
 	single_player = _button(column, "Single Player", true)
-	single_player.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/town.tscn"))
+	single_player.pressed.connect(_enter_town)
 	var online_button := _button(column, "Online")
 	online_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/online_lobby.tscn"))
 	var heroes_button := _button(column, "Heróis")
@@ -53,6 +55,17 @@ func _ready() -> void:
 	_build_options()
 	single_player.grab_focus()
 	preload("res://update/pck_updater.gd").confirm_boot()
+
+
+func _enter_town() -> void:
+	var root := get_tree().root
+	root.set_meta("town", true)
+	root.set_meta("skills_back", "res://main.tscn")
+	if not root.has_meta("world_hero"):
+		root.set_meta("world_hero", GameData.DEFAULT_PARTY)
+	var error := get_tree().change_scene_to_file("res://main.tscn")
+	if error != OK:
+		push_error("Não foi possível abrir a cidade: %s" % error)
 
 
 func _open_options() -> void:

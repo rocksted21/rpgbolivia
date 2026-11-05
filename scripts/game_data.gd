@@ -23,6 +23,7 @@ const TERRAIN := {
 	9: {"name": "Campo", "walkable": true, "cost": 0, "damage": 1.0},
 	10: {"name": "Casa", "walkable": false, "cost": 0, "damage": 1.0},
 	11: {"name": "Torre", "walkable": false, "cost": 0, "damage": 1.0},
+	12: {"name": "Calçada", "walkable": true, "cost": 0, "damage": 1.0},
 }
 
 const MAP_TERRAIN := [
