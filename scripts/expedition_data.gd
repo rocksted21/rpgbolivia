@@ -10,6 +10,8 @@ const BEACON_MIN_EXITS := 4 # casas livres em volta do farol: a luta precisa de 
 const LANDMARK_MIN := 10 # nenhum local especial nasce colado no início
 const LANDMARK_SPACING := 9
 const ROUTE_WIDTH := 14 # os locais ficam a até essa distância do caminho até o farol
+const ROUTE_MARGIN := 10 # quanto a estrada e as trilhas podem desviar além da área dos locais
+const CHEST_SPACING := 5 # baús ficam mais perto dos outros locais que o normal
 const VISIT_RADIUS := 1
 const BEACON_VISIT_RADIUS := 2
 const COMPASS_RADIUS := 25 # além disso a bússola só mostra o farol
@@ -20,6 +22,8 @@ const LANDMARKS := {
 	"emboscada": {"label": "Ruínas", "count": 2, "color": Color("f2ca76"), "guards": 3, "brasas": 12, "xp": 20},
 	"fonte": {"label": "Fonte", "count": 2, "color": Color("7ff0c8"), "heal": 0.5},
 	"memoria": {"label": "Memória", "count": 2, "color": Color("d6a6ff"), "xp": 30},
+	# hidden: quantos deles não têm trilha nem aparecem na bússola, para quem sair do caminho.
+	"bau": {"label": "Baú", "count": 6, "hidden": 2, "color": Color("f5b52e"), "brasas": 7, "xp": 5, "potion_chance": 0.35},
 }
 
 const BOSS := {

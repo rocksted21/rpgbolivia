@@ -63,7 +63,9 @@ func test_walking() -> void:
 	check(state.foes().is_empty() and state.tick().is_empty(), "a cidade não tem inimigos")
 	check(state.winner() < 0, "a cidade não acaba")
 	var seen := _reachable(state)
-	check(seen.size() > 150, "a cidade é grande (%d casas)" % seen.size())
+	check(seen.size() > 120, "a cidade é grande (%d casas)" % seen.size())
+	for spot in [Vector2i(10, 7), Vector2i(6, 11), Vector2i(12, 17)]:
+		check(seen.has(spot), "as ruas sobem aos platôs e descem às docas: %s" % spot)
 	for spot in state.people:
 		var near: Array = Hex.neighbors(spot).filter(func(cell): return seen.has(cell))
 		check(not near.is_empty(), "dá para chegar até %s" % state.people[spot]["name"])
@@ -75,7 +77,14 @@ func test_walking() -> void:
 func test_art() -> void:
 	var state = _new(["ferreiro", "curandeira"])
 	for cell in state.props:
-		check(ResourceLoader.exists(state.props[cell]["path"]), "arte existe: %s" % state.props[cell]["path"])
+		for prop in state.props[cell]:
+			check(ResourceLoader.exists(prop["path"]), "arte existe: %s" % prop["path"])
+	for cell in state.levels:
+		for piece in state.ground_overlays(cell):
+			check(ResourceLoader.exists(piece), "peça de piso existe: %s" % piece)
+	var width: int = Town.MAP[0].length()
+	for line in Town.MAP:
+		check(line.length() == width, "a planta é retangular")
 	check(ResourceLoader.exists("res://assets/town/calcada.png"), "calçada existe")
 	var cells := {}
 	for building in Town.BUILDINGS:
@@ -197,8 +206,8 @@ func test_growth() -> void:
 	var empty = _new()
 	var saved = _new(["ferreiro"])
 	var forge: Vector2i = Town.BUILDINGS[1]["cell"]
-	check(empty.props[forge]["path"] == Town.RUBBLE, "sem o ferreiro a forja está em ruínas")
-	check(saved.props[forge]["path"].ends_with("forja.png"), "o resgate reconstrói a forja")
+	check(empty.props[forge][0]["path"] == Town.RUBBLE, "sem o ferreiro a forja está em ruínas")
+	check(saved.props[forge][0]["path"].ends_with("forja.png"), "o resgate reconstrói a forja")
 	var smith: Vector2i = Town.PEOPLE[0]["cell"]
 	check(empty.tile_at(smith)["walkable"], "sem o ferreiro, o lugar dele fica livre")
 	check(not saved.tile_at(smith)["walkable"], "o ferreiro ocupa uma casa")

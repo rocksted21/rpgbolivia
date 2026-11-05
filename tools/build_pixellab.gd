@@ -53,6 +53,9 @@ func _build_sheet(key: String, dir: String, dst: String) -> Dictionary:
 		var row := _frames(dir, anims, spec[0], spec[1])
 		if row.is_empty() and spec[0] == "strong":
 			row = _frames(dir, anims, "attack", spec[1])
+		if row.is_empty() and spec[0] == "walk":
+			# Sem o andar nessa direção, as pernas de frente servem: parado, parece que desliza.
+			row = _frames(dir, anims, "walk", "south")
 		if row.is_empty():
 			push_warning("%s: sem %s/%s, usando a pose parada" % [key, spec[0], spec[1]])
 			row = [rest]

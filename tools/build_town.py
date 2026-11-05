@@ -13,6 +13,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # build_biomes, ao lado
+
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "referencias" / "cidade.jpg"
 OUT = ROOT / "assets" / "town"
@@ -32,6 +35,8 @@ BUILDINGS = {
     "escada_a": (900, 460, 1040, 588), "escada_b": (980, 295, 1092, 402),
     "barraca_b": (930, 768, 1052, 880), "barraca_c": (1512, 682, 1612, 798),
     "tocha": (705, 545, 738, 632),
+    "bigorna": (495, 458, 552, 512), "bigorna_b": (262, 825, 335, 870), "caldeirao_grande": (743, 363, 790, 405),
+    "frascos": (722, 375, 752, 414), "barris_b": (1440, 740, 1505, 815), "lenha": (152, 812, 207, 852),
 }
 # (caixa, parte certamente do morador): sem ela, o corpo escuro some junto com o chão escuro.
 RESIDENTS = {
@@ -45,7 +50,6 @@ RESIDENTS = {
 FIRE_ERASE = ("morador_d",)
 # Partes que sobraram na taverna: a cabeça de quem está na frente dela.
 ERASE = {"taverna": [(300, 305, 345, 352)]}
-STONE = (1000, 625, 1125, 705)
 
 
 def rect(box, margin: int, shape) -> tuple:
@@ -109,19 +113,35 @@ def beacon_with_beams() -> Image.Image:
     return canvas
 
 
+# Pedras da praça da imagem: escura, base e clara, e a junta entre elas.
+STONE_COLORS = ((66, 70, 86), (78, 83, 101), (90, 95, 114))
+STONE_JOINT = (45, 38, 44)
+STONE_SIZE = 30
+
+
 def stone_tile(image: np.ndarray) -> Image.Image:
-    """Calçada: pedras da praça da imagem, no formato de um tile do jogo."""
-    x0, y0, x1, y1, *_ = rect(STONE, 0, image.shape)
-    stone = Image.fromarray(image[y0:y1, x0:x1, ::-1]).resize((W, 213), Image.Resampling.BOX)
+    """Calçada: pedras irregulares que continuam de uma casa para a outra, sem borda no hexágono.
+
+    As pedras se repetem junto com a grade (build_biomes.stone_pattern), então a praça
+    parece um chão só, e não uma colcha de tiles iguais.
+    """
+    from build_biomes import PIXEL, stone_pattern
     tile = np.array(Image.open(ROOT / "assets" / "biomes" / "floresta" / "campo_a.png").convert("RGBA"))
-    top = np.array(stone)
-    for y in range(213):
+    rows, cols = 213 // PIXEL + 1, W // PIXEL + 1
+    gy, gx = np.mgrid[0:rows, 0:cols].astype(np.float32)
+    shade, joint = stone_pattern(gx * PIXEL + PIXEL / 2, gy * PIXEL + PIXEL / 2, STONE_SIZE, "cidade/calcada")
+    rng = np.random.default_rng(3)
+    colors = np.array(STONE_COLORS, np.float32)[shade] + rng.normal(0, 2.5, (rows, cols, 1))
+    colors[joint] = STONE_JOINT
+    for y in range(H):
         for x in range(W):
             front = 213.0 - abs(x - 93.0) * (53.0 / 93.0)
             back = abs(x - 93.0) * (53.0 / 93.0)
             if back <= y <= front:
-                edge = min(y - back, front - y, x, W - 1 - x)
-                tile[y, x, :3] = (top[y, x] * (0.6 if edge < 1.5 else 1.0)).astype(np.uint8)
+                tile[y, x, :3] = np.clip(colors[y // PIXEL, x // PIXEL], 0, 255).astype(np.uint8)
+            elif y > front and tile[y, x, 3] > 0:
+                # A beira da praça é de pedra, não de grama: o meio-fio mais escuro.
+                tile[y, x, :3] = np.clip(colors[min(int(front) // PIXEL, rows - 1), x // PIXEL] * 0.62, 0, 255).astype(np.uint8)
     return Image.fromarray(tile, "RGBA")
 
 

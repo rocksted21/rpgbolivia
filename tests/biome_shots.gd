@@ -40,6 +40,13 @@ func _run(dir: String) -> void:
 		state.terrain_override[house] = 10
 		state.beacon_cell = beacon
 		state.defeated_boss = false
+		# Um baú e uma ruína à vista, para conferir a arte dos prêmios.
+		var chest: Vector2i = cell + Vector2i(-1, 3)
+		var ruin: Vector2i = cell + Vector2i(3, 2)
+		state.landmarks.clear()
+		state.landmarks[beacon] = {"kind": "farol", "state": "done", "guards": []}
+		state.landmarks[chest] = {"kind": "bau", "state": "idle", "guards": []}
+		state.landmarks[ruin] = {"kind": "ruina", "state": "idle", "guards": []}
 		for member in state.party:
 			var i: int = state.party.find(member)
 			member.pos = cell + Vector2i(i, 1)
@@ -51,6 +58,8 @@ func _run(dir: String) -> void:
 		view._sync_world(cell)
 		view._rebuild_cell(beacon)
 		view._rebuild_cell(house)
+		view._rebuild_cell(chest)
+		view._rebuild_cell(ruin)
 		view._update_journey()
 		await _save(dir, biome)
 		state.defeated_boss = true
@@ -86,6 +95,8 @@ func _busiest_cell(state, biome: String):
 					inside += 1 if state.biome_at(near) == biome else 0
 					kinds[state.terrain_id_at(near)] = true
 			var score: int = kinds.size() * 40 + inside
+			if kinds.has(13) and kinds.has(15): # estrada e trilha à vista
+				score += 300
 			if score > best_score:
 				best_score = score
 				best = cell

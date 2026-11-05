@@ -95,7 +95,12 @@ func tile_at(cell: Vector2i) -> Dictionary:
 func ground_overlays(cell: Vector2i) -> Array:
 	return BiomeArt.overlays(biome_at(cell), terrain_id_at(cell), elevation_at(cell), gen.path_links(cell), func(dir: int) -> Dictionary:
 		var next: Vector2i = Hex.neighbor(cell, dir)
-		return {"biome": biome_at(next), "terrain": terrain_id_at(next), "elevation": elevation_at(next)})
+		return {"biome": biome_at(next), "terrain": terrain_id_at(next), "elevation": elevation_at(next)}, gen.road_links(cell))
+
+
+## O piso desenhado na casa. Na cidade, o chão continua aparecendo embaixo do que bloqueia.
+func floor_id_at(cell: Vector2i) -> int:
+	return terrain_id_at(cell)
 
 
 func elevation_at(cell: Vector2i) -> int:

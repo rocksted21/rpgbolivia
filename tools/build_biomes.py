@@ -77,8 +77,24 @@ SHORE_DEPTH = 24
 PAVING = {
     "floresta": {"stones": ((96, 92, 88), (122, 118, 110), (146, 140, 128)), "joint": (58, 46, 38), "size": 15},
     "selva": {"planks": ((70, 52, 38), (92, 68, 46), (112, 84, 54)), "joint": (22, 20, 20)},
-    "neve": {"stones": ((132, 144, 164), (156, 166, 184), (184, 192, 206)), "joint": (92, 100, 120), "size": 17},
-    "deserto": {"stones": ((178, 132, 74), (204, 158, 92), (226, 186, 116)), "joint": (122, 78, 44), "size": 19},
+    "neve": {"stones": ((104, 112, 130), (126, 134, 152), (148, 156, 172)), "joint": (72, 78, 96), "size": 17},
+    "deserto": {"stones": ((132, 96, 66), (158, 118, 78), (184, 142, 94)), "joint": (92, 60, 40), "size": 19},
+}
+# A estrada é a via larga, com meio-fio; a trilha é o caminho estreito de terra batida.
+ROAD_HALF = 33  # meia largura da estrada, sem o meio-fio
+ROAD_CURB = 6
+ROAD_CURB_COLORS = {
+    "floresta": ((52, 46, 42), (88, 84, 78)),
+    "selva": ((24, 20, 20), (58, 44, 34)),
+    "neve": ((70, 76, 92), (112, 120, 138)),
+    "deserto": ((84, 54, 36), (128, 88, 56)),
+}
+TRAIL_HALF = 18
+TRAILS = {
+    "floresta": ((66, 46, 34), (96, 68, 46), (120, 90, 60)),
+    "selva": ((58, 50, 40), (92, 80, 58), (116, 102, 72)),
+    "neve": ((128, 142, 166), (150, 164, 186), (176, 188, 204)),
+    "deserto": ((122, 74, 46), (150, 96, 58), (174, 118, 72)),
 }
 BRIDGE = {"planks": ((88, 62, 40), (116, 84, 52), (140, 104, 64)), "joint": (30, 22, 18)}
 
@@ -303,6 +319,8 @@ def build_props(biome: str, c: dict) -> None:
             "montanha_a": [(mountain, 0, 0)],
             "montanha_b": [(s("escombros", 0.68), 0, 0)],
             "torre": [(s("arco_b", 0.6), 0, 0)],
+            "ruina_a": [(s("arco_a", 0.55), 0, 0)],
+            "ruina_b": [(s("estatua", 0.7), -22, 0), (s("coluna", 0.6), 44, 4)],
             "enfeite_a": [(s("coluna", 0.62), 0, 0)],
             "enfeite_b": [(s("estatua", 0.62), 0, 0)],
             "enfeite_c": [(s("engrenagem", 0.5), 0, 0)],
@@ -318,6 +336,8 @@ def build_props(biome: str, c: dict) -> None:
             "montanha_a": [(mountain, 0, 0)],
             "montanha_b": [(s("estufa_b", 0.6), 0, 0)],
             "torre": [(s("estufa_a", 0.6), 0, 0)],
+            "ruina_a": [(s("portao", 0.55), 0, 0)],
+            "ruina_b": [(s("engrenagens", 0.5), 0, 0)],
             "enfeite_a": [(s("cristal_b", 0.5), 0, 0)],
             "enfeite_b": [(s("cogumelo", 0.5), 0, 0)],
             "enfeite_c": [(s("portao", 0.5), 0, 0)],
@@ -334,6 +354,8 @@ def build_props(biome: str, c: dict) -> None:
             "montanha_b": [(s("relogios", 0.62), 0, 0)],
             "torre": [(s("arco", 0.62), 0, 0)],
             "enfeite_a": [(s("portao", 0.4), 0, 0)],
+            "ruina_a": [(s("portao", 0.55), 0, 0)],
+            "ruina_b": [(s("engrenagens", 0.55), 0, 0)],
             "enfeite_b": [(s("engrenagens", 0.45), 0, 0)],
             "enfeite_c": [(s("cristal_b", 0.45), 0, 0)],
         }
@@ -349,6 +371,8 @@ def build_props(biome: str, c: dict) -> None:
             "montanha_b": [(s("ossada", 0.62), 0, 0)],
             "torre": [(s("arco", 0.62), 0, 0)],
             "enfeite_a": [(s("pedra", 0.6), 0, 0)],
+            "ruina_a": [(s("colunas", 0.55), 0, 0)],
+            "ruina_b": [(s("escada", 0.6), 0, 0)],
             "enfeite_b": [(s("caveira", 0.5), 0, 0)],
             "enfeite_c": [(s("engrenagens", 0.42), 0, 0)],
         }
@@ -489,12 +513,142 @@ def build_edges(biome: str) -> None:
         save(to_tile(rgb, (land | grown) & (from_edge < SHORE_DEPTH * 1.6)), biome, f"margem_{side}")
 
 
+def arm_geometry(xs, ys, side: int | None):
+    """t: de 0 (centro) a 1 (meio da aresta); d: distância até o eixo. side None: o miolo."""
+    if side is None:
+        return None, np.hypot(xs - CENTER[0], ys - CENTER[1])
+    vec = np.array(SIDES[side]) - CENTER
+    length = np.linalg.norm(vec)
+    unit = vec / length
+    t = ((xs - CENTER[0]) * unit[0] + (ys - CENTER[1]) * unit[1]) / length
+    d = (xs - CENTER[0]) * -unit[1] + (ys - CENTER[1]) * unit[0]
+    return t, d
+
+
+def road_pieces(biome: str, side: int | None) -> tuple[Image.Image, Image.Image]:
+    """O piso e o meio-fio de um braço da estrada. O jogo desenha todos os meios-fios primeiro
+    e os pisos depois: assim, onde os braços se juntam, não sobra borda no meio da via."""
+    xs, ys, top = pixel_grid()
+    t, d = arm_geometry(xs, ys, side)
+    seed = f"{biome}/estrada"
+    if side is None:
+        floor = d < ROAD_HALF
+        outer = d < ROAD_HALF + ROAD_CURB
+        along = None
+    else:
+        reach = t >= -0.02
+        floor = reach & (np.abs(d) < ROAD_HALF)
+        outer = reach & (np.abs(d) < ROAD_HALF + ROAD_CURB)
+        along = t * np.linalg.norm(np.array(SIDES[side]) - CENTER)
+    rgb = paving_colors(xs, ys, PAVING[biome], seed, along)
+    # Sulcos das rodas: duas faixas um pouco mais escuras seguindo a via.
+    if side is not None:
+        rut = np.abs(np.abs(d) - ROAD_HALF * 0.5) < 3.2
+        rgb[rut] = rgb[rut] * 0.86
+    dark, light = (np.array(c, np.float32) for c in ROAD_CURB_COLORS[biome])
+    curb = np.broadcast_to(light, rgb.shape).copy()
+    inner = ndimage.binary_erosion(outer, border_value=1)
+    curb[outer & ~inner] = dark
+    if side is not None:
+        blocks = (((t * 200.0).astype(int)) % 9) < 1
+        curb[blocks] = dark
+    return to_tile(rgb, floor & top), to_tile(curb, outer & top)
+
+
+def trail_piece(biome: str, side: int | None) -> Image.Image:
+    """Um braço da trilha: terra batida sem contorno, com a borda irregular e algumas pedrinhas."""
+    xs, ys, top = pixel_grid()
+    t, d = arm_geometry(xs, ys, side)
+    seed = f"{biome}/trilha/{side}"
+    wobble = (smooth_noise(xs.shape, seed, 2.0) - 0.5) * 9
+    specks = smooth_noise(xs.shape, seed + "/fino", 0.5)
+    if side is None:
+        mask = d < TRAIL_HALF + 2 + wobble * 0.5
+    else:
+        # Nas pontas a largura é exata, para encontrar a trilha da casa vizinha.
+        taper = np.sin(np.clip(t, 0, 1) * np.pi)
+        mask = (t >= -0.02) & (np.abs(d) < TRAIL_HALF + wobble * taper)
+    mask &= top
+    dark, base, light = (np.array(c, np.float32) for c in TRAILS[biome])
+    rgb = np.broadcast_to(base, (*xs.shape, 3)).copy()
+    tone = smooth_noise(xs.shape, f"{biome}/trilha/tom", 1.4)
+    rgb[tone < 0.42] = dark * 0.5 + base * 0.5
+    rgb[tone > 0.6] = light * 0.5 + base * 0.5
+    rgb[specks > 0.82] = light
+    rgb[specks < 0.13] = dark
+    inner = ndimage.binary_erosion(mask, border_value=1)
+    rgb[mask & ~inner] = dark
+    return to_tile(rgb, mask)
+
+
+def build_chests() -> None:
+    """O baú: madeira gasta e ferro, com fechadura e ouro; a única cor forte é o prêmio."""
+    wood, wood_dark, wood_light = (92, 56, 42), (62, 36, 30), (122, 78, 54)
+    iron, iron_light = (58, 60, 70), (98, 102, 114)
+    gold, gold_dark, gold_light = (242, 176, 40), (178, 112, 24), (255, 232, 130)
+
+    def fill(px, box, color):
+        x0, y0, x1, y1 = box
+        px[y0:y1, x0:x1] = (*color, 255)
+
+    def body(px):
+        fill(px, (4, 19, 40, 36), wood)
+        for y in (24, 30):
+            fill(px, (4, y, 40, y + 1), wood_dark)
+        fill(px, (4, 19, 40, 20), wood_light)
+        fill(px, (4, 34, 40, 36), wood_dark)
+        for x in (9, 32):
+            fill(px, (x, 19, x + 3, 36), iron)
+            fill(px, (x, 19, x + 1, 36), iron_light)
+
+    closed = np.zeros((38, 44, 4), np.uint8)
+    body(closed)
+    # Tampa arredondada.
+    for y, inset in zip(range(7, 19), (9, 6, 4, 3, 2, 2, 1, 1, 1, 1, 1, 1)):
+        fill(closed, (3 + inset, y, 41 - inset, y + 1), wood_light if y < 10 else wood)
+    fill(closed, (4, 13, 40, 14), wood_dark)
+    for x in (9, 32):
+        fill(closed, (x, 8, x + 3, 19), iron)
+        fill(closed, (x, 8, x + 1, 19), iron_light)
+    fill(closed, (3, 18, 41, 20), iron)
+    fill(closed, (18, 16, 26, 26), gold_dark)
+    fill(closed, (19, 17, 25, 25), gold)
+    fill(closed, (19, 17, 25, 18), gold_light)
+    fill(closed, (21, 20, 23, 23), wood_dark)
+    for x, y in ((1, 6), (41, 11), (38, 3)):
+        fill(closed, (x, y, x + 1, y + 1), gold_light)
+
+    opened = np.zeros((38, 44, 4), np.uint8)
+    # Tampa aberta, para trás, com o forro escuro à mostra.
+    fill(opened, (6, 2, 38, 13), wood_dark)
+    fill(opened, (6, 2, 38, 4), wood)
+    for x in (9, 32):
+        fill(opened, (x, 2, x + 3, 13), iron)
+    # Moedas iluminando o interior.
+    fill(opened, (6, 13, 38, 20), gold_dark)
+    for y, inset in zip(range(11, 18), (10, 7, 5, 3, 2, 1, 1)):
+        fill(opened, (5 + inset, y, 39 - inset, y + 1), gold)
+    rng = np.random.default_rng(7)
+    for _ in range(18):
+        x, y = int(rng.integers(8, 36)), int(rng.integers(12, 19))
+        fill(opened, (x, y, x + 2, y + 1), gold_light)
+    body(opened)
+
+    for name, art in (("bau_fechado", closed), ("bau_aberto", opened)):
+        big = np.repeat(np.repeat(art, 2, axis=0), 2, axis=1)
+        save(compose([(scaled(Image.fromarray(big, "RGBA"), 1.0), 0, 0)]), "comum", name)
+
+
 def build_paths() -> None:
-    for biome, style in PAVING.items():
-        for side in range(6):
-            save(side_piece(style, f"{biome}/trilha", side), biome, f"trilha_{side}")
-        save(side_piece(style, f"{biome}/trilha", None), biome, "trilha")
+    for biome in PAVING:
+        for side in [*range(6), None]:
+            suffix = "" if side is None else f"_{side}"
+            floor, curb = road_pieces(biome, side)
+            save(floor, biome, f"estrada{suffix}")
+            save(curb, biome, f"estrada_borda{suffix}")
+            save(trail_piece(biome, side), biome, f"trilha{suffix}")
         build_edges(biome)
+    build_chests()
     for side in range(6):
         save(side_piece(BRIDGE, "ponte", side), "comum", f"ponte_{side}")
     save(side_piece(BRIDGE, "ponte", None), "comum", "ponte")

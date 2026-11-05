@@ -24,7 +24,7 @@ var potions_used := 0
 var far_compass := false
 var brasa_bonus := false
 var items := []
-var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0}
+var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0, "chests": 0}
 
 
 ## `town`: o que a cidade dá à party, de TownProgress.expedition_setup().
@@ -66,19 +66,45 @@ func _place_landmarks() -> void:
 	beacon_cell = _pick_beacon(candidates, reachable)
 	terrain_override[beacon_cell] = Exp.TERRAIN_BEACON
 	landmarks[beacon_cell] = {"kind": "farol", "state": "idle", "guards": []}
-	var along := candidates.filter(func(cell): return _near_route(cell))
+	gen.carve(gen.route(start_cell, {beacon_cell: true}, start_cell, _route_radius()), true)
+	# Os locais ficam fora da estrada: quem chega a eles entra por uma trilha.
+	var along := candidates.filter(func(cell): return _near_route(cell) and not gen.is_path(cell))
 	_shuffle(along)
 	var placed: Array = [beacon_cell]
 	for kind in Exp.LANDMARKS:
-		for i in Exp.LANDMARKS[kind]["count"]:
-			var cell: Variant = _next_landmark_cell(along, placed)
+		var data: Dictionary = Exp.LANDMARKS[kind]
+		var hidden: int = data.get("hidden", 0)
+		for i in data["count"]:
+			var cell: Variant = _next_landmark_cell(along, placed, Exp.CHEST_SPACING if kind == "bau" else Exp.LANDMARK_SPACING)
 			if cell == null:
 				continue
 			placed.append(cell)
-			landmarks[cell] = {"kind": kind, "state": "idle", "guards": []}
+			landmarks[cell] = {"kind": kind, "state": "idle", "guards": [], "hidden": i < hidden}
 			if kind == "vila":
 				landmarks[cell]["resident"] = _next_resident()
 				terrain_override[cell] = Exp.TERRAIN_VILLAGE
+	_carve_trails()
+
+
+func _route_radius() -> int:
+	return Exp.BEACON_DISTANCE + Exp.BEACON_SPREAD + Exp.ROUTE_MARGIN
+
+
+## Uma trilha de cada local até a rede de caminhos, começando pelos mais perto do início.
+## Cada trilha pronta entra na rede: as seguintes podem sair dela, como galhos.
+func _carve_trails() -> void:
+	var blocked := {}
+	for cell in terrain_override:
+		blocked[cell] = true
+	var open: Array = landmarks.keys().filter(func(cell): return cell != beacon_cell and not landmarks[cell]["hidden"])
+	open.sort_custom(func(a, b):
+		var gap_a: int = Hex.distance(a, start_cell)
+		var gap_b: int = Hex.distance(b, start_cell)
+		return gap_a < gap_b or (gap_a == gap_b and a < b))
+	for cell in open:
+		var free := blocked.duplicate()
+		free.erase(cell)
+		gen.carve(gen.route(cell, gen.carved, start_cell, _route_radius(), free), false)
 
 
 ## Casas a pé a partir do início, até `radius`, com o mesmo critério de degrau do movimento.
@@ -117,9 +143,9 @@ func _near_route(cell: Vector2i) -> bool:
 	return point.distance_to(a.lerp(b, along)) <= Exp.ROUTE_WIDTH and Hex.distance(cell, start_cell) >= Exp.LANDMARK_MIN
 
 
-func _next_landmark_cell(pool: Array, placed: Array) -> Variant:
+func _next_landmark_cell(pool: Array, placed: Array, spacing: int) -> Variant:
 	for cell in pool:
-		if placed.all(func(other): return Hex.distance(cell, other) >= Exp.LANDMARK_SPACING):
+		if placed.all(func(other): return Hex.distance(cell, other) >= spacing):
 			return cell
 	return null
 
@@ -141,7 +167,7 @@ func _shuffle(list: Array) -> void:
 
 ## Locais que ainda valem uma visita, do mais perto para o mais longe de `from`.
 func open_landmarks(from: Vector2i) -> Array:
-	var open: Array = landmarks.keys().filter(func(cell): return cell != beacon_cell and landmarks[cell]["state"] != "done")
+	var open: Array = landmarks.keys().filter(func(cell): return cell != beacon_cell and landmarks[cell]["state"] != "done" and not landmarks[cell].get("hidden", false))
 	open.sort_custom(func(a, b): return Hex.distance(a, from) < Hex.distance(b, from))
 	return open
 
@@ -335,7 +361,7 @@ func _complete(cell: Vector2i, events: Array) -> void:
 	var kind: String = entry["kind"]
 	var data: Dictionary = Exp.LANDMARKS[kind]
 	entry["state"] = "done"
-	var counts := {"ruina": "ruins", "emboscada": "ambushes", "vila": "villages", "fonte": "fountains", "memoria": "memories"}
+	var counts := {"ruina": "ruins", "emboscada": "ambushes", "vila": "villages", "fonte": "fountains", "memoria": "memories", "bau": "chests"}
 	tally[counts[kind]] += 1
 	var title: String = data["label"]
 	var detail := ""
@@ -353,6 +379,12 @@ func _complete(cell: Vector2i, events: Array) -> void:
 				detail = "Os moradores agradecem com as brasas que restaram."
 		"ruina", "emboscada":
 			title = "+%d brasas" % data["brasas"]
+		"bau":
+			title = "+%d brasas" % data["brasas"]
+			if rng.randf() < data["potion_chance"]:
+				potions += 1
+				free_potions += 1 # achada aqui: usá-la não gasta as da mochila
+				detail = "Dentro do baú havia uma Poção de Luz."
 		"fonte":
 			title = "Fonte de luz"
 			detail = "A party recupera parte da vida."

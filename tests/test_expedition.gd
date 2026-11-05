@@ -42,6 +42,7 @@ func _new(world_seed: int, town := {}):
 
 
 func test_placement() -> void:
+	_test_chest()
 	for world_seed in 12:
 		var state = _new(world_seed * 17 + 3)
 		var distance: int = Hex.distance(state.start_cell, state.beacon_cell)
@@ -51,10 +52,67 @@ func test_placement() -> void:
 		var cells: Array = state.landmarks.keys()
 		for i in cells.size():
 			for j in range(i + 1, cells.size()):
-				check(Hex.distance(cells[i], cells[j]) >= Exp.LANDMARK_SPACING, "locais separados")
+				var spacing: int = Exp.CHEST_SPACING if "bau" in [state.landmarks[cells[i]]["kind"], state.landmarks[cells[j]]["kind"]] else Exp.LANDMARK_SPACING
+				check(Hex.distance(cells[i], cells[j]) >= spacing, "locais separados")
+		_check_network(state, world_seed)
 	var a = _new(77)
 	var b = _new(77)
 	check(a.beacon_cell == b.beacon_cell and a.landmarks.keys() == b.landmarks.keys(), "mesma semente, mesmos locais")
+
+
+## A estrada liga o início ao farol, e todo local que não é escondido tem caminho até ela.
+func _check_network(state, world_seed: int) -> void:
+	var gen = state.gen
+	var seen := {state.start_cell: true}
+	var frontier: Array = [state.start_cell]
+	var along_road := {state.start_cell: true}
+	var road_front: Array = [state.start_cell]
+	while not road_front.is_empty():
+		var current: Vector2i = road_front.pop_back()
+		for dir in gen.road_links(current):
+			var next: Vector2i = Hex.neighbor(current, dir)
+			if not along_road.has(next):
+				along_road[next] = true
+				road_front.append(next)
+	check(along_road.has(state.beacon_cell), "semente %d: a estrada chega ao farol" % world_seed)
+	while not frontier.is_empty():
+		var current: Vector2i = frontier.pop_back()
+		for dir in gen.path_links(current):
+			var next: Vector2i = Hex.neighbor(current, dir)
+			if Hex.distance(next, state.start_cell) > Exp.BEACON_DISTANCE + Exp.BEACON_SPREAD + Exp.ROUTE_MARGIN:
+				continue
+			check(gen.path_links(next).has((dir + 3) % 6), "ligação vale dos dois lados")
+			var blocked: bool = not state.tile_at(next)["walkable"]
+			check(blocked or absi(state.elevation_at(next) - state.elevation_at(current)) <= 1, "o caminho não tem degrau alto")
+			if not seen.has(next):
+				seen[next] = true
+				if not blocked:
+					frontier.append(next)
+	var chests := 0
+	var hidden := 0
+	for cell in state.landmarks:
+		var entry: Dictionary = state.landmarks[cell]
+		chests += 1 if entry["kind"] == "bau" else 0
+		if entry.get("hidden", false):
+			hidden += 1
+			check(not state.open_landmarks(state.start_cell).has(cell), "baú escondido não aparece na bússola")
+		else:
+			check(seen.has(cell), "semente %d: há caminho até %s" % [world_seed, entry["kind"]])
+	check(chests >= Exp.LANDMARKS["bau"]["hidden"] + 1, "semente %d: o mapa tem baús (%d)" % [world_seed, chests])
+	check(hidden >= 1, "semente %d: há baú fora dos caminhos" % world_seed)
+
+
+func _test_chest() -> void:
+	var state = _new(91)
+	var chest: Vector2i = _cell_of(state, "bau")
+	var brasas: int = state.brasas
+	var bag: int = state.potions
+	var free: int = state.free_potions
+	state._complete(chest, [])
+	check(state.brasas == brasas + Exp.LANDMARKS["bau"]["brasas"], "baú dá brasas")
+	check(state.landmarks[chest]["state"] == "done", "baú só abre uma vez")
+	check(state.tally["chests"] == 1, "baú entra na contagem")
+	check(state.potions - bag == state.free_potions - free, "poção do baú não gasta a mochila")
 
 
 func _cell_of(state, kind: String) -> Variant:

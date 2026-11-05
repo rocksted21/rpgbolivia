@@ -36,7 +36,7 @@ func setup(p_view) -> void:
 	z_as_relative = false
 	for decor in Town.DECOR:
 		if Town.LIGHT_ART.has(decor["art"]):
-			_add_light(decor["cell"], Town.LIGHT_ART[decor["art"]], true)
+			_add_light(decor["cell"], Town.LIGHT_ART[decor["art"]], true, FLAME_HEIGHT, decor.get("offset", 0))
 	for building in Town.BUILDINGS:
 		if building["art"] == "farol":
 			_add_light(building["cell"], Town.BEACON_LIGHT, false, 300.0)
@@ -49,7 +49,7 @@ func setup(p_view) -> void:
 
 # --- Luz -----------------------------------------------------------------------
 
-func _add_light(cell: Vector2i, power: float, sparks: bool, height := FLAME_HEIGHT) -> void:
+func _add_light(cell: Vector2i, power: float, sparks: bool, height := FLAME_HEIGHT, offset := 0) -> void:
 	var glow := Sprite2D.new()
 	glow.texture = _glow_texture()
 	var additive := CanvasItemMaterial.new()
@@ -69,8 +69,9 @@ func _add_light(cell: Vector2i, power: float, sparks: bool, height := FLAME_HEIG
 		embers.scale_amount_min = 1.5
 		embers.scale_amount_max = 3.0
 		embers.color = Color(1.0, 0.68, 0.28)
+		embers.local_coords = true # as faíscas andam com a fogueira quando a câmera se move
 		add_child(embers)
-	lights.append({"cell": cell, "power": power, "height": height, "glow": glow, "embers": embers, "phase": cell.x * 1.7 + cell.y})
+	lights.append({"cell": cell, "offset": offset, "power": power, "height": height, "glow": glow, "embers": embers, "phase": cell.x * 1.7 + cell.y})
 
 
 func _glow_texture() -> GradientTexture2D:
@@ -91,7 +92,7 @@ func _glow_texture() -> GradientTexture2D:
 func _update_lights() -> void:
 	var board_transform: Transform2D = view.board.get_global_transform()
 	for light in lights:
-		var anchor: Vector2 = board_transform * view.feet_of(light["cell"])
+		var anchor: Vector2 = board_transform * (view.feet_of(light["cell"]) + Vector2(light["offset"], 0))
 		var spot: Vector2 = camera.project(anchor, view._cell_elevation(light["cell"]))
 		var depth: float = camera.depth_at(anchor, view._cell_elevation(light["cell"]))
 		spot.y -= light["height"] * depth

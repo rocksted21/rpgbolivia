@@ -13,7 +13,10 @@ var billboards: Array[Dictionary] = []
 var ground_material: ShaderMaterial
 var surface_materials := {}
 var tile_materials := {}
+var ground_materials := {}
+var ground_noise: Texture2D
 var fog_range := Vector2.ZERO # início e fim da névoa; zero desliga
+var lights := PackedVector4Array() # luz no chão; casas novas também recebem
 var view_angle := 0.0 # giro da câmera, em radianos, em volta do centro da tela
 
 
@@ -40,6 +43,8 @@ func set_view_angle(angle: float) -> void:
 	for mat in surface_materials.values():
 		mat.set_shader_parameter("view_angle", angle)
 	for mat in tile_materials.values():
+		mat.set_shader_parameter("view_angle", angle)
+	for mat in ground_materials.values():
 		mat.set_shader_parameter("view_angle", angle)
 	for entry in billboards:
 		entry.material.set_shader_parameter("view_angle", angle)
@@ -77,8 +82,21 @@ func tile_material(elevation: float, tile_scale: float) -> ShaderMaterial:
 		mat.set_shader_parameter("elevation", elevation)
 		mat.set_shader_parameter("tile_surface", true)
 		mat.set_shader_parameter("tile_scale", tile_scale)
+		mat.set_shader_parameter("lights", lights)
 		tile_materials[elevation] = mat
 	return tile_materials[elevation]
+
+
+## Chão contínuo (ver _add_natural_ground na battle_view): um material por altura.
+func soil_material(elevation: float) -> ShaderMaterial:
+	if not ground_materials.has(elevation):
+		var mat := _material(false)
+		mat.set_shader_parameter("elevation", elevation)
+		mat.set_shader_parameter("ground_surface", true)
+		mat.set_shader_parameter("ground_noise", ground_noise)
+		mat.set_shader_parameter("lights", lights)
+		ground_materials[elevation] = mat
+	return ground_materials[elevation]
 
 
 ## O Godot descarta o que está fora da tela antes do shader mover o desenho. Com o mapa
@@ -93,6 +111,15 @@ func _keep_drawn_tree(item: Node) -> void:
 		keep_drawn(item)
 	for child in item.get_children():
 		_keep_drawn_tree(child)
+
+
+## Luz no chão das casas. Cada ponto: Vector4(x, y, raio, força), com x e y já girados.
+func set_lights(points: PackedVector4Array) -> void:
+	lights = points
+	for mat in tile_materials.values():
+		mat.set_shader_parameter("lights", points)
+	for mat in ground_materials.values():
+		mat.set_shader_parameter("lights", points)
 
 
 func set_fog(from: float, to: float) -> void:

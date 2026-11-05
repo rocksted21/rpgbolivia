@@ -16,15 +16,22 @@ const HOUSE := 10
 const TOWER := 11
 const PATH := 13
 const BRIDGE := 14
+const ROAD := 15
 const MAX_LEVEL := 3
 const START_CLEARING := 2 # raio sem obstáculos em volta do início
 # Entortar as coordenadas tira das manchas o desenho do ruído: bordas de bioma, rios e serras ficam orgânicos.
 const WARP := 7.0
-const BIOME_COLD := -0.17
-const BIOME_HOT := 0.14 # entre neve e deserto sempre há outro bioma
-const BIOME_BORDER := 0.018 # só um pouco de irregularidade na fronteira
-const LEVEL_OFFSET := 0.3
-const LEVEL_STEP := 0.2 # platôs largos: o relevo sobe em degraus, sem casas soltas
+# Um só pedaço de cada bioma: fatias em volta do centro do mapa. Na volta, neve e deserto nunca
+# se tocam (só no próprio centro). Cada fronteira é uma curva única, então não sobra ilha de bioma.
+const BIOME_RING := ["neve", "floresta", "deserto", "selva"]
+const BIOME_CENTER_DISTANCE := 24.0 # o encontro dos biomas fica longe do início da viagem
+const BIOME_SHIFT := 0.22 # quanto cada fatia pode ganhar ou perder, em radianos
+const BORDER_WANDER := 14.0 # quanto a fronteira serpenteia, em casas
+const BORDER_MAX_ANGLE := 0.34 # limite do serpentear: duas fronteiras nunca se cruzam
+const BORDER_FREQUENCY := 0.035
+# Planaltos: manchas largas de terra alta, com bordas em penhasco. Sobem em até três degraus.
+const LEVEL_OFFSET := 0.16
+const LEVEL_STEP := 0.15
 const RIVER_WIDTH := 0.016
 const FORD_LIMIT := 0.12 # acima disso o rio dá passagem; ele nunca corta o mundo em dois
 const RANGE_START := 0.5 # serra: o miolo é montanha, a beira vira colinas e pedras
@@ -41,17 +48,22 @@ var world_seed: int
 var height_noise := FastNoiseLite.new()
 var moisture_noise := FastNoiseLite.new()
 var feature_noise := FastNoiseLite.new()
-var temperature_noise := FastNoiseLite.new()
-var humidity_noise := FastNoiseLite.new()
 var range_noise := FastNoiseLite.new()
 var river_noise := FastNoiseLite.new()
 var crossing_noise := FastNoiseLite.new()
 var site_noise := FastNoiseLite.new()
 var path_noise := FastNoiseLite.new()
 var path_cross_noise := FastNoiseLite.new()
+var trail_noise := FastNoiseLite.new()
 var path_cells := {}
+var road_cells := {}
+var carved := {} # casa: {direção: true se esse trecho é estrada}, abertos por carve()
 var warp_x_noise := FastNoiseLite.new()
 var warp_y_noise := FastNoiseLite.new()
+var border_noise := FastNoiseLite.new()
+var biome_turn := 0
+var biome_angles: Array[float] = []
+var biome_center := Vector2.ZERO
 var cache := {}
 var raw_levels := {}
 var clearing_center := Vector2i.ZERO
@@ -60,11 +72,9 @@ var has_clearing := false
 
 func _init(p_seed: int) -> void:
 	world_seed = p_seed
-	_setup(height_noise, p_seed, 0.022, 4)
+	_setup(height_noise, p_seed, 0.017, 3)
 	_setup(moisture_noise, p_seed + 1, 0.028, 3)
 	_setup(feature_noise, p_seed + 2, 0.05, 2)
-	_setup(temperature_noise, p_seed + 3, 0.01, 2)
-	_setup(humidity_noise, p_seed + 4, 0.016, 2)
 	_setup(range_noise, p_seed + 5, 0.007, 3)
 	range_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
 	_setup(river_noise, p_seed + 6, 0.007, 2)
@@ -75,6 +85,16 @@ func _init(p_seed: int) -> void:
 	# Duas famílias de curvas: onde elas se cruzam, nasce uma encruzilhada.
 	_setup(path_noise, p_seed + 11, 0.0065, 1)
 	_setup(path_cross_noise, p_seed + 12, 0.0045, 1)
+	# As trilhas são mais curtas e mais frequentes que as estradas.
+	_setup(trail_noise, p_seed + 13, 0.021, 1)
+	_setup(border_noise, p_seed + 14, BORDER_FREQUENCY, 2)
+	var dice := RandomNumberGenerator.new()
+	dice.seed = p_seed + 15
+	biome_turn = dice.randi_range(0, BIOME_RING.size() - 1)
+	biome_center = Vector2.from_angle(dice.randf() * TAU) * BIOME_CENTER_DISTANCE
+	var start := dice.randf() * TAU
+	for i in BIOME_RING.size():
+		biome_angles.append(start + i * TAU / BIOME_RING.size() + dice.randf_range(-BIOME_SHIFT, BIOME_SHIFT))
 
 
 func _setup(noise: FastNoiseLite, noise_seed: int, frequency: float, octaves: int) -> void:
@@ -100,7 +120,7 @@ func _generate(cell: Vector2i) -> Dictionary:
 	var wy := y + warp_y_noise.get_noise_2d(x, y) * WARP
 	var roll := _roll(cell)
 	var level := _level(cell)
-	var biome := _biome(wx, wy, roll)
+	var biome := biome_of(cell)
 	var spot := {"elevation": level, "biome": biome, "detail": fmod(roll * 97.0, 1.0)}
 	_shape(cell, wx, wy, level, Data.BIOMES[biome], roll, spot)
 	return spot
@@ -123,14 +143,28 @@ func _raw_level(cell: Vector2i) -> int:
 	return raw_levels[cell]
 
 
-func _biome(x: float, y: float, roll: float) -> String:
-	var border := (roll - 0.5) * BIOME_BORDER
-	var temperature := temperature_noise.get_noise_2d(x, y) + border
-	if temperature < BIOME_COLD:
-		return "neve"
-	if temperature < BIOME_HOT:
-		return "floresta"
-	return "selva" if humidity_noise.get_noise_2d(x, y) + border > 0.0 else "deserto"
+## O bioma é a fatia em que a casa cai. Cada fronteira só depende da distância ao encontro:
+## por isso é uma linha contínua, e o bioma nunca aparece em dois pedaços.
+func biome_of(cell: Vector2i) -> String:
+	var away := Vector2(cell.x + (cell.y & 1) * 0.5, cell.y * 0.866) - biome_center
+	var distance := away.length()
+	var angle := away.angle()
+	var sector := BIOME_RING.size() - 1
+	for i in BIOME_RING.size():
+		if _angle_after(angle, _border_angle(i, distance), _border_angle((i + 1) % BIOME_RING.size(), distance)):
+			sector = i
+			break
+	return BIOME_RING[(sector + biome_turn) % BIOME_RING.size()]
+
+
+func _border_angle(index: int, distance: float) -> float:
+	var reach := minf(BORDER_MAX_ANGLE, BORDER_WANDER / maxf(distance, 1.0))
+	return biome_angles[index] + border_noise.get_noise_2d(distance, index * 53.0) * reach
+
+
+## O ângulo está entre `from` e `to`, andando no sentido crescente?
+func _angle_after(angle: float, from: float, to: float) -> bool:
+	return fposmod(angle - from, TAU) < fposmod(to - from, TAU)
 
 
 ## Define terreno, altura e detalhe da casa. Primeiro o que forma a paisagem (rios e serras),
@@ -146,7 +180,7 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 			if over_water:
 				spot["elevation"] = maxi(level - 1, 0)
 		else:
-			spot["terrain"] = PATH
+			spot["terrain"] = ROAD if is_road(cell) else PATH
 		return
 	if has_clearing and Hex.distance(cell, clearing_center) <= START_CLEARING:
 		return
@@ -191,17 +225,35 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 ## O caminho é a linha onde o ruído troca de sinal: a borda de uma mancha é contínua e tem
 ## uma casa de largura, então ele nunca vira um borrão nem sobra em pedaços.
 func is_path(cell: Vector2i) -> bool:
+	return carved.has(cell) or _on_line(cell)
+
+
+## Estrada, a via larga. O que não é estrada, mas é caminho, é trilha.
+func is_road(cell: Vector2i) -> bool:
+	if carved.has(cell) and carved[cell].values().has(true):
+		return true
+	return _on_road_line(cell)
+
+
+func _on_line(cell: Vector2i) -> bool:
 	if not path_cells.has(cell):
-		var on_line := false
-		for noise in [path_noise, path_cross_noise]:
-			if _path_value(noise, cell) < 0.0:
-				continue
-			for next in Hex.neighbors(cell):
-				if _path_value(noise, next) < 0.0:
-					on_line = true
-					break
-		path_cells[cell] = on_line
+		path_cells[cell] = _on_road_line(cell) or _on_noise_line(trail_noise, cell)
 	return path_cells[cell]
+
+
+func _on_road_line(cell: Vector2i) -> bool:
+	if not road_cells.has(cell):
+		road_cells[cell] = _on_noise_line(path_noise, cell) or _on_noise_line(path_cross_noise, cell)
+	return road_cells[cell]
+
+
+func _on_noise_line(noise: FastNoiseLite, cell: Vector2i) -> bool:
+	if _path_value(noise, cell) < 0.0:
+		return false
+	for next in Hex.neighbors(cell):
+		if _path_value(noise, next) < 0.0:
+			return true
+	return false
 
 
 func _path_value(noise: FastNoiseLite, cell: Vector2i) -> float:
@@ -212,7 +264,7 @@ func _path_value(noise: FastNoiseLite, cell: Vector2i) -> float:
 
 ## Quão perto do centro da linha a casa está. Menor é mais perto.
 func _path_rank(cell: Vector2i) -> float:
-	return minf(absf(_path_value(path_noise, cell)), absf(_path_value(path_cross_noise, cell)))
+	return minf(minf(absf(_path_value(path_noise, cell)), absf(_path_value(path_cross_noise, cell))), absf(_path_value(trail_noise, cell)))
 
 
 ## Direções (0 a 5) em que o caminho desta casa continua. Quando três casas se tocam,
@@ -222,18 +274,153 @@ func path_links(cell: Vector2i) -> Array:
 	if not is_path(cell):
 		return links
 	for dir in 6:
-		var next := Hex.neighbor(cell, dir)
-		if is_path(next) and not _triangle_cuts(cell, next, dir):
+		if _linked(cell, dir):
 			links.append(dir)
 	return links
+
+
+## As direções de path_links em que o caminho segue como estrada; nas outras é trilha.
+func road_links(cell: Vector2i) -> Array:
+	return path_links(cell).filter(func(dir): return _is_road_edge(cell, dir))
+
+
+func _linked(cell: Vector2i, dir: int) -> bool:
+	if carved.has(cell) and carved[cell].has(dir):
+		return true
+	var next := Hex.neighbor(cell, dir)
+	if not _on_line(cell) or not _on_line(next) or _triangle_cuts(cell, next, dir):
+		return false
+	# Um degrau alto não se sobe a pé: o caminho desenhado precisa ser andável.
+	return absi(sample(cell)["elevation"] - sample(next)["elevation"]) <= 1
+
+
+func _is_road_edge(cell: Vector2i, dir: int) -> bool:
+	if carved.has(cell) and carved[cell].get(dir, false):
+		return true
+	return _on_road_line(cell) and _on_road_line(Hex.neighbor(cell, dir))
 
 
 func _triangle_cuts(a: Vector2i, b: Vector2i, dir: int) -> bool:
 	var limit := minf(_path_rank(a), _path_rank(b))
 	for side in [Hex.neighbor(a, (dir + 1) % 6), Hex.neighbor(a, (dir + 5) % 6)]:
-		if is_path(side) and _path_rank(side) < limit:
+		if _on_line(side) and _path_rank(side) < limit:
 			return true
 	return false
+
+
+# --- Caminhos abertos para ligar lugares -----------------------------------------
+
+## Abre um caminho casa a casa. Árvores e pedras saem da frente; água vira ponte.
+func carve(cells: Array, road: bool) -> void:
+	for i in range(1, cells.size()):
+		var a: Vector2i = cells[i - 1]
+		var b: Vector2i = cells[i]
+		var dir := _direction(a, b)
+		_carve_edge(a, dir, road)
+		_carve_edge(b, (dir + 3) % 6, road)
+	for cell in cells:
+		cache.erase(cell)
+
+
+func _carve_edge(cell: Vector2i, dir: int, road: bool) -> void:
+	if not carved.has(cell):
+		carved[cell] = {}
+	carved[cell][dir] = carved[cell].get(dir, false) or road
+
+
+func _direction(a: Vector2i, b: Vector2i) -> int:
+	for dir in 6:
+		if Hex.neighbor(a, dir) == b:
+			return dir
+	return 0
+
+
+## O caminho mais barato de `from` até uma casa de `targets`, sem sair de `radius` casas de
+## `center` nem passar por `blocked`. Andar no que já é caminho custa menos, então os novos
+## aproveitam os antigos. Vazio se não houver saída.
+func route(from: Vector2i, targets: Dictionary, center: Vector2i, radius: int, blocked: Dictionary = {}) -> Array:
+	var best := {from: 0.0}
+	var came := {}
+	var heap := [[0.0, from]]
+	while not heap.is_empty():
+		var top: Array = _heap_pop(heap)
+		var current: Vector2i = top[1]
+		if top[0] > best[current]:
+			continue
+		if targets.has(current) and current != from:
+			var cells := [current]
+			while came.has(cells[-1]):
+				cells.append(came[cells[-1]])
+			return cells
+		for next in Hex.neighbors(current):
+			if blocked.has(next) or Hex.distance(next, center) > radius:
+				continue
+			var step := _route_cost(current, next)
+			if step < 0.0:
+				continue
+			var total: float = best[current] + step
+			if total < best.get(next, INF):
+				best[next] = total
+				came[next] = current
+				_heap_push(heap, [total, next])
+	return []
+
+
+## Custo de abrir caminho em uma casa; negativo onde não dá. O sorteio deixa o traçado sinuoso.
+func _route_cost(from: Vector2i, to: Vector2i) -> float:
+	var spot: Dictionary = sample(to)
+	if absi(spot["elevation"] - sample(from)["elevation"]) > 1:
+		return -1.0
+	var wander := _roll(to) * 1.4
+	if is_path(to):
+		return 1.0 + wander * 0.2
+	match spot["terrain"]:
+		MOUNTAIN, HOUSE, TOWER:
+			return -1.0
+		WATER:
+			return 24.0 + wander
+		FOREST:
+			return 5.0 + wander
+		HILLS, ROCKS:
+			return 4.0 + wander
+	return 3.0 + wander
+
+
+func _heap_push(heap: Array, item: Array) -> void:
+	heap.append(item)
+	var i := heap.size() - 1
+	while i > 0:
+		var parent := (i - 1) / 2
+		if heap[parent][0] <= heap[i][0]:
+			return
+		var swap: Array = heap[parent]
+		heap[parent] = heap[i]
+		heap[i] = swap
+		i = parent
+
+
+func _heap_pop(heap: Array) -> Array:
+	var top: Array = heap[0]
+	var last: Array = heap.pop_back()
+	if heap.is_empty():
+		return top
+	heap[0] = last
+	var i := 0
+	while true:
+		var left := i * 2 + 1
+		var right := left + 1
+		var least := i
+		if left < heap.size() and heap[left][0] < heap[least][0]:
+			least = left
+		if right < heap.size() and heap[right][0] < heap[least][0]:
+			least = right
+		if least == i:
+			return top
+		var swap: Array = heap[least]
+		heap[least] = heap[i]
+		heap[i] = swap
+		i = least
+	return top
 
 
 ## Número de 0 a 1 fixo para cada casa e semente.

@@ -16,7 +16,9 @@ Para trabalhar em conjunto, crie uma branch no GitHub Desktop, faça seus commit
 
 O **Single Player** abre a Cidade-Farol, um mapa fixo por onde a party anda e conversa com os moradores. De lá ela parte para um mapa novo a cada expedição, sobe de nível, visita locais especiais e enfrenta o guardião do farol. O conceito está em [CONCEITO.md](CONCEITO.md); os números, em `scripts/expedition_data.gd`.
 
-A arte da cidade é gerada a partir de `referencias/cidade.jpg` por `tools/build_town.py` (com `opencv-python-headless`). A arte dos biomas é gerada a partir das pranchas de `referencias/biomas` por `tools/build_biomes.py` (Python, com `pillow`, `numpy` e `scipy`). `tests/biome_shots.gd` salva uma captura de cada bioma. `tests/map_preview.gd` desenha o mapa visto de cima, para comparar mudanças no gerador (`scripts/world_gen.gd`).
+A arte da cidade é gerada a partir de `referencias/cidade.jpg` por `tools/build_town.py` (com `opencv-python-headless`). A arte dos biomas é gerada a partir das pranchas de `referencias/biomas` por `tools/build_biomes.py` (Python, com `pillow`, `numpy` e `scipy`). As texturas contínuas do chão saem dessa arte com `tools/build_ground.py` (Python, com `pillow` e `numpy`). `tests/biome_shots.gd` salva uma captura de cada bioma. `tests/map_preview.gd` desenha o mapa visto de cima, para comparar mudanças no gerador (`scripts/world_gen.gd`).
+
+Os caminhos ficam em `scripts/world_gen.gd`: as linhas de ruído formam estradas e trilhas em todo mapa, e `route()` e `carve()` abrem os que ligam lugares. A expedição abre uma estrada do início ao farol e uma trilha até cada local (`_carve_trails`, em `scripts/expedition_state.gd`). Cada braço do caminho é uma peça de `assets/biomes/<bioma>` (`estrada_*`, `estrada_borda_*` e `trilha_*`), e `scripts/biome_art.gd` escolhe quais desenhar em cada casa.
 
 Testes: `godot --headless --path . --script tests/test_expedition.gd` para as regras (com `SKIP_SIM=1` pula as partidas simuladas) e `godot --path . --script tests/expedition_smoke.gd -- <pasta>` para jogar pela tela e salvar capturas.
 
@@ -37,4 +39,5 @@ Testes: `godot --headless --path . --script tests/test_world.gd` para as regras 
 - [Servidor e modo online](servidor/README.md)
 - [Atualizações e exportação](update/README.md)
 - [Conceito do jogo](CONCEITO.md)
+- [Estilo visual](ESTILO_VISUAL.md)
 - [Balanceamento e árvores de skills](BALANCEAMENTO.md)

@@ -6,7 +6,7 @@
 
 1. **Cidade-Farol:** a party se prepara, compra melhorias e vê o que mudou.
 2. **Expedição:** um mapa novo é gerado. A party explora, luta e sobe de nível.
-3. **Locais especiais:** vilas para salvar, ruínas, emboscadas, fontes e memórias.
+3. **Caminhos e locais especiais:** uma estrada leva do início ao farol, e trilhas saem dela até vilas para salvar, ruínas, emboscadas, fontes, memórias e baús. Alguns baús ficam longe dos caminhos, para quem explorar.
 4. **Farol da região:** o guardião protege o farol. Ao derrotá-lo, a expedição é vencida.
 5. **Volta para casa:** vitória ou derrota, a party volta e a cidade cresce.
 6. **Vilão:** depois de quatro regiões, a última expedição leva à batalha final.
@@ -24,7 +24,7 @@ Ao vencer, a party leva todas as brasas. Na derrota, leva metade. Quem foi resga
 
 ## Primeira versão
 
-Já existe no modo solo: a Cidade-Farol, por onde a party anda e conversa com os moradores, 2 moradores para resgatar (Curandeira e Ferreiro), 1 região, 5 tipos de local e 1 chefe.
+Já existe no modo solo: a Cidade-Farol, por onde a party anda e conversa com os moradores, 2 moradores para resgatar (Curandeira e Ferreiro), 1 região, 6 tipos de local e 1 chefe.
 
 Na cidade também há conversas com escolhas, 10 missões com recompensa, loja (Mercadora e Sacerdotisa), mochila, melhorias na forja e na enfermaria, mural de missões e moradores que andam e falam pelas ruas.
 

@@ -9,11 +9,13 @@ const TERRAIN_GRASS_B := 9
 const TERRAIN_BUILT := 10
 const TERRAIN_WATER := 5
 const TERRAIN_STONE := 12
+const TERRAIN_ROCK := 6
 const BUILDING_GROUND := 138
 const PERSON_GROUND := 160
 const BEHIND_UNIT := 3
 
 var ground := {}
+var floor := {} # o piso que aparece, mesmo embaixo do que bloqueia a casa
 var levels := {}
 var props := {}
 var people := {}
@@ -26,7 +28,6 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 	rescued = town.get("rescued", [])
 	_build_ground()
 	_build_places()
-	_relief()
 	start_cell = Town.PLAZA
 	var spots := [Town.PLAZA] + Hex.neighbors(Town.PLAZA)
 	for i in party.size():
@@ -34,19 +35,28 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 
 
 func _build_ground() -> void:
-	for land in Town.LAND:
-		for cell in _disc(land[0], land[1]):
-			ground[cell] = TERRAIN_GRASS if _roll(cell) < 0.5 else TERRAIN_GRASS_B
-			levels[cell] = 1
-	for cell in _disc(Town.PLAZA, Town.PLAZA_RADIUS):
-		ground[cell] = TERRAIN_STONE
+	for row in Town.MAP.size():
+		var line: String = Town.MAP[row]
+		for col in line.length():
+			var cell := Vector2i(col, row)
+			var mark := line[col]
+			if mark == "~":
+				continue
+			if mark == "#":
+				ground[cell] = TERRAIN_ROCK # morro alto ao fundo: só se vê, não se sobe
+				levels[cell] = Town.ROCK_LEVEL
+			elif mark == "p":
+				ground[cell] = TERRAIN_STONE
+				levels[cell] = Town.PLAZA_LEVEL
+			else:
+				ground[cell] = TERRAIN_GRASS if _roll(cell) < 0.5 else TERRAIN_GRASS_B
+				levels[cell] = int(mark)
 	for road in Town.ROADS:
 		for cell in _line(road[0], road[1]):
-			ground[cell] = TERRAIN_STONE
-	for high in Town.HIGH_GROUND:
-		for cell in _disc(high[0], high[1]):
 			if ground.has(cell):
-				levels[cell] = maxi(levels[cell], high[2])
+				ground[cell] = TERRAIN_STONE
+	for cell in ground:
+		floor[cell] = TERRAIN_GRASS if ground[cell] == TERRAIN_ROCK else ground[cell]
 
 
 func _build_places() -> void:
@@ -57,20 +67,10 @@ func _build_places() -> void:
 		var path: String = (Town.TOWN_ROOT % building["art"]) if ready else Town.RUBBLE
 		_put(building["cell"], path, BUILDING_GROUND)
 	for decor in Town.DECOR:
-		if not ground.has(decor["cell"]):
-			ground[decor["cell"]] = TERRAIN_WATER
-		elif ground[decor["cell"]] != TERRAIN_WATER:
-			ground[decor["cell"]] = TERRAIN_BUILT
-		_put(decor["cell"], Town.TOWN_ROOT % decor["art"], PERSON_GROUND)
-	for cell in Town.HOUSES:
-		ground[cell] = TERRAIN_BUILT
-		_put(cell, Town.HOUSE_ART, BUILDING_GROUND)
-	for i in Town.TREES.size():
-		var cell: Vector2i = Town.TREES[i]
-		ground[cell] = TERRAIN_BUILT
-		_put(cell, Town.TREE_ART % ("a" if i % 2 == 0 else "b"), BUILDING_GROUND)
-	for stairs in Town.STAIRS:
-		props[stairs["cell"]] = {"path": Town.TOWN_ROOT % stairs["art"], "ground_y": PERSON_GROUND, "depth": 1, "layer": "main", "fixed": true}
+		var cell: Vector2i = decor["cell"]
+		if ground.has(cell) and ground[cell] != TERRAIN_WATER and decor.get("solid", true):
+			ground[cell] = TERRAIN_BUILT
+		_put(cell, Town.TOWN_ROOT % decor["art"], PERSON_GROUND, decor.get("offset", 0))
 	for person in Town.PEOPLE:
 		people[person["cell"]] = person
 		if person.get("needs", "") == "" or person["needs"] in rescued:
@@ -78,22 +78,11 @@ func _build_places() -> void:
 			_put(person["cell"], Town.TOWN_ROOT % person["art"], PERSON_GROUND)
 
 
-func _put(cell: Vector2i, path: String, ground_y: int) -> void:
-	props[cell] = {"path": path, "ground_y": ground_y, "depth": BEHIND_UNIT, "layer": "main", "fixed": true}
-
-
-## Dois vizinhos nunca diferem mais de um nível: dá para andar por toda a cidade.
-func _relief() -> void:
-	var changed := true
-	while changed:
-		changed = false
-		for cell in levels:
-			var lowest := 99
-			for next in Hex.neighbors(cell):
-				lowest = mini(lowest, levels.get(next, 0))
-			if levels[cell] > lowest + 1:
-				levels[cell] = lowest + 1
-				changed = true
+## Uma casa pode ter mais de um objeto: o prédio, uma tocha na beira e quem mora ali.
+func _put(cell: Vector2i, path: String, ground_y: int, offset := 0, depth := BEHIND_UNIT, flip := false) -> void:
+	if not props.has(cell):
+		props[cell] = []
+	props[cell].append({"path": path, "ground_y": ground_y, "depth": depth, "layer": "main", "fixed": true, "offset_x": offset, "flip": flip})
 
 
 func _line(from: Vector2i, to: Vector2i) -> Array:
@@ -120,6 +109,10 @@ func terrain_id_at(cell: Vector2i) -> int:
 	return ground.get(cell, TERRAIN_WATER)
 
 
+func floor_id_at(cell: Vector2i) -> int:
+	return floor.get(cell, TERRAIN_WATER)
+
+
 func elevation_at(cell: Vector2i) -> int:
 	return levels.get(cell, 0)
 
@@ -141,13 +134,20 @@ func tile_name_at(cell: Vector2i) -> String:
 
 
 ## A cidade é desenhada à mão: não usa as peças de ligação do mapa gerado.
-func ground_overlays(_cell: Vector2i) -> Array:
-	return []
+## Só a margem contorna a água. Pedra e grama se encontram numa linha limpa, como na imagem.
+func ground_overlays(cell: Vector2i) -> Array:
+	var out := []
+	if floor_id_at(cell) != TERRAIN_WATER:
+		return out
+	for dir in 6:
+		if floor_id_at(Hex.neighbor(cell, dir)) != TERRAIN_WATER:
+			out.append(BiomeArt.ROOT % ["floresta", "margem_%d" % dir])
+	return out
 
 
 ## Objetos em pé desta casa. A cidade é toda planejada: fora da planta, só chão.
 func art_at(cell: Vector2i) -> Array:
-	return [props[cell]] if props.has(cell) else []
+	return props.get(cell, [])
 
 
 # --- Moradores -----------------------------------------------------------------

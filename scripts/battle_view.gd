@@ -25,7 +25,10 @@ const TownPanels = preload("res://scripts/town_panels.gd")
 const TownLife = preload("res://scripts/town_life.gd")
 const TownContent = preload("res://scripts/town_content.gd")
 const TownData = preload("res://scripts/town_data.gd")
+const WorldLight = preload("res://scripts/world_light.gd")
 const TOWN_META := "town"
+const BLOOM_INTENSITY := 1.3
+const BLOOM_THRESHOLD := 0.72
 const TOWN_PANELS_LAYER := 50
 const TOWN_TINT := Color(0.6, 0.63, 0.82) # noite: as fogueiras e o farol iluminam a cidade
 const EXPEDITION_META := "expedition"
@@ -54,7 +57,17 @@ const SIDE_HEIGHT := 29 # altura da lateral do tile; empilhar tiles a cada 29 px
 const LAYERS_PER_LEVEL := 4 # 116 px por nível; a altura é projetada na vertical
 # Na exploração os degraus são mais baixos: num mapa gerado, uma casa atrás de um
 # degrau precisa continuar visível e clicável.
-const WORLD_LAYERS_PER_LEVEL := 2
+const WORLD_LAYERS_PER_LEVEL := 3
+const TOWN_LAYERS_PER_LEVEL := 2 # a planta da cidade conta com degraus baixos
+# Chão natural das expedições: as casas continuam nas regras, mas não aparecem no desenho.
+const CORNER_WOBBLE := Vector2(38, 26) # quanto cada canto sai do lugar: some o desenho da colmeia
+const PROP_WOBBLE := Vector2(74, 50) # árvores e pedras fora do centro da casa
+const FOREST_GAP := 0.28 # parte das casas de mata fica sem árvore, com clareiras
+const FOREST_SPARSE := 0.55 # e outra parte com uma árvore só
+const RING_RADIUS := Vector2(78, 62)
+const TOWN_WOBBLE := 0.55
+const TRAIL_STRENGTH := 0.86 # abaixo de 1 estreita o traço; a estrada é mais larga
+const ROAD_CORNER := 0.22
 const FOREST_HEIGHT := 1.65
 const TREE_SEE_THROUGH := 0.45
 const FEET := Vector2(93, 125)
@@ -177,6 +190,9 @@ var expedition := false # solo: cidade, locais especiais e chefe (ver expedition
 var town := false # a Cidade-Farol: mapa fixo, moradores e nada de inimigos
 var town_panels
 var town_life
+var natural := false # chão contínuo: expedições e jornada, sem a cidade
+var world_light # luz e partículas das expedições e da jornada
+var cell_tint := Color.WHITE # tom da casa em construção
 var person_labels := {}
 var quests_finished := []
 var landmark_nodes := {} # casa: marcas no mapa de um local especial
@@ -252,7 +268,9 @@ func _start_battle() -> void:
 		music_manager.play_menu()
 	else:
 		music_manager.play_combat()
-	level_layers = WORLD_LAYERS_PER_LEVEL if exploring else LAYERS_PER_LEVEL
+	level_layers = LAYERS_PER_LEVEL
+	if exploring:
+		level_layers = TOWN_LAYERS_PER_LEVEL if town else WORLD_LAYERS_PER_LEVEL
 	if online_session.playing:
 		state = online_session.state
 	elif exploring:
@@ -313,7 +331,18 @@ func _start_battle() -> void:
 	add_child(board)
 	battle_camera = BattleCamera.new()
 	add_child(battle_camera)
+	if world_light != null:
+		world_light.queue_free()
+		world_light = null
+	natural = exploring
+	if natural:
+		battle_camera.ground_noise = load(BiomeArt.EDGE_NOISE)
 	if exploring:
+		_add_bloom()
+		if not town:
+			world_light = WorldLight.new()
+			add_child(world_light)
+			world_light.setup(self)
 		battle_camera.set_fog(FOG_START, FOG_END)
 		camera_cell = selected.pos
 		board.position = _camera_target(camera_cell)
@@ -359,6 +388,24 @@ func _start_battle() -> void:
 		for child in hud.end_label.get_parent().get_children():
 			if child is Button and child != hud.skills_button: child.text = "Voltar ao Online"
 	_advance()
+
+
+## Bloom no mapa: só o que já é muito claro brilha. A interface fica em outra camada, de fora.
+func _add_bloom() -> void:
+	if has_node("Bloom"):
+		return
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CANVAS
+	env.background_canvas_max_layer = 0
+	env.glow_enabled = true
+	env.glow_intensity = BLOOM_INTENSITY
+	env.glow_bloom = 0.0
+	env.glow_hdr_threshold = BLOOM_THRESHOLD
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+	var world_env := WorldEnvironment.new()
+	world_env.name = "Bloom"
+	world_env.environment = env
+	add_child(world_env)
 
 
 ## Builds salvas dos heróis, por índice em Data.BATTLE_UNITS.
@@ -481,16 +528,21 @@ func _build_cell(cell: Vector2i) -> void:
 	# Só a exploração tem biomas; o Online continua com os tiles do mapa fixo.
 	var biome: String = state.biome_at(cell) if exploring else ""
 	var wall := BiomeArt.wall(biome) if exploring else TILE_PATH % 9
-	var ground := BiomeArt.ground(biome, terrain_id, state.detail_at(cell)) if exploring else TILE_PATH % SCENERY_BASE.get(terrain_id, terrain_id)
+	var ground := BiomeArt.ground(biome, state.floor_id_at(cell), state.detail_at(cell)) if exploring else TILE_PATH % SCENERY_BASE.get(terrain_id, terrain_id)
+	cell_tint = BiomeArt.NIGHT_TINT.get(biome, Color.WHITE) if world_light != null else Color.WHITE
 	if exploring:
 		_add_walls(cell, wall, ground, row, layers)
 	else:
 		for layer in range(_hidden_layers(cell, layers), layers):
 			_add_tile(wall, base - Vector2(0, layer * SIDE_HEIGHT), row, layer * SIDE_HEIGHT)
-	_add_tile(ground, cell_origin(cell), row, layers * SIDE_HEIGHT)
+	if natural:
+		_add_natural_ground(cell, row, layers, biome)
+	else:
+		_add_tile(ground, cell_origin(cell), row, layers * SIDE_HEIGHT)
 	if exploring:
-		for overlay_path in state.ground_overlays(cell):
-			_add_tile(overlay_path, cell_origin(cell), row, layers * SIDE_HEIGHT)
+		if not natural:
+			for overlay_path in state.ground_overlays(cell):
+				_add_tile(overlay_path, cell_origin(cell), row, layers * SIDE_HEIGHT)
 		_add_biome_props(biome, terrain_id, cell)
 	elif SCENERY_BASE.has(terrain_id):
 		_add_scenery(terrain_id, cell)
@@ -526,16 +578,166 @@ func _add_walls(cell: Vector2i, wall: String, ground: String, row: int, layers: 
 			var path := ground if layer == layers else wall
 			var strip := Polygon2D.new()
 			strip.texture = load(path)
-			var mesh: Dictionary = _wall_mesh(dir)
+			var mesh: Dictionary = _natural_wall_mesh(cell, dir) if natural else _wall_mesh(dir)
 			strip.polygon = mesh["vertices"]
 			strip.uv = mesh["uv"]
 			strip.polygons = mesh["faces"]
 			strip.material = battle_camera.tile_material(height * BOARD_SCALE, BOARD_SCALE)
 			strip.position = Vector2(_column_x(cell), cell.y * ROW_STEP - height)
 			strip.z_index = _z(row)
+			strip.modulate = cell_tint
 			wall_groups[dir].add_child(strip)
 			battle_camera.keep_drawn(strip)
 			building.append(strip)
+
+
+## A mesma parede, com os cantos fora do lugar como no chão: o penhasco não sai em zigue-zague.
+func _natural_wall_mesh(cell: Vector2i, dir: int) -> Dictionary:
+	var base: Dictionary = _wall_mesh(dir)
+	var origin := Vector2(_column_x(cell), cell.y * ROW_STEP)
+	var a := _natural_corner(cell, dir) - origin
+	var b := _natural_corner(cell, (dir + 1) % 6) - origin
+	var drop := Vector2(signf(a.x - HEX_MIDDLE.x) if is_equal_approx(a.x, b.x) else 0.0, TILE_WALL)
+	return {"vertices": PackedVector2Array([a, b, b + drop, a + drop]), "uv": base["uv"], "faces": base["faces"]}
+
+
+# --- Chão natural --------------------------------------------------------------
+
+## Canto de uma casa, no plano do mundo. Casas vizinhas calculam o mesmo canto, então nunca abre fresta.
+func _natural_corner(cell: Vector2i, index: int) -> Vector2:
+	var corner: Vector2 = HEX_CORNERS[index]
+	var key := Vector2i(_column_x(cell) + (TILE_WIDTH if corner.x > HEX_MIDDLE.x else int(corner.x)) , cell.y * ROW_STEP + int(corner.y))
+	var mixed := (key.x * 73856093) ^ (key.y * 19349663)
+	mixed = (mixed ^ (mixed >> 13)) * 1274126177
+	mixed = mixed ^ (mixed >> 16)
+	var wobble := Vector2(float(mixed & 0xFFF) / 4095.0 - 0.5, float((mixed >> 12) & 0xFFF) / 4095.0 - 0.5)
+	# A planta da cidade alinha escadas e prédios com os degraus: lá os cantos saem menos do lugar.
+	return Vector2(key) + wobble * CORNER_WOBBLE * 2.0 * (TOWN_WOBBLE if town else 1.0)
+
+
+## Malha da casa: centro, 6 cantos e 6 meios de lado. A cobertura de cada mancha é dada nesses pontos.
+func _natural_mesh(cell: Vector2i) -> Dictionary:
+	var vertices := PackedVector2Array()
+	vertices.resize(13)
+	var middle := Vector2.ZERO
+	for i in 6:
+		vertices[1 + i] = _natural_corner(cell, i)
+		middle += vertices[1 + i]
+	vertices[0] = middle / 6.0
+	for i in 6:
+		vertices[7 + i] = (vertices[1 + i] + vertices[1 + (i + 1) % 6]) / 2.0
+	var faces: Array[PackedInt32Array] = []
+	for i in 6:
+		faces.append(PackedInt32Array([0, 1 + i, 7 + i]))
+		faces.append(PackedInt32Array([0, 7 + i, 1 + (i + 1) % 6]))
+	return {"vertices": vertices, "faces": faces}
+
+
+## Desenha o chão em camadas. Cada camada é uma mancha: cobre as casas do seu tipo e avança até
+## o meio do caminho nas vizinhas, com a borda recortada pelo ruído do shader.
+func _add_natural_ground(cell: Vector2i, row: int, layers: int, biome: String) -> void:
+	var mesh := _natural_mesh(cell)
+	var around := []
+	for dir in 6:
+		var next: Vector2i = Hex.neighbor(cell, dir)
+		# Um penhasco separa os terrenos: a mancha não atravessa o desnível.
+		around.append(next if state.elevation_at(next) == state.elevation_at(cell) else cell)
+	var order: Array = BiomeArt.BIOME_ORDER
+	var ranks := {}
+	for spot in [cell] + around:
+		ranks[spot] = order.find(state.biome_at(spot))
+	var lowest: int = ranks.values().min()
+	var highest: int = ranks.values().max()
+	_natural_layer(mesh, BiomeArt.soil(order[lowest]), _full_cover(), order[lowest], row, layers)
+	for level in range(lowest + 1, highest + 1):
+		if ranks.values().has(level) or level <= ranks[cell]:
+			var cover := _cover(around, cell, func(spot): return ranks[spot] >= level)
+			_natural_layer(mesh, BiomeArt.soil(order[level]), cover, order[level], row, layers)
+	var shaded := _cover(around, cell, func(spot): return state.floor_id_at(spot) in BiomeArt.SHADED)
+	_natural_layer(mesh, BiomeArt.solo(biome, "sombra"), shaded, biome, row, layers)
+	var wet := _cover(around, cell, func(spot): return state.floor_id_at(spot) in BiomeArt.WET)
+	_natural_layer(mesh, BiomeArt.solo(biome, "agua"), wet, biome, row, layers)
+	if town: # as ruas da cidade são desenhadas pela planta
+		var paved := _cover(around, cell, func(spot): return state.floor_id_at(spot) == TownState.TERRAIN_STONE)
+		_natural_layer(mesh, BiomeArt.COBBLES, paved, biome, row, layers)
+		return
+	var links: Array = state.gen.path_links(cell)
+	if links.is_empty():
+		return
+	if state.terrain_id_at(cell) == WorldGen.BRIDGE:
+		for dir in links:
+			_add_tile(BiomeArt.COMMON % ("ponte_%d" % dir), cell_origin(cell), row, layers * SIDE_HEIGHT)
+		_add_tile(BiomeArt.COMMON % "ponte", cell_origin(cell), row, layers * SIDE_HEIGHT)
+		return
+	_natural_layer(mesh, BiomeArt.solo(biome, "trilha"), _path_cover(links, TRAIL_STRENGTH, 0.0), biome, row, layers)
+	var roads: Array = state.gen.road_links(cell)
+	if not roads.is_empty():
+		_natural_layer(mesh, BiomeArt.solo(biome, "estrada"), _path_cover(roads, 1.0, ROAD_CORNER), biome, row, layers)
+
+
+func _full_cover() -> PackedFloat32Array:
+	var cover := PackedFloat32Array()
+	cover.resize(13)
+	cover.fill(1.0)
+	return cover
+
+
+## Cobertura nos 13 pontos: a média das casas que se encontram em cada ponto.
+func _cover(around: Array, cell: Vector2i, member: Callable) -> PackedFloat32Array:
+	var cover := PackedFloat32Array()
+	cover.resize(13)
+	var own := 1.0 if member.call(cell) else 0.0
+	var sides := []
+	for dir in 6:
+		sides.append(1.0 if member.call(around[dir]) else 0.0)
+	cover[0] = own
+	for i in 6:
+		# O canto i fica entre os lados i e i - 1; o meio i fica só no lado i.
+		cover[1 + i] = (own + sides[i] + sides[(i + 5) % 6]) / 3.0
+		cover[7 + i] = (own + sides[i]) / 2.0
+	return cover
+
+
+## Caminho: sai do centro para os meios dos lados por onde continua.
+func _path_cover(links: Array, strength: float, corner: float) -> PackedFloat32Array:
+	var cover := PackedFloat32Array()
+	cover.resize(13)
+	cover.fill(corner)
+	cover[0] = strength
+	for dir in links:
+		cover[7 + dir] = strength
+	return cover
+
+
+func _natural_layer(mesh: Dictionary, path: String, cover: PackedFloat32Array, biome: String, row: int, layers: int) -> void:
+	var seen := false
+	for value in cover:
+		if value > 0.2:
+			seen = true
+			break
+	if not seen:
+		return
+	var tint: Color = cell_tint if world_light != null else Color.WHITE
+	tint = BiomeArt.NIGHT_TINT.get(biome, tint) if world_light != null else tint
+	var colors := PackedColorArray()
+	colors.resize(13)
+	for i in 13:
+		colors[i] = Color(tint, cover[i])
+	var height := layers * SIDE_HEIGHT
+	var tile := Polygon2D.new()
+	tile.texture = load(path)
+	tile.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	tile.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tile.polygon = mesh["vertices"]
+	tile.uv = mesh["vertices"]
+	tile.polygons = mesh["faces"]
+	tile.vertex_colors = colors
+	tile.material = battle_camera.soil_material(height * BOARD_SCALE)
+	tile.position = Vector2(0, -height)
+	tile.z_index = _z(row)
+	board.add_child(tile)
+	battle_camera.keep_drawn(tile)
+	building.append(tile)
 
 
 ## Parede de um lado do hexágono, com o mesmo truque da faixa da frente dos tiles: a base fica
@@ -653,9 +855,21 @@ func _unload_cell(cell: Vector2i) -> void:
 		node.queue_free()
 	cell_nodes.erase(cell)
 	cell_rows.erase(cell)
+	if world_light != null:
+		world_light.forget_cell(cell)
 	overlays.erase(cell)
 	reach_lines.erase(cell)
 	forests.erase(cell)
+
+
+## Marca de um local no chão natural: um círculo, porque não há casas à vista.
+func _new_place_ring(color: Color) -> Line2D:
+	var ring := _new_hex_line(color, 6)
+	var points := PackedVector2Array()
+	for i in 24:
+		points.append(HEX_MIDDLE + Vector2.from_angle(TAU * i / 24.0) * RING_RADIUS)
+	ring.points = points
+	return ring
 
 
 func _new_hex_line(color: Color, width: float) -> Line2D:
@@ -682,6 +896,7 @@ func _add_tile(path: String, pos: Vector2, row: int, height := 0.0) -> void:
 	tile.material = battle_camera.tile_material(height * BOARD_SCALE, BOARD_SCALE)
 	tile.position = pos
 	tile.z_index = _z(row)
+	tile.modulate = cell_tint
 	board.add_child(tile)
 	battle_camera.keep_drawn(tile)
 	building.append(tile)
@@ -727,9 +942,24 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 		art = [BiomeArt.beacon(biome, state.defeated_boss)]
 	else:
 		art = BiomeArt.props(biome, terrain_id, detail)
+		if natural and not town and terrain_id == WorldGen.FOREST:
+			var thin := fmod(detail * 37.0, 1.0)
+			if thin < FOREST_GAP:
+				art = []
+			elif thin < FOREST_SPARSE:
+				art = art.filter(func(prop): return prop["layer"] == "back")
+		if expedition and state.landmarks.has(cell):
+			var entry: Dictionary = state.landmarks[cell]
+			var special: Array = BiomeArt.landmark(biome, entry["kind"], entry["state"] == "done", detail)
+			art = art if special.is_empty() else special
 	for prop in art:
 		made[prop["layer"]] = _biome_prop(prop, cell, detail)
-	if terrain_id == WorldGen.FOREST:
+		if world_light != null:
+			world_light.add_prop(cell, made[prop["layer"]], BiomeArt.prop_tint(biome, prop["path"]))
+			var light := BiomeArt.light_of(biome, prop["path"])
+			if light != "":
+				world_light.add_spot(cell, light)
+	if made.has("back") and made.has("front"):
 		forests[cell] = made
 
 
@@ -739,13 +969,20 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	sprite.centered = false
 	# O ponto de apoio de cada arte é o centro da imagem.
 	var foot: Vector2 = sprite.texture.get_size() / 2.0
-	sprite.position = cell_origin(cell) + Vector2(93, prop["ground_y"]) - foot
-	sprite.flip_h = not prop.get("fixed", false) and fmod(detail * 13.0, 1.0) < 0.5
+	sprite.position = cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"]) - foot
+	if natural and not town and not _is_marked_place(cell):
+		sprite.position += Vector2(fmod(detail * 53.0, 1.0) - 0.5, fmod(detail * 71.0, 1.0) - 0.5) * PROP_WOBBLE * (1.0 if prop["layer"] != "front" else 0.6)
+	sprite.flip_h = prop.get("flip", false) or (not prop.get("fixed", false) and fmod(detail * 13.0, 1.0) < 0.5)
 	sprite.z_index = _z(_row(cell)) + prop["depth"]
 	board.add_child(sprite)
 	building.append(sprite)
 	battle_camera.add_billboard(sprite, foot, _cell_elevation(cell))
 	return sprite
+
+
+## Farol e locais especiais ficam no centro da casa: é onde o jogador espera clicar.
+func _is_marked_place(cell: Vector2i) -> bool:
+	return expedition and (cell == state.beacon_cell or state.landmarks.has(cell))
 
 
 func _add_scenery(id: int, cell: Vector2i) -> void:
@@ -2161,13 +2398,14 @@ func _add_landmark(cell: Vector2i, row: int) -> void:
 		return
 	var is_beacon: bool = cell == state.beacon_cell
 	var color: Color = BEACON_COLOR if is_beacon else Exp.LANDMARKS[state.landmarks[cell]["kind"]]["color"]
-	var ring := _new_hex_line(color, 9)
+	var ring := _new_place_ring(color) if natural else _new_hex_line(color, 9)
 	_place_ground_marker(ring, cell)
 	ring.z_index = _z(row) + 2
 	building.append(ring)
 	var name_label := Label.new()
 	name_label.text = state.landmark_label(cell)
-	name_label.position = feet_of(cell) + Vector2(-110, -210)
+	var lift := 130 if state.landmarks[cell]["kind"] == "bau" else 210 # o baú é baixo: o nome fica perto dele
+	name_label.position = feet_of(cell) + Vector2(-110, -lift)
 	name_label.custom_minimum_size = Vector2(220, 0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.z_index = _z(row) + 7
@@ -2177,7 +2415,7 @@ func _add_landmark(cell: Vector2i, row: int) -> void:
 	name_label.add_theme_constant_override("outline_size", 8)
 	board.add_child(name_label)
 	building.append(name_label)
-	battle_camera.add_billboard(name_label, Vector2(110, 210), _cell_elevation(cell))
+	battle_camera.add_billboard(name_label, Vector2(110, lift), _cell_elevation(cell))
 	landmark_nodes[cell] = [ring, name_label]
 
 
@@ -2186,12 +2424,16 @@ func _play_landmark(event: Dictionary) -> void:
 	hud.show_banner(event["title"], event["color"])
 	if event["detail"] != "":
 		hud.show_detail(event["detail"])
+	if state.landmarks[event["cell"]]["kind"] == "bau":
+		hud.set_potions(state.potions)
 	if event["done"] and landmark_nodes.has(event["cell"]):
 		for node in landmark_nodes[event["cell"]]:
 			if cell_nodes.has(event["cell"]):
 				cell_nodes[event["cell"]].erase(node)
 			node.queue_free()
 		landmark_nodes.erase(event["cell"])
+	if event["done"] and state.landmarks[event["cell"]]["kind"] == "bau":
+		_rebuild_cell(event["cell"]) # o baú fica aberto
 	_update_journey()
 	await get_tree().create_timer(0.5).timeout
 
@@ -2548,6 +2790,8 @@ func _play_spell_fx(id: String, from: Vector2, spots: Array) -> void:
 		burst.tween_callback(hit.show).set_delay(delay)
 		burst.tween_property(hit, "frame", frames - 1, frames / FX_FPS).from(0).set_delay(delay)
 		hits.append(hit)
+	if world_light != null:
+		world_light.flash(spots[0], spell["impact"].begins_with("agua/"), 1.0 + 0.2 * (spots.size() - 1))
 	await burst.finished
 	for hit in hits:
 		hit.queue_free()

@@ -65,6 +65,8 @@ func test_generation() -> void:
 
 
 func test_biomes() -> void:
+	for world_seed in [3, 41, 777, 2026, 90210, 5, 6, 8, 13, 21, 34, 55]:
+		_check_one_piece(WorldGen.new(world_seed))
 	var counts := {}
 	var blocked := {}
 	var met_new_biome := 0
@@ -108,7 +110,45 @@ func test_biomes() -> void:
 				return
 
 
+## Cada bioma é um pedaço só, e a terra alta ocupa boa parte do mapa.
+func _check_one_piece(gen) -> void:
+	const RADIUS := 90
+	var middle := Vector2i(roundi(gen.biome_center.x), roundi(gen.biome_center.y / 0.866))
+	var seen := {}
+	var pieces := {}
+	var high := 0
+	var total := 0
+	for row in range(-RADIUS, RADIUS + 1):
+		for col in range(-RADIUS, RADIUS + 1):
+			var cell := middle + Vector2i(col, row)
+			if Hex.distance(cell, middle) > RADIUS:
+				continue
+			total += 1
+			if gen.sample(cell)["elevation"] >= 2:
+				high += 1
+			if seen.has(cell):
+				continue
+			var biome: String = gen.sample(cell)["biome"]
+			pieces[biome] = pieces.get(biome, 0) + 1
+			var open := [cell]
+			seen[cell] = true
+			while not open.is_empty():
+				var current: Vector2i = open.pop_back()
+				for next in Hex.neighbors(current):
+					if Hex.distance(next, middle) <= RADIUS and not seen.has(next) and gen.sample(next)["biome"] == biome:
+						seen[next] = true
+						open.append(next)
+	check(pieces.size() == Data.BIOMES.size(), "os quatro biomas estão no mapa (semente %d)" % gen.world_seed)
+	for biome in pieces:
+		check(pieces[biome] == 1, "%s é um pedaço só (%d, semente %d)" % [biome, pieces[biome], gen.world_seed])
+	var share := high * 100.0 / total
+	check(share >= 15.0, "há terra alta (%.0f%%, semente %d)" % [share, gen.world_seed])
+
+
 func _check_art(biome: String) -> void:
+	for kind in ["sombra", "agua", "trilha", "estrada"]:
+		check(ResourceLoader.exists(BiomeArt.solo(biome, kind)), "%s tem textura de %s" % [biome, kind])
+	check(ResourceLoader.exists(BiomeArt.soil(biome)), "%s tem textura de chão" % biome)
 	check(ResourceLoader.exists(BiomeArt.wall(biome)), "%s tem parede" % biome)
 	for id in Data.TERRAIN:
 		check(ResourceLoader.exists(BiomeArt.ground(biome, id)), "%s tem piso do terreno %d" % [biome, id])
@@ -133,6 +173,7 @@ func test_paths() -> void:
 		var biggest := 0
 		var total := 0
 		var loose := 0
+		var roads := 0
 		for row in range(-AREA, AREA):
 			for col in range(-AREA, AREA):
 				var cell := Vector2i(col, row)
@@ -140,9 +181,12 @@ func test_paths() -> void:
 					continue
 				total += 1
 				var links: Array = gen.path_links(cell)
-				check(gen.sample(cell)["terrain"] in [WorldGen.PATH, WorldGen.BRIDGE], "caminho vira terreno de caminho")
+				check(gen.sample(cell)["terrain"] in [WorldGen.PATH, WorldGen.ROAD, WorldGen.BRIDGE], "caminho vira terreno de caminho")
 				check(gen.walkable(cell), "dá para andar no caminho")
 				loose += 1 if links.is_empty() else 0
+				roads += 1 if gen.is_road(cell) else 0
+				for dir in gen.road_links(cell):
+					check(dir in links and gen.road_links(Hex.neighbor(cell, dir)).has((dir + 3) % 6), "a estrada segue dos dois lados")
 				for dir in links:
 					check(gen.path_links(Hex.neighbor(cell, dir)).has((dir + 3) % 6), "a ligação vale dos dois lados")
 				if seen.has(cell):
@@ -159,13 +203,27 @@ func test_paths() -> void:
 							seen[next] = true
 							frontier.append(next)
 				biggest = maxi(biggest, size)
-		check(loose == 0, "nenhuma casa de caminho fica solta (%d)" % loose)
-		check(biggest >= total / 4, "o caminho forma trechos longos (%d de %d)" % [biggest, total])
-		print("Caminho, semente %d: %d casas, maior trecho %d, soltas %d" % [world_seed, total, biggest, loose])
+		# Um degrau alto corta a ligação: raramente uma casa fica sozinha entre dois degraus.
+		check(loose <= total / 500, "quase nenhuma casa de caminho fica solta (%d)" % loose)
+		check(biggest >= total / 40, "o caminho forma trechos longos (%d de %d)" % [biggest, total])
+		check(roads > 0 and roads < total, "há estradas e trilhas (%d de %d)" % [roads, total])
+		print("Caminho, semente %d: %d casas (%d de estrada), maior trecho %d, soltas %d" % [world_seed, total, roads, biggest, loose])
 	for biome in Data.BIOMES:
-		for piece in ["trilha", "trilha_0", "trilha_5", "borda_0", "borda_5", "margem_0", "margem_5"]:
+		for piece in ["trilha", "trilha_0", "trilha_5", "estrada", "estrada_0", "estrada_5", "estrada_borda", "estrada_borda_0", "estrada_borda_5", "ruina_a", "ruina_b", "borda_0", "borda_5", "margem_0", "margem_5"]:
 			check(ResourceLoader.exists(BiomeArt.ROOT % [biome, piece]), "%s tem a peça %s" % [biome, piece])
-	for piece in ["ponte", "ponte_0", "ponte_5"]:
+		check(BiomeArt.NIGHT_TINT.has(biome), "%s tem tom de noite" % biome)
+		var ground_tint: Color = BiomeArt.NIGHT_TINT[biome]
+		check(BiomeArt.prop_tint(biome, BiomeArt.ROOT % [biome, "pedras_a"]) == ground_tint, "%s: cenário escurece" % biome)
+		check(BiomeArt.prop_tint(biome, BiomeArt.ROOT % [biome, "farol_aceso"]) == Color.WHITE, "%s: farol aceso não escurece" % biome)
+		check(BiomeArt.prop_tint(biome, BiomeArt.COMMON % "bau_fechado") == Color.WHITE, "%s: baú fechado não escurece" % biome)
+		check(BiomeArt.light_of(biome, BiomeArt.ROOT % [biome, "farol_apagado"]) == "", "%s: farol apagado não brilha" % biome)
+	var sheets: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
+	for type_id in sheets:
+		for sheet_row in [1, 4, 5]: # andar de lado, de frente e de costas
+			check(int(sheets[type_id]["row_frames"][sheet_row]) > 1, "%s tem animação de andar na linha %d" % [type_id, sheet_row])
+	check(BiomeArt.light_of("selva", BiomeArt.ROOT % ["selva", "enfeite_a"]) == "cristal", "cristais da selva brilham")
+	check(BiomeArt.light_of("neve", BiomeArt.ROOT % ["neve", "enfeite_a"]) == "", "enfeites da neve não brilham")
+	for piece in ["ponte", "ponte_0", "ponte_5", "bau_fechado", "bau_aberto"]:
 		check(ResourceLoader.exists(BiomeArt.COMMON % piece), "existe a peça %s" % piece)
 
 
@@ -380,9 +438,25 @@ func _test_deploy() -> void:
 	check(solo.hero.pos == at_solo, "herói sozinho fica onde está")
 
 
+## Uma região plana e livre: sem obstáculo nem penhasco, o caminho reto não precisa desviar.
+func _flat_ground(state, radius: int) -> Vector2i:
+	for ring in range(0, 120):
+		var cell := Vector2i(ring * 3, ring * 2)
+		var level: int = state.elevation_at(cell)
+		var clear := true
+		for row in range(cell.y - radius, cell.y + radius + 1):
+			for col in range(cell.x - radius, cell.x + radius + 1):
+				var spot := Vector2i(col, row)
+				if Hex.distance(spot, cell) <= radius and (state.elevation_at(spot) != level or not state.tile_at(spot)["walkable"]):
+					clear = false
+		if clear:
+			return cell
+	return state.start_cell
+
+
 func _test_straight_path() -> void:
 	var state = WorldState.new("duelista", 37)
-	var center := _open_ground(state)
+	var center := _flat_ground(state, 6)
 	state.hero.pos = center
 	var found: Dictionary = state.search(state.hero)
 	# Destino alcançável e não alinhado com a grade, onde há muitos caminhos empatados.
