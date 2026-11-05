@@ -7,6 +7,7 @@ const AI = preload("res://scripts/ai.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
+const GameSettings = preload("res://scripts/game_settings.gd")
 
 const TIMEOUT_SECONDS := 240.0
 
@@ -20,6 +21,8 @@ func _initialize() -> void:
 	# Uma partida de teste não pode mexer no save de verdade.
 	HeroProgress.path = "user://test_progress_expedition.cfg"
 	TownProgress.path = "user://test_town_smoke.cfg"
+	GameSettings.path = "user://test_settings_smoke.cfg"
+	DirAccess.remove_absolute(GameSettings.path)
 	DirAccess.remove_absolute(HeroProgress.path)
 	DirAccess.remove_absolute(TownProgress.path)
 	create_timer(TIMEOUT_SECONDS, true, false, true).timeout.connect(func():
@@ -76,6 +79,7 @@ func _run() -> void:
 	_expect(state.has_method("result"), "a cena abre uma expedição")
 	await _shot("2_inicio_expedicao")
 	_expect(view.hud.objective.text.contains("Farol"), "a bússola aponta o farol")
+	await _test_volume()
 
 	# Ruínas: marca no mapa, recompensa e a marca some.
 	var ruin: Variant = _cell_of(state, "ruina")
@@ -135,6 +139,7 @@ func _run() -> void:
 	await _wait_frames(4)
 	await _shot("10_vitoria")
 	_expect(state.winner() == view.Data.Team.PLAYER, "derrotar o chefe vence")
+	_expect(not view.landmark_nodes.has(state.beacon_cell), "o farol aceso perde a marca de objetivo")
 	_expect(view.hud.end_panel.visible, "tela de fim aparece")
 	_expect(view.hud.end_label.text.contains("farol"), "o fim fala do farol")
 	_expect(TownProgress.beacons() == 1 and TownProgress.brasas() > 0, "o resultado foi salvo")
@@ -156,6 +161,27 @@ func _run() -> void:
 	DirAccess.remove_absolute(HeroProgress.path)
 	DirAccess.remove_absolute(TownProgress.path)
 	quit(1 if failed else 0)
+
+
+func _test_volume() -> void:
+	var hud = view.hud
+	_expect(hud.volume_button.text == "Volume 100%", "o botão mostra o volume")
+	_expect(not hud.volume_panel.visible, "o painel começa fechado")
+	hud.volume_button.pressed.emit()
+	_expect(hud.volume_panel.visible, "o botão abre o painel")
+	hud.volume_slider.value = 35
+	_expect(is_equal_approx(AudioServer.get_bus_volume_linear(0), 0.35), "o controle abaixa o volume")
+	_expect(hud.volume_button.text == "Volume 35%", "o botão acompanha o volume")
+	await _wait_frames(3)
+	await _shot("2b_volume")
+	hud.volume_mute.button_pressed = true
+	_expect(AudioServer.is_bus_mute(0) and hud.volume_button.text == "Sem som", "silenciar funciona")
+	hud.volume_slider.value = 60
+	_expect(not AudioServer.is_bus_mute(0), "mexer no volume tira do silêncio")
+	hud.volume_button.pressed.emit()
+	_expect(not hud.volume_panel.visible, "o botão fecha o painel")
+	DirAccess.remove_absolute(GameSettings.path)
+	GameSettings.apply()
 
 
 func _cell_of(state, kind: String) -> Variant:

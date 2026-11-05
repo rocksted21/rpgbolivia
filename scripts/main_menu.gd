@@ -10,6 +10,8 @@ var sound_manager:
 ## Entrada do jogo; o combate continua em main.tscn.
 
 
+const GameSettings = preload("res://scripts/game_settings.gd")
+
 const INK := Color("191e2a")
 const GOLD := Color("f2ca76")
 const TEXT := Color("f5efdf")
@@ -20,6 +22,7 @@ var options: AcceptDialog
 
 func _ready() -> void:
 	get_tree().root.remove_meta("skills_back")
+	GameSettings.apply()
 	var background := ColorRect.new()
 	background.color = INK
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -67,21 +70,18 @@ func _build_options() -> void:
 	column.add_theme_constant_override("separation", 16)
 	options.add_child(column)
 	var volume_label := Label.new()
-	volume_label.text = "Volume geral: %d%%" % sound_manager.volume
+	volume_label.text = "Volume geral: %d%%" % GameSettings.volume()
 	column.add_child(volume_label)
 	var volume := HSlider.new()
 	volume.min_value = 0
 	volume.max_value = 100
 	volume.step = 1
-	volume.value = sound_manager.volume
+	volume.value = GameSettings.volume()
 	volume.custom_minimum_size = Vector2(360, 40)
 	column.add_child(volume)
 	volume.value_changed.connect(func(value: float):
-		sound_manager.volume = value
+		GameSettings.set_volume(int(value))
 		volume_label.text = "Volume geral: %d%%" % value)
-	var note := Label.new()
-	note.text = "Ajuste válido durante esta sessão."
-	column.add_child(note)
 
 
 func _restore_focus() -> void:

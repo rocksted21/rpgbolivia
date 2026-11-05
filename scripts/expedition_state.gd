@@ -176,6 +176,7 @@ func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void
 		return
 	if target == boss:
 		defeated_boss = true
+		landmarks[beacon_cell]["state"] = "done"
 		brasas += Exp.BOSS["brasas"]
 		_gain_xp(Exp.BOSS["xp"], events)
 		return

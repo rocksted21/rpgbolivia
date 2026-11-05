@@ -372,6 +372,8 @@ func _show_result(result: int) -> void:
 			gain = Skills.journey_points(state.kills, state.farthest)
 		if expedition:
 			TownProgress.record(state.result())
+			if won:
+				_rebuild_cell(state.beacon_cell) # o farol acende
 		var types := []
 		for unit in state.units:
 			if unit.team == Data.Team.PLAYER and (not online_session.playing or online_session.can_control(unit)):
@@ -677,7 +679,8 @@ func _tile_mesh(texture: Texture2D) -> Dictionary:
 func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	var detail: float = state.detail_at(cell)
 	var made := {}
-	for prop in BiomeArt.props(biome, terrain_id, detail):
+	var art: Array = [BiomeArt.beacon(biome, state.defeated_boss)] if expedition and cell == state.beacon_cell else BiomeArt.props(biome, terrain_id, detail)
+	for prop in art:
 		made[prop["layer"]] = _biome_prop(prop, cell, detail)
 	if terrain_id == WorldGen.FOREST:
 		forests[cell] = made
@@ -2094,6 +2097,13 @@ func _refresh_hover() -> void:
 	hover = _pick_cell(get_viewport().get_mouse_position())
 	_refresh_overlays()
 	_update_hint()
+
+
+func _rebuild_cell(cell: Vector2i) -> void:
+	landmark_nodes.erase(cell)
+	if cell_nodes.has(cell):
+		_unload_cell(cell)
+		_build_cell(cell)
 
 
 ## Marca de um local especial no chão, com o nome em cima. Some quando o local é usado.

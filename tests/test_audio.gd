@@ -14,6 +14,29 @@ func _expect(condition: bool, message: String) -> void:
 		push_error(message)
 
 
+## O volume salvo vale para tudo que toca, inclusive a música.
+func _test_settings() -> void:
+	var Settings = load("res://scripts/game_settings.gd")
+	Settings.path = "user://test_settings.cfg"
+	DirAccess.remove_absolute(Settings.path)
+	_expect(Settings.volume() == 100 and not Settings.muted(), "Volume começa cheio")
+	Settings.set_volume(40)
+	_expect(is_equal_approx(AudioServer.get_bus_volume_linear(0), 0.4), "O volume muda o bus principal")
+	Settings.set_muted(true)
+	_expect(AudioServer.is_bus_mute(0), "Silenciar muda o bus principal")
+	AudioServer.set_bus_volume_linear(0, 1.0)
+	AudioServer.set_bus_mute(0, false)
+	Settings.apply()
+	_expect(Settings.volume() == 40 and AudioServer.is_bus_mute(0), "As opções ficam salvas")
+	Settings.set_volume(250)
+	_expect(Settings.volume() == 100, "O volume fica entre 0 e 100")
+	Settings.set_muted(false)
+	var music = root.get_node("MusicManager")
+	_expect(AudioServer.get_bus_send(AudioServer.get_bus_index(music._bus)) == &"Master", "A música passa pelo bus principal")
+	DirAccess.remove_absolute(Settings.path)
+	Settings.apply()
+
+
 func _run() -> void:
 	var manager = root.get_node("SoundManager")
 	var menu = manager.get_node("Menu")
@@ -80,6 +103,7 @@ func _run() -> void:
 	for sfx in combat.get_children():
 		_expect(sfx.bus == &"Combate", "Som de combate segue o grupo: %s" % sfx.name)
 		_expect(sfx.stream is AudioStreamRandomizer and sfx.stream.streams_count > 0, "Som de combate tem variações: %s" % sfx.name)
+	_test_settings()
 	root.get_node("MusicManager").stop()
 	await create_timer(0.2).timeout
 	print("Audio: hierarquia de volumes, grupos futuros e players dinamicos; %d falhas" % failures)

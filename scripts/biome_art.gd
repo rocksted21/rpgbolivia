@@ -49,5 +49,10 @@ static func props(biome: String, terrain_id: int, detail: float) -> Array:
 	return []
 
 
+## O farol da região: aceso depois de derrotar o guardião.
+static func beacon(biome: String, lit: bool) -> Dictionary:
+	return _prop(biome, "farol_aceso" if lit else "farol_apagado", MIDDLE_Y + 20, BEHIND_UNIT)
+
+
 static func _prop(biome: String, file: String, ground_y: int, depth: int, layer := "main") -> Dictionary:
 	return {"path": ROOT % [biome, file], "ground_y": ground_y, "depth": depth, "layer": layer}
