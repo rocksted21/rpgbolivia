@@ -24,6 +24,7 @@ const TERRAIN := {
 	10: {"name": "Casa", "walkable": false, "cost": 0, "damage": 1.0},
 	11: {"name": "Torre", "walkable": false, "cost": 0, "damage": 1.0},
 	12: {"name": "Calçada", "walkable": true, "cost": 0, "damage": 1.0},
+	13: {"name": "Trilha", "walkable": true, "cost": 0, "damage": 1.0},
 }
 
 const MAP_TERRAIN := [
@@ -188,18 +189,18 @@ const WORLD_SPAWNS := [
 const BIOMES := {
 	"floresta": {
 		"name": "Floresta das Ruínas", "forest": 0.2, "water": 0.22, "hills": -0.42, "rocks": -0.3,
-		"names": {1: "Musgo", 9: "Musgo", 2: "Pedras", 3: "Árvores mortas", 5: "Água escura", 6: "Ruínas", 7: "Colinas", 10: "Casa", 11: "Arco"},
+		"names": {1: "Musgo", 9: "Musgo", 2: "Pedras", 3: "Árvores mortas", 5: "Água escura", 6: "Ruínas", 7: "Colinas", 10: "Casa", 11: "Arco", 13: "Trilha"},
 	},
 	"selva": {
 		"name": "Pântano de Tinta", "forest": 0.08, "water": 0.12, "hills": -0.46, "rocks": -0.38,
-		"names": {1: "Lama", 9: "Lama", 2: "Cristais", 3: "Mangue", 5: "Água de tinta", 6: "Destroços", 7: "Montes", 10: "Casa", 11: "Estufa"},
+		"names": {1: "Lama", 9: "Lama", 2: "Cristais", 3: "Mangue", 5: "Água de tinta", 6: "Destroços", 7: "Montes", 10: "Casa", 11: "Estufa", 13: "Passarela"},
 	},
 	"neve": {
 		"name": "Neve de Cinzas", "forest": 0.24, "water": 0.28, "hills": -0.38, "rocks": -0.26,
-		"names": {1: "Neve", 9: "Neve", 2: "Cristais", 3: "Pinheiral", 5: "Lago gelado", 6: "Destroços", 7: "Montes de neve", 10: "Casa", 11: "Arco"},
+		"names": {1: "Neve", 9: "Neve", 2: "Cristais", 3: "Pinheiral", 5: "Lago gelado", 6: "Destroços", 7: "Montes de neve", 10: "Casa", 11: "Arco", 13: "Trilha batida"},
 	},
 	"deserto": {
 		"name": "Deserto de Ouro", "forest": 0.38, "water": 0.42, "hills": -0.24, "rocks": -0.2,
-		"names": {1: "Areia", 9: "Areia", 2: "Rochas", 3: "Cactos", 5: "Oásis", 6: "Ossadas", 7: "Dunas", 10: "Casa", 11: "Arco"},
+		"names": {1: "Areia", 9: "Areia", 2: "Rochas", 3: "Cactos", 5: "Oásis", 6: "Ossadas", 7: "Dunas", 10: "Casa", 11: "Arco", 13: "Caminho"},
 	},
 }

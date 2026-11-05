@@ -3,7 +3,7 @@ extends RefCounted
 ## arquivos são gerados por tools/build_biomes.py.
 
 const ROOT := "res://assets/biomes/%s/%s.png"
-const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra"}
+const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra", 13: "trilha"}
 const DECOR_CHANCE := 0.1 # abaixo disso a casa de campo ganha um enfeite; world_gen.gd escolhe quais
 const MOUNTAIN_LANDMARK := 0.08
 # Altura da base de cada objeto dentro do hexágono: fundo atrás do personagem, frente diante dele.

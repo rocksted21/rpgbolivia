@@ -14,6 +14,7 @@ const MOUNTAIN := 6
 const HILLS := 7
 const HOUSE := 10
 const TOWER := 11
+const PATH := 13
 const MAX_LEVEL := 3
 const START_CLEARING := 2 # raio sem obstáculos em volta do início
 # Entortar as coordenadas tira das manchas o desenho do ruído: bordas de bioma, rios e serras ficam orgânicos.
@@ -33,6 +34,7 @@ const SITE_LIMIT := 0.5 # ruínas: enfeites juntos em um lugar, não espalhados 
 const SITE_DECOR := 0.45
 const SITE_BUILDING := 0.03
 const FIELD_DECOR := 0.012
+const PATH_WIDTH := 0.014 # trilha: mesma ideia do rio, só que mais fina e mais rara
 const DECOR_DETAIL := 0.1 # abaixo disso a arte põe um enfeite (ver biome_art.gd)
 
 var world_seed: int
@@ -45,6 +47,7 @@ var range_noise := FastNoiseLite.new()
 var river_noise := FastNoiseLite.new()
 var crossing_noise := FastNoiseLite.new()
 var site_noise := FastNoiseLite.new()
+var path_noise := FastNoiseLite.new()
 var warp_x_noise := FastNoiseLite.new()
 var warp_y_noise := FastNoiseLite.new()
 var cache := {}
@@ -67,6 +70,7 @@ func _init(p_seed: int) -> void:
 	_setup(site_noise, p_seed + 8, 0.045, 1)
 	_setup(warp_x_noise, p_seed + 9, 0.025, 2)
 	_setup(warp_y_noise, p_seed + 10, 0.025, 2)
+	_setup(path_noise, p_seed + 11, 0.0065, 1) # baixa frequência: trilhas longas e suaves, poucas bifurcações
 
 
 func _setup(noise: FastNoiseLite, noise_seed: int, frequency: float, octaves: int) -> void:
@@ -149,6 +153,9 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 	var feature := feature_noise.get_noise_2d(x, y)
 	if level == 0 and feature > biome["water"]:
 		spot["terrain"] = WATER
+		return
+	if absf(path_noise.get_noise_2d(x, y)) < PATH_WIDTH:
+		spot["terrain"] = PATH
 		return
 	var moisture := moisture_noise.get_noise_2d(x, y)
 	if moisture > biome["forest"] or (moisture > biome["forest"] - FOREST_EDGE and roll > 0.65):

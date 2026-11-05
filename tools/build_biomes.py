@@ -64,6 +64,14 @@ TILES = {
     },
 }
 WATER_TINT = {"deserto": (0.55, 1.0, 1.0)}  # o oasis e mais claro e esverdeado que o pantano
+# Trilha: a mesma grade do chao, mas lavada para terra batida (menos verde/azul, mais parelha).
+TRAIL_TINT = {
+    "floresta": (1.05, 0.86, 0.62),
+    "selva": (0.92, 0.78, 0.66),
+    "neve": (0.9, 0.9, 0.95),
+    "deserto": (1.12, 1.0, 0.8),
+}
+TRAIL_CONTRAST = 0.3  # terra pisada tem bem menos variacao que o campo
 
 # Montes: claro, base e escuro, nas cores de cada prancha.
 MOUNDS = {
@@ -361,6 +369,7 @@ def main() -> None:
             save(make_tile(sheets[source], x, y, tint=tint, contrast=contrast), biome, name)
         source, x, y = TILES[biome]["campo_a"]
         save(make_tile(sheets[source], x, y, wall_only=True), biome, "parede")
+        save(make_tile(sheets[source], x, y, tint=TRAIL_TINT[biome], contrast=TRAIL_CONTRAST), biome, "trilha")
         build_props(biome, cuts)
     print("biomas gerados em", OUT)
 
