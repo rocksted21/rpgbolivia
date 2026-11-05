@@ -22,7 +22,7 @@ const STRONG_HIT := {"guardiao": 0.55, "duelista": 0.8, "besteiro": 0.42, "mago"
 ## várias habilidades. Ficam com a forte as habilidades pesadas e as magias
 ## carregadas (essas na hora de soltar; ao começar a carregar usam a normal).
 const STRONG_ANIM := ["golpe_pesado", "estocada", "giro", "virote_pesado", "perfurante", "tiro_longo",
-	"golpe_solar", "pilar_fogo", "estaca_gelo", "cristal_gelo"]
+	"golpe_solar", "pilar_fogo", "estaca_gelo", "cristal_gelo", "carga", "investida", "rajada_calor"]
 ## A Druida ataca sempre com a forte; a normal dela é o gesto de cura.
 const ALWAYS_STRONG := ["druida"]
 
@@ -175,6 +175,23 @@ static func _build() -> Dictionary:
 		"fx": [_streak(Color(0.85, 0.9, 1.0), 2.4), _glow(Color(0.85, 0.9, 1.0), 0.5, 0.18, "star_08"), _sparks(DUEL, 14, 1.4), _ring(DUEL, 0.7, 0.3)]}
 	t["giro"] = {"stop": 0.12, "shake": 0.5, "knock": 66, "lunge": 70, "ghosts": 5, "zoom": 0.03, "color": DUEL,
 		"fx": [_slash(DUEL, 0.75, 0.0, 0.0, "slash_02"), _slash(Color(1, 1, 1), 0.55, PI, 0.05), _spiral(DUEL, 0.6), _sparks(DUEL, 14, 1.3), _ring(DUEL, 1.0, 0.35)]}
+	t["escudada"] = {"stop": 0.09, "shake": 0.38, "knock": 70, "lunge": 50, "heavy": true,
+		"fx": [_glow(GOLD, 0.45, 0.16, "star_08"), _sparks(GOLD, 10, 1.1), _ring(GOLD, 0.8, 0.3)]}
+	t["carga"] = {"stop": 0.15, "shake": 0.62, "knock": 90, "lunge": 70, "ghosts": 4, "zoom": 0.04, "heavy": true, "flash": Color(1.0, 0.9, 0.7, 0.16),
+		"fx": [_slash(GOLD, 0.7, 0.0, 0.0, "slash_02"), _glow(GOLD, 0.6, 0.2), _sparks(GOLD, 16, 1.3), _debris(EARTH, 14, 1.2), _ring(GOLD, 1.2)]}
+	t["marcar"] = {"stop": 0.05, "shake": 0.22, "knock": 30, "lunge": 50, "ghosts": 2, "color": DUEL,
+		"fx": [_slash(DUEL, 0.42, 0.4), _glow(GOLD, 0.4, 0.3, "star_08", 120), _sparks(DUEL, 7)]}
+	t["investida"] = {"stop": 0.11, "shake": 0.45, "knock": 60, "lunge": 80, "ghosts": 5, "zoom": 0.03, "color": DUEL,
+		"fx": [_streak(Color(0.85, 0.9, 1.0), 2.2), _slash(DUEL, 0.6, 0.3), _sparks(DUEL, 12, 1.3), _ring(DUEL, 0.8, 0.3)]}
+	t["sangria"] = {"stop": 0.08, "shake": 0.3, "knock": 40, "lunge": 56, "ghosts": 3, "color": Color(1.0, 0.4, 0.45),
+		"fx": [_slash(Color(1.0, 0.35, 0.4), 0.5, -0.4), _sparks(Color(1.0, 0.4, 0.45), 10), _embers(Color(1.0, 0.45, 0.5), 8, 60)]}
+	t["chute"] = {"stop": 0.08, "shake": 0.32, "knock": 70, "lunge": 40, "fx": [_glow(ARROW, 0.4, 0.15, "star_08"), _sparks(ARROW, 8), _debris(EARTH, 8)]}
+	t["virote_marcador"] = {"stop": 0.04, "shake": 0.16, "knock": 24, "recoil": 12, "trail": GOLD, "fx": [_glow(GOLD, 0.4, 0.3, "star_08", 120), _sparks(GOLD, 6)]}
+	t["tiro_perna"] = {"stop": 0.07, "shake": 0.26, "knock": 30, "recoil": 18, "trail": ARROW, "fx": [_glow(ARROW, 0.32, 0.12, "star_08", 40), _sparks(ARROW, 8, 1.0, 40), _debris(EARTH, 8)]}
+	t["espinhos_venenosos"] = {"stop": 0.05, "shake": 0.22, "knock": 28, "trail": Color(0.6, 1.0, 0.3), "fx": [_glow(Color(0.6, 1.0, 0.3), 0.32, 0.14, "star_08"), _spiral(Color(0.55, 0.9, 0.25), 0.35), _smoke(Color(0.4, 0.75, 0.2, 0.35), 6, 0.25, 60)]}
+	t["incinerar"] = {"stop": 0.06, "shake": 0.3, "knock": 32, "impact": [_embers(FIRE, 18, 40), _smoke(Color(0.25, 0.2, 0.18, 0.4), 6)]}
+	t["rajada_calor"] = {"stop": 0.1, "shake": 0.45, "knock": 90, "flash": Color(1.0, 0.55, 0.2, 0.14), "impact": [_embers(FIRE, 20), _ring(FIRE, 1.2), _glow(FIRE, 0.7, 0.2, "circle_05", 60)]}
+	t["toque_gelido"] = {"stop": 0.08, "shake": 0.34, "knock": 30, "color": ICE, "flash": Color(0.7, 0.9, 1.0, 0.12), "impact": [_shards(ICE, 14), _ring(ICE, 0.9), _embers(ICE, 10, 30)]}
 	t["adaga"] = {"stop": 0.04, "shake": 0.18, "knock": 26, "lunge": 36, "fx": [_slash(STEEL, 0.34), _sparks(STEEL, 5)]}
 	t["coronhada"] = {"stop": 0.08, "shake": 0.32, "knock": 46, "lunge": 34, "fx": [_glow(ARROW, 0.4, 0.15, "star_08"), _sparks(ARROW, 8), _debris(EARTH, 6)]}
 	# Besteiro: virotes com rastro, coice e estocada no impacto.
@@ -226,5 +243,8 @@ static func _build_guards() -> Dictionary:
 	g["aparar"] = {"shake": 0.1, "color": DUEL, "fx": [_glow(Color(0.9, 0.95, 1.0), 0.45, 0.2, "star_08", 100), _sparks(DUEL, 10), _ring(DUEL, 0.8, 0.3)]}
 	g["casca"] = {"shake": 0.12, "color": NATURE, "fx": [_ring(Color(0.6, 0.45, 0.25), 1.0, 0.45), _spiral(NATURE, 0.6, 90), _embers(NATURE, 12, 40)]}
 	g["escudo_fogo"] = {"shake": 0.16, "color": FIRE, "fx": [_ring(FIRE, 1.2, 0.45), _embers(FIRE, 16, 60)]}
+	g["interpor"] = {"shake": 0.14, "color": GOLD, "fx": [_ring(GOLD, 1.2, 0.45), {"kind": "flash", "tex": "magic_04", "color": GOLD, "size": 0.55, "life": 0.4, "grow": 0.4, "add": true, "height": 100}]}
+	g["corrente"] = {"shake": 0.1, "color": WATER, "fx": [_spiral(WATER, 0.6, 90), _sparks(WATER, 10, 0.8, 60), _ring(WATER, 1.0, 0.4)]}
+	g["bencao"] = {"shake": 0.1, "color": NATURE, "fx": [_ring(NATURE, 1.1, 0.45), _embers(Color(1.0, 0.8, 0.4), 16, 40), _glow(NATURE, 0.6, 0.35, "circle_05", 90)]}
 	g["manto_agua"] = {"shake": 0.14, "color": WATER, "fx": [_ring(WATER, 1.2, 0.45), _sparks(WATER, 12, 0.8, 60)]}
 	return g

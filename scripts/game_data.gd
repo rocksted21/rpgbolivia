@@ -16,6 +16,20 @@ const FLANK_MULT := 1.5
 const HEIGHT_MULT_PER_LEVEL := 0.2
 const GUARD_MULT := 0.5
 const OPPORTUNITY_POWER := 0.5
+const PUSH_IMPACT := 3 # dano (sem defesa) de quem é empurrado contra algo; quem está no caminho leva o mesmo
+const SLOW_MOVE := 100 # pontos de movimento a menos por turno com Lentidão (uma casa plana)
+const MARK_MULT := 1.25 # dano recebido por quem está Marcado
+const MIGHT_MULT := 1.25 # dano causado por quem está Fortalecido
+
+# Efeitos que duram alguns turnos de quem os recebe. Contam no fim de cada turno dele.
+# dot: tira `amount` de vida (sem defesa nem Guarda) no fim do turno.
+const STATUS := {
+	"burn": {"name": "queimando", "dot": true},
+	"poison": {"name": "envenenado", "dot": true},
+	"slow": {"name": "lento"},
+	"mark": {"name": "marcado"},
+	"might": {"name": "fortalecido"},
+}
 
 # A chave é o número do PNG em assets/tiles.
 # cost = tempo extra para entrar; damage = multiplicador do dano recebido em cima dele.
@@ -78,6 +92,25 @@ const ABILITIES := {
 	"casca": {"name": "Casca", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
 	"agua_vital": {"name": "Água Vital", "kind": "heal", "min_range": 0, "range": 3, "heal": 9, "time": 170},
 	"manto_agua": {"name": "Manto d'Água", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
+	# Mecânicas próprias (regras em battle_state.gd):
+	#   push: empurra o alvo colado N casas · dash: salta até colar no alvo antes do golpe
+	#   status: {"id", "turns", "amount"} aplica um efeito de STATUS · lifesteal: fração do dano que volta em vida
+	#   kind "buff": mira um aliado; guard_ally põe em Guarda, haste adianta o relógio dele, status dá um efeito
+	"escudada": {"name": "Escudada", "kind": "attack", "min_range": 1, "range": 1, "power": 0.6, "time": 120, "push": 1},
+	"interpor": {"name": "Interpor", "kind": "buff", "min_range": 1, "range": 2, "time": 110, "guard_ally": true},
+	"carga": {"name": "Carga do Escudo", "kind": "attack", "min_range": 2, "range": 3, "power": 1.0, "time": 210, "dash": true, "push": 1},
+	"marcar": {"name": "Golpe Marcante", "kind": "attack", "min_range": 1, "range": 1, "power": 0.6, "time": 110, "status": {"id": "mark", "turns": 2}},
+	"investida": {"name": "Investida", "kind": "attack", "min_range": 2, "range": 4, "power": 0.9, "time": 160, "dash": true},
+	"sangria": {"name": "Lâmina Sedenta", "kind": "attack", "min_range": 1, "range": 1, "power": 0.9, "time": 160, "lifesteal": 0.5},
+	"chute": {"name": "Chute", "kind": "attack", "min_range": 1, "range": 1, "power": 0.5, "time": 100, "push": 2},
+	"virote_marcador": {"name": "Virote Marcador", "kind": "attack", "min_range": 2, "range": 5, "power": 0.5, "time": 130, "shot": "kit/arrow", "status": {"id": "mark", "turns": 2}},
+	"tiro_perna": {"name": "Tiro na Perna", "kind": "attack", "min_range": 2, "range": 4, "power": 0.7, "time": 160, "shot": "kit/arrow", "status": {"id": "slow", "turns": 2}},
+	"incinerar": {"name": "Incinerar", "kind": "attack", "min_range": 1, "range": 3, "power": 0.6, "time": 160, "status": {"id": "burn", "turns": 3, "amount": 4}},
+	"rajada_calor": {"name": "Rajada de Calor", "kind": "attack", "min_range": 1, "range": 1, "power": 0.7, "time": 120, "push": 2},
+	"toque_gelido": {"name": "Toque Gélido", "kind": "attack", "min_range": 2, "range": 4, "power": 0.6, "time": 170, "delay": 30, "status": {"id": "slow", "turns": 2}},
+	"corrente": {"name": "Corrente", "kind": "buff", "min_range": 1, "range": 3, "time": 140, "haste": 60},
+	"espinhos_venenosos": {"name": "Espinhos Venenosos", "kind": "attack", "min_range": 2, "range": 3, "power": 0.4, "time": 150, "shot": "kit/magic", "status": {"id": "poison", "turns": 3, "amount": 3}},
+	"bencao": {"name": "Bênção da Mata", "kind": "buff", "min_range": 0, "range": 3, "time": 140, "status": {"id": "might", "turns": 2}},
 	# Mago de Fogo: uma magia por animação do pack de fogo (ver SPELL_FX na battle_view).
 	"faisca": {"name": "Faísca", "kind": "attack", "min_range": 1, "range": 3, "power": 0.5, "time": 100},
 	"labareda": {"name": "Labareda", "kind": "attack", "min_range": 1, "range": 2, "power": 1.0, "time": 150},
@@ -142,11 +175,40 @@ static func range_text(ability: Dictionary) -> String:
 	if ability["kind"] == "guard":
 		return "em si"
 	var text := "alcance %d" % ability["range"]
+	if ability.get("dash", false):
+		text = "salta %d-%d" % [ability["min_range"], ability["range"]]
+		return text
 	if ability["min_range"] > 1:
 		text = "alcance %d-%d" % [ability["min_range"], ability["range"]]
 	if ability.has("radius"):
 		text += ", área %d" % ability["radius"]
 	return text
+
+
+## Efeitos extras de uma habilidade, em palavras curtas ("empurra 2 · lento 2 turnos").
+static func effect_text(ability: Dictionary) -> String:
+	var parts := []
+	if ability.get("dash", false):
+		parts.append("salta até o alvo")
+	if ability.has("push"):
+		parts.append("empurra %d" % ability["push"])
+	if ability.has("lifesteal"):
+		parts.append("recupera %d%% do dano" % roundi(ability["lifesteal"] * 100))
+	if ability.get("delay", 0) > 0:
+		parts.append("atrasa %d" % ability["delay"])
+	if ability.get("guard_ally", false):
+		parts.append("aliado em Guarda")
+	if ability.has("haste"):
+		parts.append("aliado age %d antes" % ability["haste"])
+	if ability.has("status"):
+		var status: Dictionary = ability["status"]
+		var turns: int = status["turns"]
+		var info: Dictionary = STATUS[status["id"]]
+		var text: String = info["name"]
+		if info.get("dot", false):
+			text += " (%d por turno)" % status.get("amount", 0)
+		parts.append("%s %d turno%s" % [text, turns, "" if turns == 1 else "s"])
+	return " · ".join(parts)
 
 
 const BATTLE_UNITS := [

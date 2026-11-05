@@ -229,7 +229,7 @@ func _deploy_score(member, cell: Vector2i, foes_list: Array) -> float:
 func _is_melee(unit) -> bool:
 	for id in unit.abilities:
 		var ability: Dictionary = unit.ability(id)
-		if (ability["kind"] == "attack" or ability["kind"] == "charge") and ability["range"] > 1:
+		if (ability["kind"] == "attack" or ability["kind"] == "charge") and ability["range"] > 1 and not ability.get("dash", false):
 			return false
 	return true
 
@@ -398,6 +398,8 @@ func tick() -> Array:
 
 ## Fim do combate: ninguém fica com magia pela metade, e quem caiu volta ferido.
 func _after_combat(events: Array) -> void:
+	for unit in units:
+		unit.statuses.clear() # efeitos duram só a luta
 	for member in party:
 		member.moved = 0
 		member.guarding = false
@@ -488,6 +490,7 @@ func snapshot() -> Dictionary:
 		rows.append({
 			uid = unit.uid, type = unit.type_id, pos = unit.pos, hp = unit.hp, max_hp = unit.max_hp, atk = unit.atk,
 			clock = unit.clock, moved = unit.moved, guarding = unit.guarding, pending = unit.pending.duplicate(true), engaged = engaged.has(unit),
+			statuses = unit.statuses.duplicate(true),
 		})
 	return {units = rows, kills = kills, farthest = farthest}
 
@@ -513,6 +516,7 @@ func apply_snapshot(data: Dictionary) -> void:
 		unit.moved = row.moved
 		unit.guarding = row.guarding
 		unit.pending = row.pending.duplicate(true)
+		unit.statuses = row.get("statuses", {}).duplicate(true)
 		if row.engaged:
 			engaged[unit] = true
 	for unit in units.duplicate():

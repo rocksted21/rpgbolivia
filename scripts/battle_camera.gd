@@ -96,7 +96,7 @@ func tile_material(elevation: float, tile_scale: float) -> ShaderMaterial:
 	return tile_materials[elevation]
 
 
-## Chão contínuo (ver _add_natural_ground na battle_view): um material por altura.
+## Chão contínuo (ver _add_natural_ground em scripts/battle/board_art.gd): um material por altura.
 func soil_material(elevation: float) -> ShaderMaterial:
 	if not ground_materials.has(elevation):
 		var mat := _material(false)

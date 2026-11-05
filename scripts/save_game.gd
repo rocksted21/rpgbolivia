@@ -115,7 +115,7 @@ static func _unit_row(unit, state) -> Dictionary:
 		uid = unit.uid, type = unit.type_id, team = unit.team, pos = unit.pos, name = unit.display_name,
 		hp = unit.hp, max_hp = unit.max_hp, atk = unit.atk, def = unit.def, speed = unit.speed,
 		abilities = unit.abilities.duplicate(), clock = unit.clock, moved = unit.moved, guarding = unit.guarding,
-		pending = unit.pending.duplicate(true), taunt_actions = unit.taunt_actions,
+		pending = unit.pending.duplicate(true), taunt_actions = unit.taunt_actions, statuses = unit.statuses.duplicate(true),
 		taunted_by = unit.taunted_by.uid if unit.taunted_by != null else 0,
 		engaged = "engaged" in state and state.engaged.has(unit), gone = false,
 	}
@@ -207,6 +207,8 @@ static func _restore_units(state, data: Dictionary) -> Dictionary:
 		unit.guarding = row.guarding
 		unit.pending = row.pending.duplicate(true)
 		unit.taunt_actions = row.taunt_actions
+		var statuses: Variant = row.get("statuses", {})
+		unit.statuses = statuses.duplicate(true) if statuses is Dictionary else {}
 		by_uid[unit.uid] = unit
 		if "known" in state:
 			state.known[unit.uid] = unit

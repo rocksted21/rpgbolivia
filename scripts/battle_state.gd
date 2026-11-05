@@ -195,7 +195,10 @@ func can_step(unit, to: Vector2i) -> bool:
 
 
 func move_points(unit) -> int:
-	return Data.MOVE_BASE + unit.speed * Data.MOVE_PER_SPEED
+	var points: int = Data.MOVE_BASE + unit.speed * Data.MOVE_PER_SPEED
+	if unit.has_status("slow"):
+		points -= Data.SLOW_MOVE
+	return maxi(0, points)
 
 
 ## Pontos de movimento que ainda restam neste turno.
@@ -402,7 +405,9 @@ func do_wait(unit) -> Array:
 	unit.guarding = false
 	unit.clock += time_for(Data.MOVE_ONLY_TIME if unit.moved > 0 else Data.WAIT_TIME, unit)
 	unit.moved = 0
-	return [{"type": "wait", "unit": unit}]
+	var events := [{"type": "wait", "unit": unit}]
+	_end_turn(unit, events)
+	return events
 
 
 func _can_react(unit) -> bool:
@@ -436,9 +441,13 @@ func valid_targets(unit, ability_id: String) -> Array:
 		match ability["kind"]:
 			"attack":
 				if occupant != null and occupant.team != unit.team:
-					out.append(cell)
+					if not ability.get("dash", false) or dash_cell(unit, cell) != NO_MOVE:
+						out.append(cell)
 			"heal":
 				if occupant != null and occupant.team == unit.team and occupant.hp < occupant.max_hp:
+					out.append(cell)
+			"buff":
+				if occupant != null and occupant.team == unit.team:
 					out.append(cell)
 			"guard", "charge":
 				out.append(cell)
@@ -459,19 +468,45 @@ func attack_reach(unit) -> Array:
 	return reach.keys()
 
 
+## Casa onde quem usa uma investida (dash) cai, colada no alvo: a vizinha livre mais perto
+## de quem salta. Se já está colado, fica onde está. `NO_MOVE` se não há onde cair.
+func dash_cell(unit, target_cell: Vector2i) -> Vector2i:
+	if Hex.distance(unit.pos, target_cell) == 1:
+		return unit.pos
+	var best := NO_MOVE
+	var best_dist := 999999
+	for cell in Hex.neighbors(target_cell):
+		if not in_bounds(cell) or not tile_at(cell)["walkable"]:
+			continue
+		if unit_at(cell) != null or absi(elevation_at(cell) - elevation_at(target_cell)) > 1:
+			continue
+		var dist := Hex.distance(unit.pos, cell)
+		if dist < best_dist:
+			best = cell
+			best_dist = dist
+	return best
+
+
 ## Dano que um ataque causaria agora, com os motivos (a tela mostra antes do clique).
+## A investida conta de onde vai cair (flanco e altura).
 func preview_attack(attacker, ability_id: String, target) -> Dictionary:
 	var ability: Dictionary = attacker.ability(ability_id)
+	var from: Vector2i = attacker.pos
+	if ability.get("dash", false):
+		var land := dash_cell(attacker, target.pos)
+		if land != NO_MOVE:
+			from = land
 	var flank := false
 	var mult := 1.0
-	if ability["range"] == 1:
-		flank = is_flanked(attacker, target)
+	if ability["range"] == 1 or ability.get("dash", false):
+		flank = is_flanked(attacker, target, from)
 		if flank:
 			mult *= attacker.passive("flank_mult", Data.FLANK_MULT)
-	var height: int = clampi(elevation_at(attacker.pos) - elevation_at(target.pos), -2, 2)
+	var height: int = clampi(elevation_at(from) - elevation_at(target.pos), -2, 2)
 	mult *= 1.0 + Data.HEIGHT_MULT_PER_LEVEL * height
 	mult *= tile_at(target.pos)["damage"]
 	mult *= _protection_mult(target)
+	mult *= _status_mult(attacker, target)
 	if target.hp * 2 <= target.max_hp:
 		mult *= attacker.passive("execute", 1.0)
 	var defense: int = 0 if ability.get("pierce", false) else target.def
@@ -491,31 +526,71 @@ func _protection_mult(target) -> float:
 	return mult
 
 
+## Fortalecido bate mais; Marcado apanha mais.
+func _status_mult(attacker, target) -> float:
+	var mult := 1.0
+	if attacker != null and attacker.has_status("might"):
+		mult *= Data.MIGHT_MULT
+	if target.has_status("mark"):
+		mult *= Data.MARK_MULT
+	return mult
+
+
 ## Flanqueio: um aliado do atacante está do lado exatamente oposto do alvo.
-func is_flanked(attacker, target) -> bool:
-	var dir := Hex.direction_to(target.pos, attacker.pos)
+## `from` é de onde o golpe sai (a investida bate de onde cai).
+func is_flanked(attacker, target, from: Vector2i = NO_MOVE) -> bool:
+	if from == NO_MOVE:
+		from = attacker.pos
+	var dir := Hex.direction_to(target.pos, from)
 	if dir < 0:
 		return false
 	var other = unit_at(Hex.neighbor(target.pos, (dir + 3) % 6))
-	return other != null and other.team == attacker.team
+	return other != null and other != attacker and other.team == attacker.team
 
 
 func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 	var ability: Dictionary = unit.ability(ability_id)
 	unit.guarding = false
 	var events := []
+	var now: int = unit.clock
 	match ability["kind"]:
 		"attack":
 			var target = unit_at(cell)
+			if ability.get("dash", false):
+				var land := dash_cell(unit, cell)
+				if land != unit.pos and land != NO_MOVE:
+					# Salto: não sofre ataque de oportunidade no caminho.
+					events.append({"type": "move", "unit": unit, "from": unit.pos, "to": land, "dash": true})
+					unit.pos = land
 			var result := preview_attack(unit, ability_id, target)
 			unit.clock += time_for(ability["time"], unit)
 			events.append({"type": "attack", "unit": unit, "target": target, "ability": ability_id, "label": ability["name"]})
 			_apply_damage(target, result["amount"], events, result)
+			if ability.has("lifesteal") and unit.alive():
+				var back := roundi(result["amount"] * ability["lifesteal"])
+				if back > 0 and unit.hp < unit.max_hp:
+					_heal(unit, unit, back, events)
 			if target.alive():
 				target.clock += ability.get("delay", 0)
+				if ability.has("status"):
+					_add_status(target, ability["status"], events)
 				_counter(unit, target, ability, events)
+				if ability.has("push") and unit.alive():
+					_push(unit, target, ability["push"], events)
 			else:
 				_on_kill(unit, events)
+		"buff":
+			var target = unit_at(cell)
+			unit.clock += time_for(ability["time"], unit)
+			events.append({"type": "buff", "unit": unit, "target": target, "ability": ability_id, "label": ability["name"]})
+			if ability.get("guard_ally", false):
+				target.guarding = true
+			if ability.has("haste") and target != unit:
+				# Adianta, mas nunca para antes de agora: ninguém volta no tempo.
+				target.clock = maxi(now, target.clock - ability["haste"])
+			if ability.has("status"):
+				# Em si mesmo o fim deste turno já contaria um: soma um para durar o mesmo.
+				_add_status(target, ability["status"], events, 1 if target == unit else 0)
 		"heal":
 			unit.clock += time_for(ability["time"], unit)
 			var total := 0
@@ -540,7 +615,69 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			unit.pending = {"ability": ability_id, "tile": cell}
 			events.append({"type": "cast_start", "unit": unit, "ability": ability_id, "tile": cell})
 	unit.moved = 0 # qualquer ação encerra o turno
+	_end_turn(unit, events)
 	return events
+
+
+## Fim do turno de `unit`: veneno e queimadura doem, e os efeitos contam um turno a menos.
+## Fora de combate (exploração) o tempo dos efeitos não corre.
+func _end_turn(unit, events: Array) -> void:
+	if not unit.alive() or unit.statuses.is_empty() or not in_combat():
+		return
+	for id in unit.statuses.keys():
+		var status: Dictionary = unit.statuses[id]
+		if Data.STATUS[id].get("dot", false) and status.get("amount", 0) > 0:
+			_apply_damage(unit, status["amount"], events, {"dot": id})
+			if not unit.alive():
+				unit.statuses.clear()
+				return
+		status["turns"] -= 1
+		if status["turns"] <= 0:
+			unit.statuses.erase(id)
+			events.append({"type": "status_end", "target": unit, "status": id})
+
+
+## Aplica um efeito de Data.STATUS. Repetir renova: fica o maior tempo e a maior força.
+func _add_status(target, status: Dictionary, events: Array, extra_turns := 0) -> void:
+	var id: String = status["id"]
+	var turns: int = status["turns"] + extra_turns
+	var current: Dictionary = target.statuses.get(id, {})
+	target.statuses[id] = {
+		"turns": maxi(current.get("turns", 0), turns),
+		"amount": maxi(current.get("amount", 0), status.get("amount", 0)),
+	}
+	events.append({"type": "status", "target": target, "status": id, "turns": target.statuses[id]["turns"]})
+
+
+## Empurra o alvo colado para longe de quem bateu, casa a casa. Se bater em algo
+## (obstáculo, degrau alto, borda ou outra unidade), para e leva PUSH_IMPACT; quem
+## estava no caminho leva o mesmo. Ser empurrado não provoca ataque de oportunidade.
+func _push(unit, target, steps: int, events: Array) -> void:
+	var dir := Hex.direction_to(unit.pos, target.pos)
+	if dir < 0:
+		return
+	var start: Vector2i = target.pos
+	var blocked := false
+	var blocker = null
+	for i in steps:
+		var to := Hex.neighbor(target.pos, dir)
+		if not can_enter(target.pos, to):
+			blocked = true
+			blocker = unit_at(to) if in_bounds(to) else null
+			break
+		target.pos = to
+	if target.pos != start:
+		# Um evento só, da casa inicial até onde parou: a tela desliza numa tacada.
+		events.append({"type": "move", "unit": target, "from": start, "to": target.pos, "push": true, "silent": true})
+	if not blocked:
+		return
+	_apply_damage(target, Data.PUSH_IMPACT, events, {"impact": true})
+	if not target.alive() and target.team != unit.team:
+		_on_kill(unit, events)
+	if blocker != null:
+		_apply_damage(blocker, Data.PUSH_IMPACT, events, {"impact": true})
+		if not blocker.alive() and blocker.team != unit.team:
+			_on_kill(unit, events)
 
 
 ## Solta a magia carregada: acerta quem estiver na área agora, aliado ou não.
@@ -553,11 +690,13 @@ func resolve_pending(unit) -> Array:
 	var events := [{"type": "cast_resolve", "unit": unit, "ability": ability, "id": ability_id, "tile": tile, "cells": area_of(tile, ability["radius"])}]
 	for target in units.duplicate():
 		if target.alive() and Hex.distance(target.pos, tile) <= ability["radius"]:
-			var mult: float = tile_at(target.pos)["damage"] * _protection_mult(target)
+			var mult: float = tile_at(target.pos)["damage"] * _protection_mult(target) * _status_mult(unit, target)
 			var amount := maxi(1, roundi(unit.atk * ability["power"] * mult) - target.def)
 			_apply_damage(target, amount, events, {})
 			if not target.alive() and target.team != unit.team:
 				_on_kill(unit, events)
+			elif target.alive() and ability.has("status"):
+				_add_status(target, ability["status"], events)
 	return events
 
 

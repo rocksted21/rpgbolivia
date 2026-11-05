@@ -17,7 +17,7 @@ const DIM := Color("9da5b5")
 const LOCKED := Color("6b7385")
 const LINE_OFF := Color("3a4358")
 const STAT_ICONS := {"hp": ["heart", Color("ef6b5b")], "atk": ["sword", Color("e2a35a")], "def": ["shield", Color("5aa6ff")], "speed": ["bolt", GOLD]}
-const KIND_ICONS := {"attack": "sword", "charge": "flame", "heal": "heart", "guard": "shield"}
+const KIND_ICONS := {"attack": "sword", "charge": "flame", "heal": "heart", "guard": "shield", "buff": "star"}
 
 const NODE_SIZE := Vector2(196, 92)
 const ROW_GAP := 20
@@ -320,6 +320,12 @@ func _ability_summary(preview, ability_id: String) -> String:
 			parts.append(Data.range_text(ability))
 		"guard":
 			parts.append("Guarda, em si")
+		"buff":
+			parts.append("Em aliado")
+			parts.append(Data.range_text(ability))
+	var effect := Data.effect_text(ability)
+	if effect != "":
+		parts.append(effect)
 	parts.append("tempo %d" % maxi(1, roundi(ability["time"] * 10.0 / preview.speed)))
 	return " · ".join(parts)
 
