@@ -1,9 +1,11 @@
 extends SceneTree
-## Salva uma captura de cada bioma e de cada tipo de terreno nele. Rodar sem --headless:
+## Salva uma captura de cada bioma, com a casa de resgate e o farol apagado e aceso. Rodar sem --headless:
 ## godot --path . --script tests/biome_shots.gd -- <pasta-dos-screenshots> [semente]
 
 const Data = preload("res://scripts/game_data.gd")
+const Hex = preload("res://scripts/hex.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
+const TownProgress = preload("res://scripts/town_progress.gd")
 
 var view
 
@@ -11,7 +13,9 @@ var view
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	HeroProgress.path = "user://test_progress_biomes.cfg"
-	root.set_meta("world_hero", "duelista")
+	TownProgress.path = "user://test_town_biomes.cfg"
+	root.set_meta("world_hero", Data.DEFAULT_PARTY)
+	root.set_meta("expedition", true)
 	view = load("res://main.tscn").instantiate()
 	root.add_child(view)
 	_run(args[0])
@@ -22,22 +26,47 @@ func _run(dir: String) -> void:
 	while view.busy:
 		await process_frame
 	var state = view.state
+	state.steps_until_spawn = 9999.0
+	state.landmarks.clear()
 	for biome in Data.BIOMES:
 		var cell = _busiest_cell(state, biome)
 		if cell == null:
 			print("bioma não encontrado: ", biome)
 			continue
-		state.hero.pos = cell
-		view.views[state.hero].position = view.feet_of(cell)
-		view.battle_camera.set_elevation(view._cell_elevation(cell), view.views[state.hero])
+		var beacon: Vector2i = cell + Vector2i(3, -3)
+		var house: Vector2i = cell + Vector2i(-3, -2)
+		state.terrain_override.clear()
+		state.terrain_override[beacon] = 11
+		state.terrain_override[house] = 10
+		state.beacon_cell = beacon
+		state.defeated_boss = false
+		for member in state.party:
+			var i: int = state.party.find(member)
+			member.pos = cell + Vector2i(i, 1)
+			view.views[member].position = view.feet_of(member.pos)
+			view.views[member].z_index = view._z(view._row(member.pos)) + 5
+			view.battle_camera.set_elevation(view._cell_elevation(member.pos), view.views[member])
 		view.board.position = view._camera_target(cell)
 		view._set_camera(cell)
-		for i in 3:
-			await process_frame
-		await RenderingServer.frame_post_draw
-		root.get_texture().get_image().save_png("%s/%s.png" % [dir, biome])
+		view._sync_world(cell)
+		view._rebuild_cell(beacon)
+		view._rebuild_cell(house)
+		view._update_journey()
+		await _save(dir, biome)
+		state.defeated_boss = true
+		view._rebuild_cell(beacon)
+		await _save(dir, biome + "_aceso")
 		print(biome, " em ", cell)
+	DirAccess.remove_absolute(HeroProgress.path)
+	DirAccess.remove_absolute(TownProgress.path)
 	quit()
+
+
+func _save(dir: String, shot: String) -> void:
+	for i in 3:
+		await process_frame
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png("%s/%s.png" % [dir, shot])
 
 
 ## A casa caminhável do bioma com mais variedade de terreno em volta.

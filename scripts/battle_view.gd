@@ -17,6 +17,13 @@ const Data = preload("res://scripts/game_data.gd")
 const BattleState = preload("res://scripts/battle_state.gd")
 const WorldState = preload("res://scripts/world_state.gd")
 const WorldGen = preload("res://scripts/world_gen.gd")
+const ExpeditionState = preload("res://scripts/expedition_state.gd")
+const TownProgress = preload("res://scripts/town_progress.gd")
+const Exp = preload("res://scripts/expedition_data.gd")
+const TOWN_SCENE := "res://scenes/town.tscn"
+const EXPEDITION_META := "expedition"
+const BOSS_SCALE := 1.35
+const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
 const AI = preload("res://scripts/ai.gd")
 const UnitView = preload("res://scripts/unit_view.gd")
 const Hud = preload("res://scripts/hud.gd")
@@ -92,6 +99,7 @@ const DEFAULT_HINT := "Toque numa casa azul para andar ou num personagem para ag
 const AREA_COLOR := Color(0.72, 0.3, 1.0, 0.6)
 const CHARGE_COLOR := Color(0.72, 0.3, 1.0, 0.42)
 const ACTIVE_COLOR := Color(1.0, 0.84, 0.35)
+const BEACON_COLOR := Color(1.0, 0.85, 0.35)
 const CAST_INK := Color(1.0, 0.62, 0.15)
 # Animação de cada magia (tiras em assets/fx/<elemento>, geradas pelo build_assets).
 # projectile voa do mago até o alvo; impact toca no alvo, ou em cada casa da área se per_cell.
@@ -158,6 +166,8 @@ var remote_playing := false
 var room_label: Label
 var rewarded := false # os pontos da luta já foram dados
 var exploring := false
+var expedition := false # solo: cidade, locais especiais e chefe (ver expedition_state.gd)
+var landmark_nodes := {} # casa: marcas no mapa de um local especial
 var selected # o herói que recebe os cliques fora de combate
 var together := true # fora de combate, os heróis do jogador andam em fila atrás do selecionado
 var file_next := {} # herói -> quem anda logo atrás dele
@@ -232,7 +242,11 @@ func _start_battle() -> void:
 		var builds := {}
 		for i in party_types.size():
 			builds[i] = HeroProgress.unlocked(party_types[i])
-		state = WorldState.new(party_types, randi(), builds)
+		expedition = get_tree().root.get_meta(EXPEDITION_META, false)
+		if expedition:
+			state = ExpeditionState.new(party_types, randi(), builds, TownProgress.expedition_setup())
+		else:
+			state = WorldState.new(party_types, randi(), builds)
 	else:
 		state = BattleState.from_data(_saved_builds())
 	rewarded = false
@@ -244,6 +258,7 @@ func _start_battle() -> void:
 	moving.clear()
 	walks.clear()
 	cell_rows.clear()
+	landmark_nodes.clear()
 	cells_to_build.clear()
 	cells_to_unload.clear()
 	camera_look = null
@@ -299,11 +314,13 @@ func _start_battle() -> void:
 	hud.unit_picked.connect(_on_timeline_pick)
 	hud.option_pressed.connect(_on_option_pressed)
 	hud.order_toggled.connect(_on_order_toggled)
-	hud.restart_pressed.connect(_leave_online if online_session.playing else _start_battle)
+	hud.restart_pressed.connect(_leave_online if online_session.playing else (_back_to_menu if expedition else _start_battle))
 	hud.skills_pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
 	if exploring:
 		hud.setup_exploration()
 		hud.menu_pressed.connect(_back_to_menu)
+		if expedition:
+			hud.use_town_exit()
 		hud.setup_party(state.party, _owner_names())
 		hud.party_pressed.connect(_on_party_pick)
 		hud.rotate_held.connect(func(direction): turn_hold = direction)
@@ -327,6 +344,8 @@ func _saved_builds() -> Dictionary:
 
 func _update_journey() -> void:
 	hud.set_journey(state.alive_party().size(), state.party.size(), state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(camera_cell)]["name"])
+	if expedition:
+		hud.set_objective(_objective_text())
 	hud.update_party(selected if _free_roam() else state.active_unit())
 
 
@@ -351,6 +370,10 @@ func _show_result(result: int) -> void:
 		var gain: int = Skills.WIN_POINTS if won else Skills.LOSS_POINTS
 		if exploring:
 			gain = Skills.journey_points(state.kills, state.farthest)
+		if expedition:
+			TownProgress.record(state.result())
+			if won:
+				_rebuild_cell(state.beacon_cell) # o farol acende
 		var types := []
 		for unit in state.units:
 			if unit.team == Data.Team.PLAYER and (not online_session.playing or online_session.can_control(unit)):
@@ -430,6 +453,8 @@ func _build_cell(cell: Vector2i) -> void:
 	_add_tile(ground, cell_origin(cell), row, layers * SIDE_HEIGHT)
 	if exploring:
 		_add_biome_props(biome, terrain_id, cell)
+	if expedition:
+		_add_landmark(cell, row)
 	elif SCENERY_BASE.has(terrain_id):
 		_add_scenery(terrain_id, cell)
 	var overlay := Polygon2D.new()
@@ -654,7 +679,8 @@ func _tile_mesh(texture: Texture2D) -> Dictionary:
 func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	var detail: float = state.detail_at(cell)
 	var made := {}
-	for prop in BiomeArt.props(biome, terrain_id, detail):
+	var art: Array = [BiomeArt.beacon(biome, state.defeated_boss)] if expedition and cell == state.beacon_cell else BiomeArt.props(biome, terrain_id, detail)
+	for prop in art:
 		made[prop["layer"]] = _biome_prop(prop, cell, detail)
 	if terrain_id == WorldGen.FOREST:
 		forests[cell] = made
@@ -708,6 +734,9 @@ func _add_unit_view(unit) -> void:
 	view.position = feet_of(unit.pos)
 	view.z_index = _z(_row(unit.pos)) + 5
 	views[unit] = view
+	if expedition and state.is_boss(unit):
+		view.scale *= BOSS_SCALE
+		view.self_modulate = Color(0.75, 0.6, 1.0)
 	battle_camera.add_billboard(view, Vector2.ZERO, _cell_elevation(unit.pos))
 
 
@@ -1447,6 +1476,10 @@ func _play(events: Array, roam := false) -> void:
 				_play_regen(event)
 			"revive":
 				_play_revive(event)
+			"landmark":
+				await _play_landmark(event)
+			"level_up":
+				_play_level_up(event)
 	for unit in views:
 		if unit.alive():
 			_show_status(unit)
@@ -2066,12 +2099,89 @@ func _refresh_hover() -> void:
 	_update_hint()
 
 
+func _rebuild_cell(cell: Vector2i) -> void:
+	landmark_nodes.erase(cell)
+	if cell_nodes.has(cell):
+		_unload_cell(cell)
+		_build_cell(cell)
+
+
+## Marca de um local especial no chão, com o nome em cima. Some quando o local é usado.
+func _add_landmark(cell: Vector2i, row: int) -> void:
+	if not state.landmarks.has(cell) or state.landmarks[cell]["state"] == "done":
+		return
+	var is_beacon: bool = cell == state.beacon_cell
+	var color: Color = BEACON_COLOR if is_beacon else Exp.LANDMARKS[state.landmarks[cell]["kind"]]["color"]
+	var ring := _new_hex_line(color, 9)
+	_place_ground_marker(ring, cell)
+	ring.z_index = _z(row) + 2
+	building.append(ring)
+	var name_label := Label.new()
+	name_label.text = state.landmark_label(cell)
+	name_label.position = feet_of(cell) + Vector2(-110, -210)
+	name_label.custom_minimum_size = Vector2(220, 0)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.z_index = _z(row) + 7
+	name_label.add_theme_font_size_override("font_size", 34)
+	name_label.add_theme_color_override("font_color", color)
+	name_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	name_label.add_theme_constant_override("outline_size", 8)
+	board.add_child(name_label)
+	building.append(name_label)
+	battle_camera.add_billboard(name_label, Vector2(110, 210), _cell_elevation(cell))
+	landmark_nodes[cell] = [ring, name_label]
+
+
+func _play_landmark(event: Dictionary) -> void:
+	sound_manager.play_sfx(&"victory" if event["done"] else &"defeat")
+	hud.show_banner(event["title"], event["color"])
+	if event["detail"] != "":
+		hud.show_detail(event["detail"])
+	if event["done"] and landmark_nodes.has(event["cell"]):
+		for node in landmark_nodes[event["cell"]]:
+			if cell_nodes.has(event["cell"]):
+				cell_nodes[event["cell"]].erase(node)
+			node.queue_free()
+		landmark_nodes.erase(event["cell"])
+	_update_journey()
+	await get_tree().create_timer(0.5).timeout
+
+
+func _play_level_up(event: Dictionary) -> void:
+	sound_manager.play_sfx(&"heal")
+	hud.show_banner("Nível %d!" % event["level"], Color(0.6, 0.9, 1.0))
+	for member in state.party:
+		if views.has(member):
+			views[member].set_hp(member.hp)
+
+
+## Nível, brasas e para onde ir, com a seta já girada conforme a câmera.
+func _objective_text() -> String:
+	var growth := "máx." if state.xp_to_next() < 0 else "%d XP" % state.xp_to_next()
+	var text := "Nível %d (%s)   ·   Brasas %d   ·   Farol %s" % [state.level, growth, state.brasas, _direction_to(state.beacon_cell)]
+	var open: Array = state.open_landmarks(camera_cell)
+	if not open.is_empty() and Hex.distance(open[0], camera_cell) <= Exp.COMPASS_RADIUS:
+		text += "   ·   %s %s" % [state.landmark_label(open[0]), _direction_to(open[0])]
+	return text
+
+
+func _direction_to(cell: Vector2i) -> String:
+	var away: Vector2 = (_flat_point(cell) - _flat_point(camera_cell)).rotated(view_angle)
+	var sector := posmod(roundi(away.angle() / (TAU / COMPASS_ARROWS.size())), COMPASS_ARROWS.size())
+	return "%s %d" % [COMPASS_ARROWS[sector], Hex.distance(cell, camera_cell)]
+
+
 func _end_text() -> String:
+	if expedition:
+		var saved: Dictionary = state.result()
+		var title: String = "O farol voltou a brilhar!" if saved["won"] else "A party caiu na escuridão"
+		var kept := "%d brasas levadas" % saved["brasas"]
+		return "%s\n%s · %d resgate%s · nível %d" % [title, kept, saved["rescued"].size(), "" if saved["rescued"].size() == 1 else "s", state.level]
 	return "Fim da jornada\n%d casas de distância · %d inimigos derrotados" % [state.farthest, state.kills]
 
 
 func _back_to_menu() -> void:
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	get_tree().change_scene_to_file(TOWN_SCENE if expedition else "res://scenes/main_menu.tscn")
 
 
 func _play_move(event: Dictionary) -> void:

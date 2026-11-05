@@ -6,6 +6,11 @@ var sound_manager:
 
 ## Interface: fila de turnos à esquerda e um menu que abre em cima da casa tocada.
 
+const GameSettings = preload("res://scripts/game_settings.gd")
+const VOLUME_WIDTH := 136
+const VOLUME_PANEL_WIDTH := 260
+const VOLUME_Y := 74
+
 signal option_pressed(index: int)
 signal order_toggled(on: bool)
 signal restart_pressed
@@ -86,6 +91,13 @@ var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magi
 
 
 var journey: Label
+var volume_button: Button
+var volume_panel: PanelContainer
+var volume_slider: HSlider
+var volume_mute: Button
+var objective: Label
+var detail: Label
+var end_menu_button: Button
 var party_row: HBoxContainer
 var party_cards := {} # herói -> {panel, fill, status}
 var together_button: Button
@@ -164,6 +176,8 @@ func setup(p_meta: Dictionary) -> void:
 	skills_button.pressed.connect(func(): skills_pressed.emit())
 	end_column.add_child(skills_button)
 
+	_build_volume()
+
 	# Cartão de detalhes: cobre a tela toda para que o toque que fecha não caia no tabuleiro.
 	card = ColorRect.new()
 	card.color = Color(0, 0, 0, 0.55)
@@ -173,6 +187,52 @@ func setup(p_meta: Dictionary) -> void:
 		if event is InputEventMouseButton and event.pressed:
 			hide_card())
 	add_child(card)
+
+
+## Botão de volume, no canto, com um painel que abre embaixo dele.
+func _build_volume() -> void:
+	GameSettings.apply()
+	volume_button = _corner_button("", Vector2(SCREEN.x - VOLUME_WIDTH - MARGIN, VOLUME_Y), VOLUME_WIDTH)
+	volume_panel = PanelContainer.new()
+	volume_panel.position = Vector2(SCREEN.x - VOLUME_PANEL_WIDTH - MARGIN, VOLUME_Y + 54)
+	volume_panel.custom_minimum_size.x = VOLUME_PANEL_WIDTH
+	volume_panel.add_theme_stylebox_override("panel", _box(Color(0.1, 0.11, 0.14, 0.95), Color(1.0, 0.85, 0.4), 2, 8, 10))
+	volume_panel.visible = false
+	add_child(volume_panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 8)
+	volume_panel.add_child(column)
+	volume_slider = HSlider.new()
+	volume_slider.min_value = 0
+	volume_slider.max_value = 100
+	volume_slider.step = 5
+	volume_slider.value = GameSettings.volume()
+	volume_slider.focus_mode = Control.FOCUS_NONE
+	volume_slider.custom_minimum_size.y = 36
+	column.add_child(volume_slider)
+	volume_mute = Button.new()
+	volume_mute.toggle_mode = true
+	volume_mute.button_pressed = GameSettings.muted()
+	volume_mute.focus_mode = Control.FOCUS_NONE
+	volume_mute.text = "Silenciar"
+	volume_mute.custom_minimum_size.y = 44
+	sound_manager.bind_button(volume_mute, &"switch1")
+	column.add_child(volume_mute)
+	volume_button.pressed.connect(func(): volume_panel.visible = not volume_panel.visible)
+	volume_slider.value_changed.connect(func(value: float):
+		GameSettings.set_volume(int(value))
+		if volume_mute.button_pressed and value > 0.0: # mexer no volume tira do mudo
+			volume_mute.set_pressed_no_signal(false)
+			GameSettings.set_muted(false)
+		_show_volume())
+	volume_mute.toggled.connect(func(on: bool):
+		GameSettings.set_muted(on)
+		_show_volume())
+	_show_volume()
+
+
+func _show_volume() -> void:
+	volume_button.text = "Sem som" if GameSettings.muted() or GameSettings.volume() == 0 else "Volume %d%%" % GameSettings.volume()
 
 
 func refresh(state) -> void:
@@ -609,6 +669,7 @@ func setup_exploration() -> void:
 		if child is Button and child != skills_button:
 			child.text = "Nova jornada"
 	var menu_button := Button.new()
+	end_menu_button = menu_button
 	menu_button.text = "Menu principal"
 	menu_button.custom_minimum_size.y = 56
 	sound_manager.bind_button(menu_button, &"click3")
@@ -740,6 +801,50 @@ func show_banner(text: String, color: Color) -> void:
 
 func set_hint(text: String) -> void:
 	hint.text = text
+
+
+## Linha da expedição, abaixo do progresso: nível, brasas e bússola.
+func set_objective(text: String) -> void:
+	if objective == null:
+		objective = _label("", 20, Color(0.95, 0.85, 0.55))
+		objective.position = Vector2(0, 48)
+		objective.custom_minimum_size = Vector2(SCREEN.x - 320, 0)
+		objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		objective.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		objective.add_theme_color_override("font_outline_color", Color.BLACK)
+		objective.add_theme_constant_override("outline_size", 6)
+		add_child(objective)
+	objective.text = text
+
+
+## Texto do que acabou de acontecer no mapa, como uma memória encontrada. Some sozinho.
+func show_detail(text: String) -> void:
+	if detail != null:
+		detail.queue_free()
+	detail = _label(text, 24, Color(1.0, 0.97, 0.88))
+	detail.position = Vector2(140, 196)
+	detail.custom_minimum_size = Vector2(SCREEN.x - 280, 0)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail.add_theme_color_override("font_outline_color", Color.BLACK)
+	detail.add_theme_constant_override("outline_size", 8)
+	add_child(detail)
+	var shown := detail
+	var tween := create_tween()
+	tween.tween_interval(4.5)
+	tween.tween_property(shown, "modulate:a", 0.0, 0.6)
+	tween.tween_callback(shown.queue_free)
+
+
+## Na expedição, o fim leva sempre de volta à cidade: um botão só.
+func use_town_exit() -> void:
+	var end_column: Node = end_label.get_parent()
+	for child in end_column.get_children():
+		if child is Button and child != skills_button:
+			child.text = "Voltar à Cidade-Farol"
+	if end_menu_button != null:
+		end_menu_button.visible = false
 
 
 func show_end(text: String, note := "") -> void:
