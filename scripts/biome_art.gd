@@ -4,7 +4,8 @@ extends RefCounted
 
 const ROOT := "res://assets/biomes/%s/%s.png"
 const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra"}
-const DECOR_CHANCE := 0.1 # parte das casas de campo que ganha um enfeite
+const DECOR_CHANCE := 0.1 # abaixo disso a casa de campo ganha um enfeite; world_gen.gd escolhe quais
+const MOUNTAIN_LANDMARK := 0.08
 # Altura da base de cada objeto dentro do hexágono: fundo atrás do personagem, frente diante dele.
 const BACK_Y := 92
 const MIDDLE_Y := 118
@@ -35,7 +36,8 @@ static func props(biome: String, terrain_id: int, detail: float) -> Array:
 		2:
 			return [_prop(biome, "pedras_" + variant, MIDDLE_Y, BEHIND_UNIT)]
 		6:
-			return [_prop(biome, "montanha_" + variant, MIDDLE_Y + 20, BEHIND_UNIT)]
+			# As serras são de pedra; um monumento aparece de vez em quando.
+			return [_prop(biome, "montanha_b" if detail < MOUNTAIN_LANDMARK else "montanha_a", MIDDLE_Y + 20, BEHIND_UNIT)]
 		7:
 			return [_prop(biome, "colinas_" + variant, MIDDLE_Y, BEHIND_UNIT)]
 		10:

@@ -32,6 +32,9 @@ EDGE_STRENGTH = 70
 # Texto da prancha que encosta no telhado da casa de resgate.
 CAPTION = (800, 478, 1046, 508)
 TREE, SMALL, HOUSE, BEACON = 0.60, 0.62, 0.72, 0.56  # escala da prancha para o jogo
+FIELD_CONTRAST = 0.45  # o campo se repete muito: desenhos fortes viram um padrão de escamas
+MOUNTAIN = 0.46
+CLIFF_TRIM = 8
 MANGROVE = 0.46  # a copa larga do mangue cobriria os personagens nas casas vizinhas
 
 # Blocos da prancha: (centro x, y do topo). As pranchas seguem a mesma grade.
@@ -73,7 +76,7 @@ MOUNDS = {
 # nome: caixa na prancha, em coordenadas de 1500 px.
 CUTS = {
     "floresta": {
-        "arvore_a": (362, 150, 516, 370), "arvore_b": (514, 195, 618, 367), "arvore_c": (612, 150, 728, 367),
+        "penhasco": (578, 352, 722, 572), "arvore_a": (362, 150, 516, 370), "arvore_b": (514, 195, 618, 367), "arvore_c": (612, 150, 728, 367),
         "moita_a": (380, 385, 447, 452), "moita_b": (456, 389, 528, 452), "galhos": (374, 465, 463, 570),
         "folha": (470, 509, 533, 574), "cogumelo": (545, 516, 591, 567), "pilha": (375, 597, 478, 685),
         "escombros": (493, 573, 722, 694), "coluna": (825, 180, 872, 298), "arco_a": (762, 302, 912, 480),
@@ -81,7 +84,7 @@ CUTS = {
         "casa": (915, 497, 1112, 699), "farol_apagado": (1122, 186, 1322, 707), "farol_aceso": (1315, 185, 1477, 705),
     },
     "selva": {
-        "arvore_a": (362, 148, 562, 372), "arvore_b": (574, 150, 737, 367), "samambaia_a": (369, 377, 457, 456),
+        "penhasco": (538, 352, 722, 562), "arvore_a": (362, 148, 562, 372), "arvore_b": (574, 150, 737, 367), "samambaia_a": (369, 377, 457, 456),
         "samambaia_b": (463, 373, 538, 451), "cristal_a": (552, 367, 618, 444), "cogumelo": (543, 291, 602, 359),
         "cristal_b": (470, 492, 535, 570), "galhos": (375, 458, 463, 570), "cristal_grande": (374, 573, 477, 688),
         "tronco": (493, 560, 722, 694), "estufa_a": (760, 138, 933, 325), "estufa_b": (948, 154, 1121, 325),
@@ -89,7 +92,7 @@ CUTS = {
         "casa": (915, 482, 1127, 702), "farol_apagado": (1122, 184, 1308, 710), "farol_aceso": (1308, 184, 1482, 710),
     },
     "neve": {
-        "pinheiros": (371, 148, 578, 373), "arvore": (578, 153, 729, 370), "samambaia_a": (370, 377, 457, 458),
+        "penhasco": (578, 352, 722, 572), "pinheiros": (371, 148, 578, 373), "arvore": (578, 153, 729, 370), "samambaia_a": (370, 377, 457, 458),
         "samambaia_b": (463, 384, 537, 451), "cristal_a": (551, 377, 616, 450), "galhos": (375, 465, 464, 575),
         "cristal_b": (471, 500, 538, 575), "cogumelo": (545, 516, 591, 567), "cristal_grande": (375, 586, 486, 690),
         "tronco": (493, 558, 722, 694), "engrenagens": (759, 195, 921, 321), "relogios": (932, 149, 1124, 320),
@@ -97,7 +100,7 @@ CUTS = {
         "farol_apagado": (1122, 184, 1310, 712), "farol_aceso": (1310, 184, 1492, 712),
     },
     "deserto": {
-        "cacto": (372, 152, 465, 344), "seco_a": (454, 190, 581, 370), "arvore": (573, 153, 729, 370),
+        "penhasco": (576, 368, 722, 562), "cacto": (372, 152, 465, 344), "seco_a": (454, 190, 581, 370), "arvore": (573, 153, 729, 370),
         "samambaia_a": (370, 378, 457, 457), "samambaia_b": (463, 385, 537, 451), "seco_b": (552, 378, 616, 450),
         "galhos": (375, 466, 465, 575), "pedra": (512, 451, 568, 503), "cogumelo": (545, 516, 591, 567),
         "caveira": (374, 607, 486, 691), "tronco": (493, 558, 722, 694), "ossada": (755, 151, 936, 326),
@@ -204,9 +207,11 @@ def block_face(sheet: Sheet, x: int, y: int, right: bool, along: np.ndarray, dow
     return sheet.sample(xs, ys + down * BLOCK_SIDE)
 
 
-def make_tile(sheet: Sheet, x: int, y: int, wall_only=False, tint=(1.0, 1.0, 1.0)) -> Image.Image:
+def make_tile(sheet: Sheet, x: int, y: int, wall_only=False, tint=(1.0, 1.0, 1.0), contrast=1.0) -> Image.Image:
     top = block_top(sheet, x, y)
-    shade = top.reshape(-1, 3).mean(axis=0) * 0.55
+    average = top.reshape(-1, 3).mean(axis=0)
+    top = average + (top - average) * contrast
+    shade = average * 0.55
     out = np.zeros((H, W, 4), np.float32)
     for py in range(H):
         for px in range(W):
@@ -262,6 +267,14 @@ def build_props(biome: str, c: dict) -> None:
     def s(name: str, factor: float = SMALL) -> Image.Image:
         return scaled(c[name], factor)
 
+    # A prancha mostra só metade do penhasco, cortada na vertical: espelhada, vira um morro inteiro.
+    half = c["penhasco"]
+    half = half.crop((0, 0, half.width - CLIFF_TRIM, half.height))  # sem o contorno do corte
+    whole = Image.new("RGBA", (half.width * 2, half.height), (0, 0, 0, 0))
+    whole.alpha_composite(half)
+    whole.alpha_composite(half.transpose(Image.Transpose.FLIP_LEFT_RIGHT), (half.width, 0))
+    mountain = scaled(whole, MOUNTAIN)
+
     if biome == "floresta":
         sets = {
             "floresta_fundo_a": [(s("arvore_a", TREE), 0, 0)],
@@ -270,8 +283,8 @@ def build_props(biome: str, c: dict) -> None:
             "floresta_frente_b": [(s("galhos", 0.5), 60, 0), (s("moita_b"), -58, 2)],
             "pedras_a": [(s("pilha", 0.75), -18, 0), (s("cogumelo", 0.5), 48, 6)],
             "pedras_b": [(s("folha", 0.7), 34, 2), (s("pilha", 0.5), -30, 0)],
-            "montanha_a": [(s("escombros", 0.68), 0, 0)],
-            "montanha_b": [(s("arco_a", 0.62), 0, 0)],
+            "montanha_a": [(mountain, 0, 0)],
+            "montanha_b": [(s("escombros", 0.68), 0, 0)],
             "torre": [(s("arco_b", 0.6), 0, 0)],
             "enfeite_a": [(s("coluna", 0.62), 0, 0)],
             "enfeite_b": [(s("estatua", 0.62), 0, 0)],
@@ -285,7 +298,7 @@ def build_props(biome: str, c: dict) -> None:
             "floresta_frente_b": [(s("samambaia_b", 0.55), 60, 2), (s("cogumelo", 0.5), -56, 2)],
             "pedras_a": [(s("cristal_grande", 0.6), 0, 0)],
             "pedras_b": [(s("galhos", 0.5), -22, 0), (s("cogumelo", 0.45), 40, 6)],
-            "montanha_a": [(s("tronco", 0.62), 0, 0)],
+            "montanha_a": [(mountain, 0, 0)],
             "montanha_b": [(s("estufa_b", 0.6), 0, 0)],
             "torre": [(s("estufa_a", 0.6), 0, 0)],
             "enfeite_a": [(s("cristal_b", 0.5), 0, 0)],
@@ -300,7 +313,7 @@ def build_props(biome: str, c: dict) -> None:
             "floresta_frente_b": [(s("galhos", 0.5), 58, 0), (s("samambaia_b", 0.55), -58, 2)],
             "pedras_a": [(s("cristal_grande", 0.6), 0, 0)],
             "pedras_b": [(s("cristal_b", 0.6), -24, 0), (s("cogumelo", 0.5), 38, 6)],
-            "montanha_a": [(s("tronco", 0.62), 0, 0)],
+            "montanha_a": [(mountain, 0, 0)],
             "montanha_b": [(s("relogios", 0.62), 0, 0)],
             "torre": [(s("arco", 0.62), 0, 0)],
             "enfeite_a": [(s("portao", 0.4), 0, 0)],
@@ -315,8 +328,8 @@ def build_props(biome: str, c: dict) -> None:
             "floresta_frente_b": [(s("galhos", 0.5), 58, 0), (s("samambaia_b", 0.55), -58, 2)],
             "pedras_a": [(s("pedra", 0.8), -20, 0), (s("cogumelo", 0.5), 36, 6)],
             "pedras_b": [(s("caveira", 0.6), 0, 0)],
-            "montanha_a": [(s("ossada", 0.62), 0, 0)],
-            "montanha_b": [(s("colunas", 0.62), 0, 0)],
+            "montanha_a": [(mountain, 0, 0)],
+            "montanha_b": [(s("ossada", 0.62), 0, 0)],
             "torre": [(s("arco", 0.62), 0, 0)],
             "enfeite_a": [(s("pedra", 0.6), 0, 0)],
             "enfeite_b": [(s("caveira", 0.5), 0, 0)],
@@ -344,7 +357,8 @@ def main() -> None:
         }
         for name, (source, x, y) in TILES[biome].items():
             tint = WATER_TINT.get(biome, (1.0, 1.0, 1.0)) if name.startswith("agua") else (1.0, 1.0, 1.0)
-            save(make_tile(sheets[source], x, y, tint=tint), biome, name)
+            contrast = FIELD_CONTRAST if name.startswith("campo") else 1.0
+            save(make_tile(sheets[source], x, y, tint=tint, contrast=contrast), biome, name)
         source, x, y = TILES[biome]["campo_a"]
         save(make_tile(sheets[source], x, y, wall_only=True), biome, "parede")
         build_props(biome, cuts)

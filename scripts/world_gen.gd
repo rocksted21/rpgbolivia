@@ -16,10 +16,24 @@ const HOUSE := 10
 const TOWER := 11
 const MAX_LEVEL := 3
 const START_CLEARING := 2 # raio sem obstáculos em volta do início
-# Frio e calor ficam longe um do outro: entre neve e deserto sempre há outro bioma.
-const BIOME_COLD := -0.2
-const BIOME_HOT := 0.14
-const BIOME_BORDER := 0.05 # borda irregular entre biomas, para não virar uma linha reta
+# Entortar as coordenadas tira das manchas o desenho do ruído: bordas de bioma, rios e serras ficam orgânicos.
+const WARP := 7.0
+const BIOME_COLD := -0.17
+const BIOME_HOT := 0.14 # entre neve e deserto sempre há outro bioma
+const BIOME_BORDER := 0.018 # só um pouco de irregularidade na fronteira
+const LEVEL_OFFSET := 0.3
+const LEVEL_STEP := 0.2 # platôs largos: o relevo sobe em degraus, sem casas soltas
+const RIVER_WIDTH := 0.016
+const FORD_LIMIT := 0.12 # acima disso o rio dá passagem; ele nunca corta o mundo em dois
+const RANGE_START := 0.5 # serra: o miolo é montanha, a beira vira colinas e pedras
+const RANGE_BAND := 0.08
+const PASS_LIMIT := 0.28 # as serras têm desfiladeiros por onde passar
+const FOREST_EDGE := 0.05 # na borda, as árvores rareiam em vez de parar em linha reta
+const SITE_LIMIT := 0.5 # ruínas: enfeites juntos em um lugar, não espalhados pelo mapa
+const SITE_DECOR := 0.45
+const SITE_BUILDING := 0.03
+const FIELD_DECOR := 0.012
+const DECOR_DETAIL := 0.1 # abaixo disso a arte põe um enfeite (ver biome_art.gd)
 
 var world_seed: int
 var height_noise := FastNoiseLite.new()
@@ -27,25 +41,40 @@ var moisture_noise := FastNoiseLite.new()
 var feature_noise := FastNoiseLite.new()
 var temperature_noise := FastNoiseLite.new()
 var humidity_noise := FastNoiseLite.new()
+var range_noise := FastNoiseLite.new()
+var river_noise := FastNoiseLite.new()
+var crossing_noise := FastNoiseLite.new()
+var site_noise := FastNoiseLite.new()
+var warp_x_noise := FastNoiseLite.new()
+var warp_y_noise := FastNoiseLite.new()
 var cache := {}
+var raw_levels := {}
 var clearing_center := Vector2i.ZERO
 var has_clearing := false
 
 
 func _init(p_seed: int) -> void:
 	world_seed = p_seed
-	_setup(height_noise, p_seed, 0.045)
-	_setup(moisture_noise, p_seed + 1, 0.07)
-	_setup(feature_noise, p_seed + 2, 0.11)
-	_setup(temperature_noise, p_seed + 3, 0.022)
-	_setup(humidity_noise, p_seed + 4, 0.035)
+	_setup(height_noise, p_seed, 0.022, 4)
+	_setup(moisture_noise, p_seed + 1, 0.028, 3)
+	_setup(feature_noise, p_seed + 2, 0.05, 2)
+	_setup(temperature_noise, p_seed + 3, 0.01, 2)
+	_setup(humidity_noise, p_seed + 4, 0.016, 2)
+	_setup(range_noise, p_seed + 5, 0.007, 3)
+	range_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	_setup(river_noise, p_seed + 6, 0.007, 2)
+	_setup(crossing_noise, p_seed + 7, 0.11, 1)
+	_setup(site_noise, p_seed + 8, 0.045, 1)
+	_setup(warp_x_noise, p_seed + 9, 0.025, 2)
+	_setup(warp_y_noise, p_seed + 10, 0.025, 2)
 
 
-func _setup(noise: FastNoiseLite, noise_seed: int, frequency: float) -> void:
+func _setup(noise: FastNoiseLite, noise_seed: int, frequency: float, octaves: int) -> void:
 	noise.seed = noise_seed
 	noise.frequency = frequency
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	noise.fractal_type = FastNoiseLite.FRACTAL_NONE
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM if octaves > 1 else FastNoiseLite.FRACTAL_NONE
+	noise.fractal_octaves = octaves
 
 
 ## {"terrain": id em Data.TERRAIN, "elevation": nível, "biome": chave em Data.BIOMES, "detail": 0 a 1 para variar a arte}.
@@ -59,9 +88,31 @@ func _generate(cell: Vector2i) -> Dictionary:
 	# Coordenadas reais do hexágono, para o ruído não formar faixas na grade.
 	var x := cell.x + (cell.y & 1) * 0.5
 	var y := cell.y * 0.866
-	var level := clampi(floori((height_noise.get_noise_2d(x, y) + 0.32) / 0.2), 0, MAX_LEVEL)
-	var biome := _biome(x, y, _roll(cell))
-	return {"terrain": _terrain(cell, x, y, level, Data.BIOMES[biome]), "elevation": level, "biome": biome, "detail": fmod(_roll(cell) * 97.0, 1.0)}
+	var wx := x + warp_x_noise.get_noise_2d(x, y) * WARP
+	var wy := y + warp_y_noise.get_noise_2d(x, y) * WARP
+	var roll := _roll(cell)
+	var level := _level(cell)
+	var biome := _biome(wx, wy, roll)
+	var spot := {"elevation": level, "biome": biome, "detail": fmod(roll * 97.0, 1.0)}
+	_shape(cell, wx, wy, level, Data.BIOMES[biome], roll, spot)
+	return spot
+
+
+## Nível de uma casa, igual à maioria da vizinhança: não sobra degrau de uma casa só.
+func _level(cell: Vector2i) -> int:
+	var levels := [_raw_level(cell)]
+	for next in Hex.neighbors(cell):
+		levels.append(_raw_level(next))
+	levels.sort()
+	return levels[3]
+
+
+func _raw_level(cell: Vector2i) -> int:
+	if not raw_levels.has(cell):
+		var x := cell.x + (cell.y & 1) * 0.5
+		var y := cell.y * 0.866
+		raw_levels[cell] = clampi(floori((height_noise.get_noise_2d(x, y) + LEVEL_OFFSET) / LEVEL_STEP), 0, MAX_LEVEL)
+	return raw_levels[cell]
 
 
 func _biome(x: float, y: float, roll: float) -> String:
@@ -74,26 +125,49 @@ func _biome(x: float, y: float, roll: float) -> String:
 	return "selva" if humidity_noise.get_noise_2d(x, y) + border > 0.0 else "deserto"
 
 
-func _terrain(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary) -> int:
-	var roll := _roll(cell)
+## Define terreno, altura e detalhe da casa. Primeiro o que forma a paisagem (rios e serras),
+## depois o que a preenche (lagos, matas e colinas) e, por último, os enfeites.
+func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, roll: float, spot: Dictionary) -> void:
 	var field := FIELD_A if roll < 0.5 else FIELD_B
+	spot["terrain"] = field
 	if has_clearing and Hex.distance(cell, clearing_center) <= START_CLEARING:
-		return field
+		return
+	var crossing := crossing_noise.get_noise_2d(x, y)
+	if absf(river_noise.get_noise_2d(x, y)) < RIVER_WIDTH:
+		if crossing < FORD_LIMIT:
+			spot["terrain"] = WATER
+			spot["elevation"] = maxi(level - 1, 0)
+		return
+	var ridge := range_noise.get_noise_2d(x, y)
+	if ridge > RANGE_START + RANGE_BAND and crossing < PASS_LIMIT:
+		spot["terrain"] = MOUNTAIN
+		spot["elevation"] = mini(level + 1, MAX_LEVEL)
+		return
+	if ridge > RANGE_START:
+		spot["terrain"] = HILLS if roll < 0.55 else (ROCKS if roll < 0.8 else field)
+		return
 	var feature := feature_noise.get_noise_2d(x, y)
-	var moisture := moisture_noise.get_noise_2d(x, y)
 	if level == 0 and feature > biome["water"]:
-		return WATER
-	if level == MAX_LEVEL and feature > 0.05:
-		return MOUNTAIN
-	if roll > 0.992:
-		return HOUSE if roll > 0.996 else TOWER
-	if moisture > biome["forest"]:
-		return FOREST
-	if level >= 1 and feature < biome["hills"]:
-		return HILLS
-	if moisture < biome["rocks"] and roll > 0.45:
-		return ROCKS
-	return field
+		spot["terrain"] = WATER
+		return
+	var moisture := moisture_noise.get_noise_2d(x, y)
+	if moisture > biome["forest"] or (moisture > biome["forest"] - FOREST_EDGE and roll > 0.65):
+		spot["terrain"] = FOREST
+		return
+	if feature < biome["hills"]:
+		spot["terrain"] = HILLS
+		return
+	if moisture < biome["rocks"] and roll > 0.6:
+		spot["terrain"] = ROCKS
+		return
+	var in_site := site_noise.get_noise_2d(x, y) > SITE_LIMIT
+	if in_site and roll > 1.0 - SITE_BUILDING:
+		spot["terrain"] = HOUSE if roll > 1.0 - SITE_BUILDING / 3.0 else TOWER
+	elif roll < (SITE_DECOR if in_site else FIELD_DECOR):
+		spot["decor"] = true
+		spot["detail"] = roll / maxf(SITE_DECOR if in_site else FIELD_DECOR, 0.001) * DECOR_DETAIL * 0.99
+	elif spot["detail"] < DECOR_DETAIL:
+		spot["detail"] = DECOR_DETAIL + spot["detail"] * 9.0 # enfeite só onde foi escolhido
 
 
 ## Número de 0 a 1 fixo para cada casa e semente.

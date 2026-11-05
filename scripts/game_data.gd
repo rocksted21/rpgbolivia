@@ -180,24 +180,25 @@ const WORLD_SPAWNS := [
 
 
 # Biomas da exploração. forest, water, hills e rocks são os limites do ruído em
-# world_gen.gd: quanto mais fácil o limite, mais daquele terreno aparece.
+# world_gen.gd: quanto mais fácil o limite, mais daquele terreno aparece. Rios e serras
+# formam a paisagem e valem para todos os biomas; os números deles ficam no gerador.
 # names troca o nome das casas (a chave é o terreno); o que falta usa TERRAIN.
 # A arte fica em assets/biomes/<chave>; ver tools/build_biomes.py.
 const BIOMES := {
 	"floresta": {
-		"name": "Floresta das Ruínas", "forest": 0.22, "water": 0.3, "hills": -0.42, "rocks": -0.4,
+		"name": "Floresta das Ruínas", "forest": 0.2, "water": 0.22, "hills": -0.42, "rocks": -0.3,
 		"names": {1: "Musgo", 9: "Musgo", 2: "Pedras", 3: "Árvores mortas", 5: "Água escura", 6: "Ruínas", 7: "Colinas", 10: "Casa", 11: "Arco"},
 	},
 	"selva": {
-		"name": "Pântano de Tinta", "forest": 0.04, "water": 0.22, "hills": -0.46, "rocks": -0.42,
+		"name": "Pântano de Tinta", "forest": 0.08, "water": 0.12, "hills": -0.46, "rocks": -0.38,
 		"names": {1: "Lama", 9: "Lama", 2: "Cristais", 3: "Mangue", 5: "Água de tinta", 6: "Destroços", 7: "Montes", 10: "Casa", 11: "Estufa"},
 	},
 	"neve": {
-		"name": "Neve de Cinzas", "forest": 0.28, "water": 0.34, "hills": -0.36, "rocks": -0.4,
+		"name": "Neve de Cinzas", "forest": 0.24, "water": 0.28, "hills": -0.38, "rocks": -0.26,
 		"names": {1: "Neve", 9: "Neve", 2: "Cristais", 3: "Pinheiral", 5: "Lago gelado", 6: "Destroços", 7: "Montes de neve", 10: "Casa", 11: "Arco"},
 	},
 	"deserto": {
-		"name": "Deserto de Ouro", "forest": 0.34, "water": 0.5, "hills": -0.3, "rocks": -0.3,
+		"name": "Deserto de Ouro", "forest": 0.38, "water": 0.42, "hills": -0.24, "rocks": -0.2,
 		"names": {1: "Areia", 9: "Areia", 2: "Rochas", 3: "Cactos", 5: "Oásis", 6: "Ossadas", 7: "Dunas", 10: "Casa", 11: "Arco"},
 	},
 }

@@ -16,7 +16,7 @@ Para trabalhar em conjunto, crie uma branch no GitHub Desktop, faça seus commit
 
 O **Single Player** abre a Cidade-Farol, de onde a party parte para um mapa novo a cada expedição, sobe de nível, visita locais especiais e enfrenta o guardião do farol. O conceito está em [CONCEITO.md](CONCEITO.md); os números, em `scripts/expedition_data.gd`.
 
-A arte dos biomas é gerada a partir das pranchas de `referencias/biomas` por `tools/build_biomes.py` (Python, com `pillow`, `numpy` e `scipy`). `tests/biome_shots.gd` salva uma captura de cada bioma.
+A arte dos biomas é gerada a partir das pranchas de `referencias/biomas` por `tools/build_biomes.py` (Python, com `pillow`, `numpy` e `scipy`). `tests/biome_shots.gd` salva uma captura de cada bioma. `tests/map_preview.gd` desenha o mapa visto de cima, para comparar mudanças no gerador (`scripts/world_gen.gd`).
 
 Testes: `godot --headless --path . --script tests/test_expedition.gd` para as regras (com `SKIP_SIM=1` pula as partidas simuladas) e `godot --path . --script tests/expedition_smoke.gd -- <pasta>` para jogar pela tela e salvar capturas.
 
