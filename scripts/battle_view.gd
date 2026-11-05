@@ -32,6 +32,8 @@ const BLOOM_THRESHOLD := 0.72
 const TOWN_PANELS_LAYER := 50
 const TOWN_TINT := Color(0.6, 0.63, 0.82) # noite: as fogueiras e o farol iluminam a cidade
 const EXPEDITION_META := "expedition"
+const LOAD_META := "load_save" # save lido, à espera de main.tscn abrir
+const SaveGame = preload("res://scripts/save_game.gd")
 const BOSS_SCALE := 1.35
 const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
 const AI = preload("res://scripts/ai.gd")
@@ -41,6 +43,8 @@ const BattleCamera = preload("res://scripts/battle_camera.gd")
 const BiomeArt = preload("res://scripts/biome_art.gd")
 const Skills = preload("res://scripts/skill_data.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
+const HeroJuice = preload("res://scripts/hero_juice.gd")
+const BattleJuice = preload("res://scripts/battle_juice.gd")
 
 const BOARD_POS := Vector2(250, 142) # sem painel lateral: o tabuleiro fica no meio, a fila à esquerda
 const BOARD_SCALE := 0.5
@@ -160,6 +164,59 @@ const SPELL_FX := {
 	"chama": {"impact": "fogo/fire_pillar", "impact_scale": 2.0, "per_cell": true, "ground": true, "sound": &"flame"},
 	"manto_agua": {"impact": "agua/splash", "impact_scale": 3.0, "ground": true, "sound": &"water"},
 }
+# Efeitos dos chefes dos faróis, feitos com as partículas do Kenney (assets/fx/kenney).
+# "hit" sai no golpe básico, "skill" no especial. Cada camada:
+#   burst: estouro de partículas (amount, speed [min, max], size, life, gravity, spread)
+#   flash: uma imagem que cresce e some (size, life, spin)
+#   ring: onda no chão que se abre (size, life)
+const BOSS_FX := {
+	"boss_cervo": {
+		"hit": [
+			{"kind": "flash", "tex": "slash_02", "color": Color(0.75, 0.55, 0.3), "size": 0.45, "life": 0.25},
+			{"kind": "burst", "tex": "dirt_02", "color": Color(0.45, 0.32, 0.2), "amount": 8, "speed": [120, 260], "size": 0.08, "life": 0.5, "gravity": 500},
+		],
+		"skill": [
+			{"kind": "ring", "tex": "circle_02", "color": Color(0.55, 0.3, 0.75), "size": 1.1, "life": 0.5},
+			{"kind": "burst", "tex": "dirt_02", "color": Color(0.4, 0.3, 0.18), "amount": 22, "speed": [220, 480], "size": 0.12, "life": 0.8, "gravity": 700},
+			{"kind": "burst", "tex": "twirl_02", "color": Color(0.6, 0.35, 0.85, 0.8), "amount": 6, "speed": [40, 120], "size": 0.3, "life": 0.9, "gravity": -60},
+			{"kind": "burst", "tex": "smoke_04", "color": Color(0.25, 0.22, 0.2, 0.35), "amount": 10, "speed": [60, 160], "size": 0.35, "life": 1.0, "gravity": -40},
+		],
+	},
+	"boss_serpente": {
+		"hit": [
+			{"kind": "flash", "tex": "slash_03", "color": Color(0.5, 0.95, 0.35), "size": 0.45, "life": 0.25},
+			{"kind": "burst", "tex": "spark_04", "color": Color(0.6, 1.0, 0.4), "amount": 8, "speed": [150, 300], "size": 0.08, "life": 0.4},
+		],
+		"skill": [
+			{"kind": "flash", "tex": "scratch_01", "color": Color(0.45, 1.0, 0.35), "size": 0.6, "life": 0.3},
+			{"kind": "burst", "tex": "magic_03", "color": Color(0.55, 0.25, 0.8, 0.9), "amount": 12, "speed": [80, 220], "size": 0.18, "life": 0.9, "gravity": -80},
+			{"kind": "burst", "tex": "smoke_07", "color": Color(0.35, 0.75, 0.25, 0.35), "amount": 10, "speed": [50, 140], "size": 0.4, "life": 1.1, "gravity": -30},
+		],
+	},
+	"boss_jarl": {
+		"hit": [
+			{"kind": "flash", "tex": "slash_02", "color": Color(0.75, 0.9, 1.0), "size": 0.5, "life": 0.25},
+			{"kind": "burst", "tex": "spark_04", "color": Color(0.7, 0.9, 1.0), "amount": 10, "speed": [150, 320], "size": 0.08, "life": 0.45},
+		],
+		"skill": [
+			{"kind": "ring", "tex": "circle_02", "color": Color(0.6, 0.85, 1.0), "size": 1.3, "life": 0.55},
+			{"kind": "burst", "tex": "star_06", "color": Color(0.8, 0.95, 1.0), "amount": 18, "speed": [200, 460], "size": 0.1, "life": 0.8, "gravity": 400},
+			{"kind": "burst", "tex": "smoke_04", "color": Color(0.85, 0.92, 1.0, 0.35), "amount": 14, "speed": [80, 220], "size": 0.4, "life": 1.1, "gravity": -30},
+		],
+	},
+	"boss_farao": {
+		"hit": [
+			{"kind": "flash", "tex": "slash_03", "color": Color(1.0, 0.82, 0.35), "size": 0.45, "life": 0.25},
+			{"kind": "burst", "tex": "spark_04", "color": Color(1.0, 0.85, 0.4), "amount": 8, "speed": [150, 300], "size": 0.08, "life": 0.4},
+		],
+		"skill": [
+			{"kind": "flash", "tex": "symbol_01", "color": Color(1.0, 0.8, 0.3), "size": 0.7, "life": 0.6, "spin": 1.5},
+			{"kind": "flash", "tex": "light_02", "color": Color(1.0, 0.75, 0.3, 0.8), "size": 0.9, "life": 0.5},
+			{"kind": "burst", "tex": "dirt_02", "color": Color(0.85, 0.7, 0.4), "amount": 18, "speed": [120, 320], "size": 0.1, "life": 0.9, "gravity": 300},
+			{"kind": "burst", "tex": "star_06", "color": Color(1.0, 0.9, 0.5), "amount": 10, "speed": [80, 200], "size": 0.08, "life": 0.7, "gravity": -50},
+		],
+	},
+}
 const PROJECTILE_SCALE := 2.0
 const FX_FPS := 16.0
 
@@ -234,6 +291,10 @@ var level_layers := LAYERS_PER_LEVEL
 var tile_meshes := {}
 var wall_meshes := {}
 var wall_groups := [] # paredes por lado do hexágono: as de costas para a câmera ficam escondidas
+var juice # tremor, hitstop e clarões dos heróis (battle_juice.gd)
+var hit_ctx := {} # peso do golpe de herói em andamento: os eventos de dano seguintes usam
+var hit_from := Vector2.ZERO # de onde veio o último golpe, para o tranco de quem apanha
+var healers_animated := {} # quem já fez o gesto de cura nesta ação (Clareira cura vários)
 
 
 func _ready() -> void:
@@ -263,10 +324,23 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	get_tree().paused = false
 	music_manager.play_menu()
 
 
 func _start_battle() -> void:
+	var root := get_tree().root
+	var loaded: Dictionary = {}
+	if root.has_meta(LOAD_META):
+		loaded = root.get_meta(LOAD_META)
+		root.remove_meta(LOAD_META)
+	if online_session.playing:
+		loaded = {}
+	if not loaded.is_empty(): # o save decide o modo, como se a party tivesse vindo do menu
+		root.set_meta(WORLD_META, loaded.get("party", []))
+		root.set_meta(TOWN_META, loaded.mode == "town")
+		root.set_meta(EXPEDITION_META, loaded.mode == "expedition")
+		root.set_meta("skills_back", "res://main.tscn")
 	var chosen: Variant = get_tree().root.get_meta(WORLD_META, [])
 	var party_types: Array = chosen if chosen is Array else ([chosen] if str(chosen) != "" else [])
 	exploring = online_session.playing or not party_types.is_empty()
@@ -281,6 +355,9 @@ func _start_battle() -> void:
 		level_layers = TOWN_LAYERS_PER_LEVEL if town else WORLD_LAYERS_PER_LEVEL
 	if online_session.playing:
 		state = online_session.state
+	elif not loaded.is_empty():
+		state = SaveGame.restore(loaded)
+		expedition = loaded.mode == "expedition"
 	elif exploring:
 		var builds := {}
 		for i in party_types.size():
@@ -340,6 +417,11 @@ func _start_battle() -> void:
 	add_child(board)
 	battle_camera = BattleCamera.new()
 	add_child(battle_camera)
+	if juice != null:
+		juice.queue_free()
+	juice = BattleJuice.new()
+	add_child(juice)
+	hit_ctx = {}
 	if exploring:
 		battle_camera.set_zoom(EXPLORE_ZOOM)
 	if world_light != null:
@@ -384,6 +466,12 @@ func _start_battle() -> void:
 	hud.end_turn_pressed.connect(_end_turn)
 	hud.restart_pressed.connect(_leave_online if online_session.playing else (_back_to_menu if expedition else _start_battle))
 	hud.skills_pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
+	hud.save_allowed = not online_session.playing
+	hud.load_allowed = not online_session.playing
+	hud.options_toggled.connect(func(open): get_tree().paused = open and not online_session.playing)
+	hud.save_pressed.connect(_save_game)
+	hud.load_pressed.connect(_load_game)
+	hud.quit_pressed.connect(_quit_to_title)
 	if exploring:
 		hud.setup_exploration()
 		hud.menu_pressed.connect(_back_to_menu)
@@ -457,6 +545,7 @@ func _owner_names() -> Dictionary:
 func _show_result(result: int) -> void:
 	var won := result == Data.Team.PLAYER
 	var note := ""
+	hud.save_allowed = false # a partida acabou: carregar ainda vale
 	if exploring: # a vida no topo da tela precisa mostrar a queda
 		_update_journey()
 	if not rewarded:
@@ -1096,8 +1185,8 @@ func _height_at_point(point: Vector2) -> float:
 	return height
 
 
-func _add_effect_billboard(item: CanvasItem, offset: Vector2) -> void:
-	battle_camera.add_billboard(item, offset, _height_at_point(item.position + offset))
+func _add_effect_billboard(item: CanvasItem, offset: Vector2, additive := false) -> void:
+	battle_camera.add_billboard(item, offset, _height_at_point(item.position + offset), additive)
 
 
 func _column_x(cell: Vector2i) -> int:
@@ -1377,8 +1466,8 @@ func _show_card(unit) -> void:
 
 
 const ABILITY_ICONS := {
-	"golpe": "sword", "rapido": "sword", "golpe_pesado": "sword", "estocada": "sword", "adaga": "sword", "coronhada": "sword",
-	"tiro": "arrow", "tiro_longo": "arrow", "perfurante": "arrow", "tiro_rapido": "arrow", "saraivada": "arrow", "chuva_virotes": "arrow",
+	"golpe": "sword", "rapido": "sword", "giro": "sword", "golpe_pesado": "sword", "estocada": "sword", "adaga": "sword", "coronhada": "sword",
+	"tiro": "arrow", "virote_pesado": "arrow", "tiro_longo": "arrow", "perfurante": "arrow", "tiro_rapido": "arrow", "saraivada": "arrow", "chuva_virotes": "arrow",
 	"cura": "heart", "clareira": "heart", "agua_vital": "heart",
 	"guarda": "shield", "escudo_fogo": "shield", "provocar": "shield", "aparar": "shield", "casca": "shield", "manto_agua": "shield",
 } # o resto das magias usa o ícone do elemento
@@ -1793,6 +1882,7 @@ func _turn_hint(unit) -> String:
 ## `roam`: exploração. Os passos não esperam a animação, porque cada herói anda no seu ritmo.
 func _play(events: Array, roam := false) -> void:
 	online_session.publish(events, roam, roam)
+	_mark_final_kill(events)
 	for event in events:
 		match event["type"]:
 			"move":
@@ -1814,6 +1904,7 @@ func _play(events: Array, roam := false) -> void:
 				await _play_death(event)
 			"guard":
 				var id: String = event.get("ability", "")
+				_play_hero_guard(event["unit"], id)
 				if SPELL_FX.has(id):
 					await _play_spell_fx(id, Vector2.ZERO, [views[event["unit"]].position])
 				else:
@@ -1845,6 +1936,8 @@ func _play(events: Array, roam := false) -> void:
 				await _play_landmark(event)
 			"level_up":
 				_play_level_up(event)
+	hit_ctx = {}
+	healers_animated = {}
 	for unit in views:
 		if unit.alive():
 			_show_status(unit)
@@ -1967,8 +2060,11 @@ func _network_lost(_reason: String) -> void:
 func _show_status(unit) -> void:
 	if not unit.pending.is_empty():
 		views[unit].set_status("magia em %d" % state.actions_until(unit), CAST_INK)
+		if HeroJuice.is_hero(unit.type_id):
+			views[unit].set_aura(HeroJuice.color_of(unit.type_id))
 	else:
 		views[unit].set_status("em guarda" if unit.guarding else "")
+		views[unit].clear_aura(false)
 
 
 # --- Exploração --------------------------------------------------------------
@@ -2584,6 +2680,37 @@ func _back_to_menu() -> void:
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 
+# --- Menu de opções ------------------------------------------------------------
+
+func _save_game() -> void:
+	if online_session.playing or state.winner() >= 0:
+		return
+	if SaveGame.save(state):
+		hud.show_options_note("Jogo salvo!")
+		hud.load_button.disabled = false
+		hud.load_button.text = "Carregar jogo (%s)" % SaveGame.summary()
+	else:
+		hud.show_options_note("Não foi possível salvar.")
+
+
+## Recarrega a cena com o save: o que estava animando para junto com a cena antiga.
+func _load_game() -> void:
+	var data := SaveGame.read()
+	if data.is_empty():
+		hud.show_options_note("Save não encontrado ou de outra versão.")
+		return
+	get_tree().paused = false
+	get_tree().root.set_meta(LOAD_META, data)
+	get_tree().change_scene_to_file("res://main.tscn")
+
+
+func _quit_to_title() -> void:
+	get_tree().paused = false
+	if online_session.playing:
+		online_session.leave()
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
 # --- Cidade-Farol --------------------------------------------------------------
 
 func _set_return_to_town() -> void:
@@ -2680,6 +2807,8 @@ func _play_move(event: Dictionary) -> void:
 		view.z_index = _z(_row(event["to"])) + 5
 		battle_camera.set_elevation(_cell_elevation(event["to"]), view)
 		return
+	if not event.get("silent", false) and HeroJuice.is_hero(unit.type_id) and (not exploring or state.in_combat()):
+		_step_dust(event["from"], state.elevation_at(event["to"]) != state.elevation_at(event["from"]))
 	if exploring:
 		var time: float = event.get("duration", WALK_STEP)
 		if not event.get("silent", false):
@@ -2732,6 +2861,12 @@ func _play_attack(event: Dictionary) -> void:
 	views[target].face_toward((view.position - views[target].position).rotated(view_angle))
 	var id: String = event.get("ability", "")
 	var magic := SPELL_FX.has(id)
+	hit_from = view.position
+	hit_ctx = {}
+	var weight := HeroJuice.for_ability(unit.type_id, id)
+	if not weight.is_empty():
+		await _play_hero_attack(event, weight)
+		return
 	if not magic:
 		sound_manager.play_sfx(&"swing") # golpe corpo a corpo ou disparo da flecha
 	await view.play_once(_attack_anim(unit, id))
@@ -2743,10 +2878,81 @@ func _play_attack(event: Dictionary) -> void:
 		await _play_spell_fx(id, view.position + Vector2(0, -90), [views[target].position])
 	else:
 		sound_manager.play_sfx(&"melee_hit")
+	if BOSS_FX.has(unit.type_id):
+		var strong := _attack_anim(unit, id) == UnitView.Anim.STRONG
+		_play_boss_fx(BOSS_FX[unit.type_id]["skill" if strong else "hit"], views[target].position)
 
 
-# A primeira habilidade da unidade é o ataque básico; as outras usam o ataque forte.
+## Toca as camadas de um efeito de chefe em volta dos pés de `feet`.
+func _play_boss_fx(layers: Array, feet: Vector2) -> void:
+	for layer in layers:
+		var tex: Texture2D = load("res://assets/fx/kenney/%s.png" % layer["tex"])
+		var color: Color = layer["color"]
+		var life: float = layer["life"]
+		var size: float = layer["size"]
+		var item: Node2D
+		match layer["kind"]:
+			"burst":
+				var parts := CPUParticles2D.new()
+				parts.texture = tex
+				parts.one_shot = true
+				parts.explosiveness = 1.0
+				parts.amount = layer["amount"]
+				parts.lifetime = life
+				parts.direction = Vector2.UP
+				parts.spread = layer.get("spread", 180.0)
+				parts.initial_velocity_min = layer["speed"][0]
+				parts.initial_velocity_max = layer["speed"][1]
+				parts.gravity = Vector2(0, layer.get("gravity", 0.0))
+				parts.damping_min = 80.0
+				parts.damping_max = 160.0
+				parts.angle_min = -180.0
+				parts.angle_max = 180.0
+				parts.scale_amount_min = size * 0.6
+				parts.scale_amount_max = size * 1.2
+				var fade := Gradient.new()
+				fade.set_color(0, color)
+				fade.set_color(1, Color(color, 0.0))
+				parts.color_ramp = fade
+				parts.position = feet + Vector2(0, -70)
+				parts.emitting = true
+				item = parts
+			"flash":
+				var flash := Sprite2D.new()
+				flash.texture = tex
+				flash.modulate = Color(color * 1.7, color.a) # aditivo some no chão claro
+				flash.position = feet + Vector2(0, -80)
+				flash.scale = Vector2.ONE * size * 0.5
+				flash.rotation = randf() * TAU
+				item = flash
+				var tween := create_tween().set_parallel()
+				tween.tween_property(flash, "scale", Vector2.ONE * size, life)
+				tween.tween_property(flash, "modulate:a", 0.0, life).set_ease(Tween.EASE_IN)
+				tween.tween_property(flash, "rotation", flash.rotation + layer.get("spin", 0.4), life)
+			"ring":
+				var ring := Sprite2D.new()
+				ring.texture = tex
+				ring.modulate = Color(color * 1.7, color.a)
+				ring.position = feet
+				ring.scale = Vector2(0.15, 0.06)
+				item = ring
+				var tween := create_tween().set_parallel()
+				tween.tween_property(ring, "scale", Vector2(size, size * 0.4), life).set_ease(Tween.EASE_OUT)
+				tween.tween_property(ring, "modulate:a", 0.0, life).set_ease(Tween.EASE_IN)
+		var material := CanvasItemMaterial.new()
+		material.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD if layer["kind"] != "burst" or layer["tex"].begins_with("spark") or layer["tex"].begins_with("star") or layer["tex"].begins_with("magic") or layer["tex"].begins_with("twirl") else CanvasItemMaterial.BLEND_MODE_MIX
+		item.material = material
+		item.z_index = 900
+		board.add_child(item)
+		_add_effect_billboard(item, feet - item.position)
+		get_tree().create_timer(life + 0.3).timeout.connect(item.queue_free)
+
+
+# Heróis: hero_juice.gd diz quais habilidades usam o golpe forte. Os outros:
+# a primeira habilidade é o ataque básico; as outras usam o ataque forte.
 func _attack_anim(unit, ability_id: String) -> UnitView.Anim:
+	if HeroJuice.is_hero(unit.type_id):
+		return UnitView.Anim.STRONG if HeroJuice.strong_anim(unit.type_id, ability_id) else UnitView.Anim.ATTACK
 	var abilities: Array = Data.UNIT_TYPES.get(unit.type_id, {}).get("abilities", [])
 	if abilities.is_empty() or ability_id == "" or ability_id == abilities[0]:
 		return UnitView.Anim.ATTACK
@@ -2754,6 +2960,9 @@ func _attack_anim(unit, ability_id: String) -> UnitView.Anim:
 
 
 func _play_damage(event: Dictionary) -> void:
+	if not hit_ctx.is_empty() or HeroJuice.is_hero(event["target"].type_id):
+		await _play_hero_damage(event)
+		return
 	var view = views[event["target"]]
 	view.set_hp(event["hp"])
 	var text := str(event["amount"])
@@ -2767,8 +2976,25 @@ func _play_damage(event: Dictionary) -> void:
 
 func _play_heal(event: Dictionary) -> void:
 	var view = views[event["target"]]
+	var healer = event["unit"]
+	# Quem cura faz o gesto normal (na Druida, a animação de cura), uma vez por ação.
+	# Curas passivas (Sede de Sangue) não têm gesto.
+	var caster: bool = healer.type_id in ["druida", "mago_agua"] or healer != event["target"]
+	if HeroJuice.is_hero(healer.type_id) and caster and not healers_animated.has(healer):
+		healers_animated[healer] = true
+		if healer != event["target"]:
+			views[healer].face_toward((view.position - views[healer].position).rotated(view_angle))
+		views[healer].play_once(UnitView.Anim.ATTACK)
+		await get_tree().create_timer(HeroJuice.ATTACK_HIT * views[healer].anim_frame_count() / UnitView.FPS).timeout
 	view.set_hp(event["hp"])
 	sound_manager.play_sfx(&"heal")
+	if HeroJuice.is_hero(event["unit"].type_id):
+		var color := HeroJuice.color_of(event["unit"].type_id)
+		if event["unit"].type_id != "druida" and event["unit"].type_id != "mago_agua":
+			color = Color(0.5, 1.0, 0.55) # quem se cura com Sede de Sangue
+		_play_fx_layers(HeroJuice.heal_fx(color), view.position, Vector2.UP)
+		view.flash(Color(color.r * 2.2 + 0.4, color.g * 2.2 + 0.4, color.b * 2.2 + 0.4), 0.35)
+		view.squash(-0.1, 0.4)
 	var fx := Sprite2D.new()
 	fx.texture = load("res://assets/fx/kit/heal.png")
 	fx.scale = Vector2.ONE * 0.5
@@ -2785,6 +3011,9 @@ func _play_heal(event: Dictionary) -> void:
 
 # O kit não tem animação de morte: a unidade tomba e some.
 func _play_death(event: Dictionary) -> void:
+	if not hit_ctx.is_empty() or HeroJuice.is_hero(event["target"].type_id):
+		await _play_hero_death(event)
+		return
 	var view = views[event["target"]]
 	sound_manager.play_sfx(&"death_hero" if event["target"].team == Data.Team.PLAYER else &"death_monster")
 	var tween := create_tween().set_parallel()
@@ -2800,11 +3029,23 @@ func _play_cast_start(event: Dictionary) -> void:
 	_show_status(event["unit"])
 	_refresh_overlays()
 	sound_manager.play_sfx(&"charge")
+	if HeroJuice.is_hero(event["unit"].type_id):
+		var color := HeroJuice.color_of(event["unit"].type_id)
+		_play_fx_layers(HeroJuice.cast_fx(color), view.position, Vector2.UP)
+		view.flash(Color(color.r * 3.0 + 0.5, color.g * 3.0 + 0.5, color.b * 3.0 + 0.5), 0.3)
+		view.squash(-0.12, 0.4)
+		juice.shake(0.08)
 	await view.play_once(UnitView.Anim.ATTACK)
 
 
 func _play_cast_resolve(event: Dictionary) -> void:
 	var view = views[event["unit"]]
+	hit_ctx = {}
+	hit_from = feet_of(event["tile"])
+	var weight := HeroJuice.for_ability(event["unit"].type_id, event["id"])
+	if not weight.is_empty():
+		await _play_hero_cast(event, weight)
+		return
 	_refresh_overlays()
 	await view.play_once(UnitView.Anim.STRONG)
 	var id: String = event["id"]
@@ -2838,7 +3079,9 @@ func _play_cast_resolve(event: Dictionary) -> void:
 
 ## Projétil (se a magia tiver) do mago até o primeiro ponto, depois o impacto em todos os pontos.
 ## Os pontos são pés de casas (com per_cell, uma por casa, começando pelo centro da área).
-func _play_spell_fx(id: String, from: Vector2, spots: Array) -> void:
+## Com `weight` (magia de herói), acende o impacto na tela e volta no auge da explosão,
+## para o dano aparecer junto com ela; a animação termina sozinha.
+func _play_spell_fx(id: String, from: Vector2, spots: Array, weight := {}) -> void:
 	var spell: Dictionary = SPELL_FX[id]
 	var ground: bool = spell.get("ground", false)
 	var lift: float = spell.get("lift", 90)
@@ -2855,8 +3098,18 @@ func _play_spell_fx(id: String, from: Vector2, spots: Array) -> void:
 		flight.tween_property(ball, "position", to, duration)
 		flight.tween_method(battle_camera.set_elevation.bind(ball), _height_at_point(from + Vector2(0, 90)), _height_at_point(spots[0]), duration)
 		flight.tween_method(_loop_frames.bind(ball), 0.0, duration, duration)
+		var glow: Sprite2D = null
+		if weight.has("trail"):
+			glow = _glow_sprite("circle_05", weight["trail"], 0.32)
+			glow.position = from
+			_add_effect_billboard(glow, Vector2(0, 90), true)
+			flight.tween_property(glow, "position", to, duration)
+			flight.tween_method(battle_camera.set_elevation.bind(glow), _height_at_point(from + Vector2(0, 90)), _height_at_point(spots[0]), duration)
+			_trail_embers(from, to, weight["trail"], duration)
 		await flight.finished
 		ball.queue_free()
+		if glow != null:
+			glow.queue_free()
 	sound_manager.play_sfx(spell["sound"])
 	var size: float = spell["impact_scale"]
 	var frames: int = fx_meta[spell["impact"]]["frames"]
@@ -2874,6 +3127,15 @@ func _play_spell_fx(id: String, from: Vector2, spots: Array) -> void:
 		hits.append(hit)
 	if world_light != null:
 		world_light.flash(spots[0], spell["impact"].begins_with("agua/"), 1.0 + 0.2 * (spots.size() - 1))
+	if not weight.is_empty():
+		burst.finished.connect(func():
+			for hit in hits:
+				if is_instance_valid(hit):
+					hit.queue_free())
+		# O tremor e o dano saem no auge da animação (peak), não no primeiro quadro.
+		await get_tree().create_timer(weight.get("peak", minf(frames / FX_FPS * 0.3, 0.35))).timeout
+		_hero_impact(weight, spots[0])
+		return
 	await burst.finished
 	for hit in hits:
 		hit.queue_free()
@@ -2894,7 +3156,8 @@ func _loop_frames(elapsed: float, fx: Sprite2D) -> void:
 	fx.frame = int(elapsed * FX_FPS) % fx.hframes
 
 
-func _fly_projectile(texture: String, from: Vector2, to: Vector2) -> void:
+## trail (herói): rastro de luz atrás do projétil, na cor pedida.
+func _fly_projectile(texture: String, from: Vector2, to: Vector2, trail := Color(0, 0, 0, 0)) -> void:
 	var fx := Sprite2D.new()
 	fx.texture = load("res://assets/fx/%s.png" % texture)
 	fx.position = from
@@ -2910,8 +3173,26 @@ func _fly_projectile(texture: String, from: Vector2, to: Vector2) -> void:
 	tween.set_parallel()
 	tween.tween_property(fx, "position", to, duration)
 	tween.tween_method(battle_camera.set_elevation.bind(fx), _height_at_point(from + Vector2(0, 90)), _height_at_point(to + Vector2(0, 90)), duration)
+	var streak: Sprite2D = null
+	if trail.a > 0.0:
+		streak = _glow_sprite("trace_07", trail, 0.3)
+		streak.scale = Vector2(0.22, 0.5)
+		streak.rotation = (to - from).angle() + PI / 2
+		streak.offset = Vector2(0, 230) # fica atrás da ponta
+		streak.position = from
+		streak.z_index = 899
+		_add_effect_billboard(streak, Vector2(0, 90), true)
+		tween.tween_property(streak, "position", to, duration)
+		tween.tween_method(battle_camera.set_elevation.bind(streak), _height_at_point(from + Vector2(0, 90)), _height_at_point(to + Vector2(0, 90)), duration)
+		if texture != "kit/arrow":
+			fx.modulate = Color.WHITE.lerp(trail, 0.6) # a bolha do kit ganha a cor do herói
+			_trail_embers(from, to, trail, duration)
 	await tween.finished
 	fx.queue_free()
+	if streak != null:
+		var fade := create_tween()
+		fade.tween_property(streak, "modulate:a", 0.0, 0.08)
+		fade.tween_callback(streak.queue_free)
 
 
 func _float_text(pos: Vector2, text: String, color: Color) -> void:
@@ -2953,3 +3234,523 @@ func _range_short(ability: Dictionary) -> String:
 	if ability["min_range"] > 1:
 		return "de %d a %d casas" % [ability["min_range"], ability["range"]]
 	return "só colado" if ability["range"] == 1 else "até %d casas" % ability["range"]
+
+
+# --- Juice dos heróis ------------------------------------------------------------
+# Só apresentação: os eventos e as regras são os mesmos. Muda quando o golpe acerta
+# (no frame do impacto, não no fim da animação) e o peso dele na tela: hitstop,
+# tremor, clarão, tranco, números que saltam. Pesos em hero_juice.gd.
+
+const RAIN_FALL := 0.24 # tempo de queda de cada virote da chuva
+const RAIN_HEIGHT := 520.0
+const RAIN_DRIFT := 160.0
+
+
+## Ponto da tela de algo desenhado no tabuleiro.
+func _screen_point(board_point: Vector2, elevation := 0.0) -> Vector2:
+	return battle_camera.project(board.global_transform * board_point, elevation)
+
+
+func _view_screen(view) -> Vector2:
+	return _screen_point(view.position, battle_camera.elevation_of(view)) + Vector2(0, -45)
+
+
+## Direção na tela de `from` até `to` (pontos do tabuleiro).
+func _screen_dir(from: Vector2, to: Vector2) -> Vector2:
+	var delta := _screen_point(to, _height_at_point(to)) - _screen_point(from, _height_at_point(from))
+	return delta.normalized() if delta.length() > 1.0 else Vector2.ZERO
+
+
+func _impact_fraction(unit, anim: UnitView.Anim) -> float:
+	if anim == UnitView.Anim.STRONG:
+		return HeroJuice.STRONG_HIT.get(unit.type_id, 0.5)
+	return HeroJuice.ATTACK_HIT
+
+
+## Espera a animação que está tocando chegar em `fraction` dos frames dela.
+func _wait_anim_frame(view, fraction: float) -> void:
+	var target := int(round(view.anim_frame_count() * fraction))
+	var guard := 0
+	while is_instance_valid(view) and not view.looping and int(view.frame_pos) < target and guard < 300:
+		guard += 1
+		await get_tree().process_frame
+
+
+## A luta acaba com este golpe: o último abate ganha câmera lenta.
+func _mark_final_kill(events: Array) -> void:
+	var last := -1
+	var ends := false
+	for i in events.size():
+		match events[i]["type"]:
+			"death":
+				last = i
+			"combat_end":
+				ends = true
+	if last < 0:
+		return
+	var decided: bool = ends or state.winner() >= 0
+	if not decided and exploring and state.in_combat():
+		decided = state.engaged.keys().all(func(u): return not u.alive())
+	if decided:
+		events[last]["final"] = true
+
+
+func _play_hero_attack(event: Dictionary, weight: Dictionary) -> void:
+	var unit = event["unit"]
+	var view = views[unit]
+	var target_view = views[event["target"]]
+	var id: String = event.get("ability", "")
+	var magic := SPELL_FX.has(id)
+	var shot: String = Data.ABILITIES[id].get("shot", "") if Data.ABILITIES.has(id) else ""
+	var anim := _attack_anim(unit, id)
+	var dir := _screen_dir(view.position, target_view.position)
+	weight["dir"] = dir
+	if not magic:
+		sound_manager.play_sfx(&"swing")
+	view.play_once(anim)
+	var fraction := _impact_fraction(unit, anim)
+	var reach: float = view.anim_frame_count() * fraction / UnitView.FPS
+	if shot == "" and not magic:
+		view.lunge(dir * weight.get("lunge", 34), reach, 0.12, 0.3)
+		var ghosts: int = weight.get("ghosts", 0)
+		for i in ghosts:
+			get_tree().create_timer(reach * (0.45 + 0.55 * i / maxf(ghosts, 1))).timeout.connect(_ghost.bind(view, weight["color"]))
+	await _wait_anim_frame(view, fraction)
+	hit_ctx = weight
+	hit_ctx["attacker"] = unit
+	hit_ctx["hits"] = 0
+	hit_ctx["screen_done"] = magic
+	if shot != "":
+		if weight.has("recoil"):
+			view.knock(-dir * weight["recoil"], 0.22)
+		_play_fx_layers(HeroJuice.muzzle_fx(weight["color"]), view.position + dir * 50.0, dir)
+		await _fly_projectile(shot, view.position + Vector2(0, -90), target_view.position + Vector2(0, -90), weight.get("trail", Color(0, 0, 0, 0)))
+		sound_manager.play_sfx(&"arrow_hit")
+	elif magic:
+		await _play_spell_fx(id, view.position + Vector2(0, -90), [target_view.position], weight)
+	else:
+		sound_manager.play_sfx(&"melee_hit")
+		if weight.get("heavy", false):
+			sound_manager.play_sfx(&"explosion")
+
+
+func _play_hero_cast(event: Dictionary, weight: Dictionary) -> void:
+	var unit = event["unit"]
+	var view = views[unit]
+	var id: String = event["id"]
+	var center: Vector2 = feet_of(event["tile"])
+	hit_from = center
+	_refresh_overlays()
+	var ult: bool = weight.get("ult", false)
+	var color: Color = weight["color"]
+	if ult:
+		# Magia máxima: o mundo escurece e só o mago e a magia brilham.
+		juice.dim(0.6, 0.35)
+		view.z_index = BattleJuice.DIM_Z + 10
+		juice.shake(0.18)
+		_play_fx_layers(HeroJuice.cast_fx(color), view.position, Vector2.UP)
+		sound_manager.play_sfx(&"charge")
+	view.clear_aura(true)
+	view.set_status("") # a magia saiu: some o "magia em N"
+	view.flash(Color(color.r * 3.0 + 0.6, color.g * 3.0 + 0.6, color.b * 3.0 + 0.6), 0.25)
+	view.play_once(UnitView.Anim.STRONG)
+	await _wait_anim_frame(view, _impact_fraction(unit, UnitView.Anim.STRONG))
+	weight["dir"] = _screen_dir(view.position, center)
+	weight["center"] = center
+	hit_ctx = weight
+	hit_ctx["attacker"] = unit
+	hit_ctx["area"] = true
+	hit_ctx["hits"] = 0
+	hit_ctx["screen_done"] = true
+	if SPELL_FX.has(id):
+		var spots := [center]
+		if SPELL_FX[id].get("per_cell", false):
+			var cells: Array = event["cells"].duplicate()
+			cells.sort_custom(func(a, b): return Hex.distance(a, event["tile"]) < Hex.distance(b, event["tile"]))
+			spots = cells.map(func(cell): return feet_of(cell))
+		await _play_spell_fx(id, view.position + Vector2(0, -90), spots, weight)
+	elif weight.has("rain"):
+		await _arrow_rain(event["cells"], weight)
+	else:
+		await _fly_projectile(Data.ABILITIES[id].get("shot", "kit/magic"), view.position + Vector2(0, -90), center + Vector2(0, -20), weight.get("trail", Color(0, 0, 0, 0)))
+		_hero_impact(weight, center)
+	# A área acende na cor do herói, sem segurar o dano.
+	var tween := create_tween().set_parallel()
+	var flashes := []
+	for cell in event["cells"]:
+		var flash := Polygon2D.new()
+		flash.polygon = hex_poly
+		_place_ground_marker(flash, cell)
+		flash.color = Color(color.r * 0.5 + 0.5, color.g * 0.5 + 0.5, color.b * 0.5 + 0.5, 0.6)
+		flash.position = cell_origin(cell)
+		flash.z_index = 880
+		board.add_child(flash)
+		flashes.append(flash)
+		tween.tween_property(flash, "modulate:a", 0.0, 0.4).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(func():
+		for flash in flashes:
+			flash.queue_free())
+	if ult:
+		get_tree().create_timer(0.7).timeout.connect(func():
+			if is_instance_valid(view):
+				view.z_index = _z(_row(unit.pos)) + 5)
+
+
+## O impacto na tela: tremor, tranco, clarão, zoom e as camadas no centro.
+func _hero_impact(weight: Dictionary, center: Vector2) -> void:
+	var trauma: float = weight.get("shake", 0.2)
+	juice.shake(trauma)
+	juice.push(weight.get("dir", Vector2.ZERO), 14.0 * trauma)
+	if weight.has("flash"):
+		juice.flash(weight["flash"], 0.3)
+	if weight.has("zoom"):
+		juice.punch_zoom(_screen_point(center, _height_at_point(center)) + Vector2(0, -40), weight["zoom"], 0.55)
+	if weight.has("impact"):
+		_play_fx_layers(weight["impact"], center, weight.get("dir", Vector2.RIGHT))
+	if weight.get("ult", false):
+		juice.dim(0.0, 0.6)
+
+
+func _play_hero_damage(event: Dictionary) -> void:
+	var target = event["target"]
+	var view = views[target]
+	view.set_hp(event["hp"])
+	var weight := hit_ctx
+	var hero_target := HeroJuice.is_hero(target.type_id)
+	var lethal: bool = event["hp"] <= 0
+	var flank: bool = event.get("flank", false)
+	var amount: int = event["amount"]
+	var share := clampf(float(amount) / maxf(target.max_hp, 1), 0.0, 1.0)
+	var area: bool = weight.get("area", false)
+	var from: Vector2 = weight.get("center", hit_from) if area else hit_from
+	var dir := _screen_dir(from, view.position)
+	if dir == Vector2.ZERO:
+		dir = Vector2(randf_range(-1.0, 1.0), -0.4).normalized()
+	sound_manager.play_sfx(&"hurt")
+	view.play_once(UnitView.Anim.HURT)
+	if hero_target:
+		juice.pulse_vignette(Color(0.85, 0.04, 0.04, 0.3 + 0.6 * clampf(share * 2.5, 0.0, 1.0)), 0.55)
+	if weight.is_empty():
+		# Um inimigo acertou um herói: leve, mas dá para sentir.
+		view.flash(Color(4.0, 1.3, 1.2))
+		view.knock(dir * (24.0 + 40.0 * share))
+		view.squash(0.12)
+		juice.jitter(view.sprite, 5.0, 0.08)
+		juice.hitstop(0.035 + 0.05 * share)
+		juice.shake(0.14 + 0.35 * share)
+		_pop_number(view.position, str(amount), Color(1.0, 0.32, 0.28), 1.0 + share, "FLANCO!" if flank else "")
+		await get_tree().create_timer(0.25).timeout
+		return
+	var first: bool = weight["hits"] == 0
+	weight["hits"] += 1
+	var power := 1.0 + (0.4 if flank else 0.0) + (0.5 if lethal else 0.0)
+	view.flash()
+	view.squash(minf(0.18 * power, 0.32))
+	view.knock(dir * weight.get("knock", 30) * power)
+	var stop: float = weight.get("stop", 0.05) * power
+	juice.jitter(view.sprite, 8.0, stop + 0.06)
+	if weight.has("fx") and weight["hits"] <= 5:
+		_play_fx_layers(weight["fx"], view.position, dir)
+	if first:
+		juice.hitstop(stop)
+		if not weight.get("screen_done", false):
+			var trauma: float = weight.get("shake", 0.2) * power
+			juice.shake(trauma)
+			juice.push(dir, 14.0 * trauma)
+			if weight.has("flash"):
+				juice.flash(weight["flash"])
+			if weight.has("zoom"):
+				juice.punch_zoom(_view_screen(view), weight["zoom"], 0.45)
+	else:
+		juice.shake(0.12)
+	if lethal:
+		juice.slowmo(0.4, 0.28)
+		juice.punch_zoom(_view_screen(view), maxf(weight.get("zoom", 0.0), 0.035), 0.5)
+	var heavy: bool = weight.get("stop", 0.0) >= 0.1 or lethal or flank
+	var ink := Color(1.0, 0.82, 0.25) if heavy else Color(1.0, 0.97, 0.9)
+	if hero_target:
+		ink = Color(1.0, 0.32, 0.28) # fogo amigo
+	var big := clampf(0.95 + amount / 22.0 + (0.25 if heavy else 0.0), 1.0, 1.8)
+	_pop_number(view.position, str(amount), ink, big, "FLANCO!" if flank else "")
+	await get_tree().create_timer(0.07 if area else 0.25).timeout
+
+
+func _play_hero_death(event: Dictionary) -> void:
+	var target = event["target"]
+	var view = views[target]
+	var hero_died := HeroJuice.is_hero(target.type_id)
+	view.clear_aura(false)
+	sound_manager.play_sfx(&"death_hero" if target.team == Data.Team.PLAYER else &"death_monster")
+	view.flash(Color(5.0, 1.4, 1.3) if hero_died else Color(8, 8, 8), 0.35)
+	if event.get("final", false):
+		# O golpe que decide a luta.
+		juice.slowmo(0.22, 0.85)
+		juice.punch_zoom(_view_screen(view), 0.1, 1.2)
+		juice.flash(Color(1.0, 0.25, 0.2, 0.3) if hero_died else Color(1.0, 0.95, 0.85, 0.28), 0.45)
+		juice.shake(0.5)
+	elif hero_died:
+		juice.slowmo(0.35, 0.5)
+		juice.pulse_vignette(Color(0.9, 0.05, 0.05, 0.85), 1.0)
+		juice.shake(0.45)
+	else:
+		juice.shake(0.22)
+	_play_fx_layers(HeroJuice.death_fx(hero_died), view.position, Vector2.UP)
+	var tween := create_tween()
+	tween.tween_method(view.set_jump_height, 0.0, 36.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_method(view.set_jump_height, 36.0, 0.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.parallel().tween_property(view, "rotation", deg_to_rad(80 if view.sprite.flip_h else -80), 0.3)
+	tween.tween_callback(view.squash.bind(0.25, 0.3))
+	tween.tween_property(view, "modulate:a", 0.0, 0.35)
+	await tween.finished
+	if is_instance_valid(view): # a exploração pode ter tirado o corpo do mapa no meio
+		view.visible = false
+
+
+func _play_hero_guard(unit, id: String) -> void:
+	var weight := HeroJuice.for_guard(unit.type_id, id)
+	if weight.is_empty():
+		return
+	var view = views[unit]
+	var color: Color = weight["color"]
+	_play_fx_layers(weight["fx"], view.position, Vector2.UP)
+	view.flash(Color(color.r * 2.5 + 0.6, color.g * 2.5 + 0.6, color.b * 2.5 + 0.6), 0.35)
+	view.squash(-0.12, 0.45)
+	juice.shake(weight.get("shake", 0.1))
+
+
+## Saraivada e Chuva de Virotes: virotes caem do céu em cada casa da área.
+func _arrow_rain(cells: Array, weight: Dictionary) -> void:
+	var drops := []
+	for cell in cells:
+		for i in int(weight.get("rain", 2)):
+			drops.append(cell)
+	drops.shuffle()
+	sound_manager.play_sfx(&"swing")
+	var spread := 0.3 + 0.03 * drops.size()
+	var last := 0.0
+	for i in drops.size():
+		var delay := 0.0 if i == 0 else randf() * spread
+		last = maxf(last, delay)
+		_rain_arrow(drops[i], delay, weight, i == 0)
+	await get_tree().create_timer(RAIN_FALL + minf(last, 0.25)).timeout
+
+
+func _rain_arrow(cell: Vector2i, delay: float, weight: Dictionary, first: bool) -> void:
+	if delay > 0.0:
+		await get_tree().create_timer(delay).timeout
+	if board == null or not is_instance_valid(board):
+		return
+	var feet := feet_of(cell) + Vector2(randf_range(-40, 40), randf_range(-20, 20))
+	var base := _cell_elevation(cell)
+	var arrow := Sprite2D.new()
+	arrow.texture = load("res://assets/fx/kit/arrow.png")
+	arrow.rotation = Vector2(RAIN_DRIFT, RAIN_HEIGHT).angle() - Vector2(-22, 12).angle()
+	arrow.scale = Vector2.ONE * 0.6
+	arrow.offset = Vector2(22, -12).normalized() * 80.0 # a ponta fica no chão, não o meio
+	arrow.z_index = 900
+	board.add_child(arrow)
+	battle_camera.add_billboard(arrow, Vector2.ZERO, base)
+	_rain_frame(0.0, arrow, feet, base)
+	var fall := create_tween()
+	fall.tween_method(_rain_frame.bind(arrow, feet, base), 0.0, 1.0, RAIN_FALL).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await fall.finished
+	if not is_instance_valid(arrow):
+		return
+	if first or randf() < 0.3:
+		sound_manager.play_sfx(&"arrow_hit")
+	_play_fx_layers(HeroJuice.landing_fx(weight["color"]), feet, Vector2.UP)
+	if first:
+		_hero_impact(weight, weight.get("center", feet))
+	else:
+		juice.shake(0.07)
+	var fade := create_tween()
+	fade.tween_interval(0.2)
+	fade.tween_property(arrow, "modulate:a", 0.0, 0.2)
+	fade.tween_callback(arrow.queue_free)
+
+
+## A altura vira elevação (como os degraus), para o virote cair sem mudar de casa.
+func _rain_frame(progress: float, arrow: Sprite2D, feet: Vector2, base: float) -> void:
+	if not is_instance_valid(arrow):
+		return
+	var height := (1.0 - progress) * RAIN_HEIGHT
+	arrow.position = feet + Vector2(-RAIN_DRIFT * (1.0 - progress), -height)
+	battle_camera.set_elevation(base + height * BOARD_SCALE, arrow)
+
+
+## Rastro do corpo no avanço (Duelista).
+func _ghost(view, color: Color) -> void:
+	if not is_instance_valid(view) or not view.visible:
+		return
+	var source: Sprite2D = view.sprite
+	var ghost := Sprite2D.new()
+	ghost.texture = source.texture
+	ghost.hframes = source.hframes
+	ghost.vframes = source.vframes
+	ghost.frame = source.frame
+	ghost.flip_h = source.flip_h
+	ghost.offset = source.offset
+	ghost.texture_filter = source.texture_filter
+	ghost.scale = source.scale * view.scale
+	ghost.position = view.position + view.visual_root.position * view.scale
+	ghost.modulate = Color(color.r, color.g, color.b, 0.5)
+	ghost.z_index = view.z_index - 1
+	board.add_child(ghost)
+	battle_camera.add_billboard(ghost, view.position - ghost.position, battle_camera.elevation_of(view), true)
+	var tween := create_tween()
+	tween.tween_property(ghost, "modulate:a", 0.0, 0.28)
+	tween.tween_callback(ghost.queue_free)
+
+
+func _glow_sprite(tex: String, color: Color, size: float) -> Sprite2D:
+	var glow := Sprite2D.new()
+	glow.texture = load("res://assets/fx/kenney/%s.png" % tex)
+	glow.modulate = color
+	glow.scale = Vector2.ONE * size
+	glow.z_index = 899
+	board.add_child(glow)
+	return glow
+
+
+## Brasas soltas pelo caminho de um projétil.
+func _trail_embers(from: Vector2, to: Vector2, color: Color, duration: float) -> void:
+	var parts := CPUParticles2D.new()
+	parts.texture = load("res://assets/fx/kenney/star_04.png")
+	parts.amount = 28
+	parts.lifetime = 0.35
+	parts.local_coords = false
+	parts.direction = Vector2.UP
+	parts.spread = 180.0
+	parts.initial_velocity_min = 15.0
+	parts.initial_velocity_max = 60.0
+	parts.gravity = Vector2(0, -80)
+	parts.scale_amount_min = 0.05
+	parts.scale_amount_max = 0.1
+	var fade := Gradient.new()
+	fade.set_color(0, Color(color * 1.6, 1.0))
+	fade.set_color(1, Color(color, 0.0))
+	parts.color_ramp = fade
+	parts.position = from
+	parts.z_index = 898
+	board.add_child(parts)
+	_add_effect_billboard(parts, Vector2(0, 90), true)
+	var tween := create_tween().set_parallel()
+	tween.tween_property(parts, "position", to, duration)
+	tween.tween_method(battle_camera.set_elevation.bind(parts), _height_at_point(from + Vector2(0, 90)), _height_at_point(to + Vector2(0, 90)), duration)
+	tween.chain().tween_callback(func(): parts.emitting = false)
+	tween.chain().tween_interval(0.5)
+	tween.chain().tween_callback(parts.queue_free)
+
+
+func _step_dust(cell: Vector2i, big: bool) -> void:
+	_play_fx_layers(HeroJuice.dust_fx(big), feet_of(cell), Vector2.UP)
+
+
+## Camadas de efeito (formato de hero_juice.gd) em volta dos pés `feet`.
+func _play_fx_layers(layers: Array, feet: Vector2, dir := Vector2.RIGHT) -> void:
+	for layer in layers:
+		var delay: float = layer.get("delay", 0.0)
+		if delay > 0.0:
+			get_tree().create_timer(delay).timeout.connect(_play_fx_layer.bind(layer, feet, dir))
+		else:
+			_play_fx_layer(layer, feet, dir)
+
+
+func _play_fx_layer(layer: Dictionary, feet: Vector2, dir: Vector2) -> void:
+	if board == null or not is_instance_valid(board):
+		return
+	var tex: Texture2D = load("res://assets/fx/kenney/%s.png" % layer["tex"])
+	var color: Color = layer["color"]
+	var life: float = layer["life"]
+	var size: float = layer["size"]
+	var height: float = layer.get("height", 80.0)
+	var item: Node2D
+	match layer["kind"]:
+		"burst":
+			var parts := CPUParticles2D.new()
+			parts.texture = tex
+			parts.one_shot = true
+			parts.explosiveness = 1.0
+			parts.amount = layer["amount"]
+			parts.lifetime = life
+			parts.direction = dir if layer.get("along", false) and dir != Vector2.ZERO else Vector2.UP
+			parts.spread = layer.get("spread", 180.0)
+			parts.initial_velocity_min = layer["speed"][0]
+			parts.initial_velocity_max = layer["speed"][1]
+			parts.gravity = Vector2(0, layer.get("gravity", 0.0))
+			parts.damping_min = 80.0
+			parts.damping_max = 160.0
+			parts.angle_min = -180.0
+			parts.angle_max = 180.0
+			parts.scale_amount_min = size * 0.6
+			parts.scale_amount_max = size * 1.2
+			var fade := Gradient.new()
+			fade.set_color(0, color)
+			fade.set_color(1, Color(color, 0.0))
+			parts.color_ramp = fade
+			parts.position = feet + Vector2(0, -height)
+			parts.emitting = true
+			item = parts
+		"flash":
+			var flash := Sprite2D.new()
+			flash.texture = tex
+			flash.modulate = color
+			flash.position = feet + Vector2(0, -height)
+			var stretch: Vector2 = layer.get("stretch", Vector2.ONE)
+			flash.scale = stretch * size * layer.get("grow", 0.5)
+			flash.rotation = dir.angle() + layer.get("turn", 0.0) if layer.get("align", false) else randf() * TAU
+			item = flash
+			var tween := create_tween().set_parallel()
+			tween.tween_property(flash, "scale", stretch * size, life).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tween.tween_property(flash, "modulate:a", 0.0, life).set_ease(Tween.EASE_IN)
+			tween.tween_property(flash, "rotation", flash.rotation + layer.get("spin", 0.3), life)
+		"ring":
+			var ring := Sprite2D.new()
+			ring.texture = tex
+			ring.modulate = color
+			ring.position = feet + Vector2(0, -4)
+			ring.scale = Vector2(0.15, 0.06)
+			item = ring
+			var tween := create_tween().set_parallel()
+			tween.tween_property(ring, "scale", Vector2(size, size * 0.4), life).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tween.tween_property(ring, "modulate:a", 0.0, life).set_ease(Tween.EASE_IN)
+	item.z_index = 900
+	board.add_child(item)
+	_add_effect_billboard(item, feet - item.position, layer.get("add", false))
+	get_tree().create_timer(life + 0.5).timeout.connect(item.queue_free)
+
+
+## Número de dano que salta, cresce e cai de lado; não para no hitstop.
+func _pop_number(feet: Vector2, text: String, color: Color, big := 1.0, tag := "") -> void:
+	var drift := randf_range(-55.0, 55.0)
+	_number_label(feet, text, color, int(48 * big), drift, -215.0, 0.0)
+	if tag != "":
+		_number_label(feet, tag, Color(1.0, 0.85, 0.3), 30, drift, -215.0 - 48.0 * big, 0.05)
+
+
+func _number_label(feet: Vector2, text: String, color: Color, font_size: int, drift: float, lift: float, delay: float) -> void:
+	var label := Label.new()
+	label.text = text
+	label.z_index = 1000
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.06, 0.02, 0.02))
+	label.add_theme_constant_override("outline_size", maxi(10, font_size / 4))
+	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.55))
+	label.add_theme_constant_override("shadow_offset_x", 3)
+	label.add_theme_constant_override("shadow_offset_y", 5)
+	board.add_child(label)
+	label.reset_size()
+	label.pivot_offset = label.size / 2
+	label.position = feet + Vector2(drift * 0.3, lift) - label.size / 2
+	label.scale = Vector2.ONE * 0.25
+	_add_effect_billboard(label, feet - label.position)
+	var pop := create_tween().set_ignore_time_scale(true)
+	pop.tween_interval(delay)
+	pop.tween_property(label, "scale", Vector2.ONE * 1.35, 0.08).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	pop.tween_property(label, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var rise := create_tween().set_ignore_time_scale(true).set_parallel()
+	rise.tween_property(label, "position:y", label.position.y - 90.0, 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT).set_delay(delay)
+	rise.tween_property(label, "position:x", label.position.x + drift, 0.8).set_delay(delay)
+	rise.tween_property(label, "modulate:a", 0.0, 0.3).set_delay(delay + 0.6)
+	rise.chain().tween_callback(label.queue_free)

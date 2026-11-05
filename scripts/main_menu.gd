@@ -13,6 +13,7 @@ var sound_manager:
 
 const GameData = preload("res://scripts/game_data.gd")
 const GameSettings = preload("res://scripts/game_settings.gd")
+const SaveGame = preload("res://scripts/save_game.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
 const FONT := preload("res://assets/fonts/LibreBaskerville.ttf")
 const BACKGROUND := preload("res://assets/menu/fundo.jpg")
@@ -471,6 +472,20 @@ func _close_modal() -> void:
 func _build_options() -> void:
 	var parts := _modal("Ajustes", 440.0)
 	options = parts["root"]
+	var load_button := Button.new()
+	load_button.text = "Carregar jogo"
+	load_button.disabled = not SaveGame.exists()
+	load_button.tooltip_text = SaveGame.summary()
+	load_button.custom_minimum_size.y = 44
+	load_button.add_theme_font_override("font", title_font)
+	load_button.add_theme_font_size_override("font_size", 16)
+	load_button.add_theme_color_override("font_color", INK)
+	load_button.add_theme_stylebox_override("normal", _button_box(GOLD))
+	load_button.add_theme_stylebox_override("hover", _button_box(GOLD.lightened(0.25)))
+	load_button.add_theme_stylebox_override("pressed", _button_box(GOLD.darkened(0.15)))
+	load_button.pressed.connect(_load_game)
+	parts["body"].add_child(load_button)
+	sound_manager.bind_button(load_button)
 	var volume_label := _text(parts["body"], "Volume geral: %d%%" % GameSettings.volume(), body_font, 15, TEXT)
 	volume_slider = HSlider.new()
 	volume_slider.min_value = 0
@@ -536,3 +551,13 @@ func _fill_archive() -> void:
 	var story := _text(body, note if note != "" else "Nenhuma expedição voltou ainda. O arquivo espera por suas histórias.", body_font, 14, TEXT_DIM)
 	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	story.custom_minimum_size.x = 460
+
+
+func _load_game() -> void:
+	var data := SaveGame.read()
+	if data.is_empty():
+		return
+	get_tree().root.set_meta("load_save", data)
+	var error := get_tree().change_scene_to_file("res://main.tscn")
+	if error != OK:
+		push_error("Não foi possível carregar o jogo: %s" % error)

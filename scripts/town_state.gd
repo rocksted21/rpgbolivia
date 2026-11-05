@@ -21,11 +21,13 @@ var levels := {}
 var props := {}
 var people := {}
 var rescued := []
+var town_setup := {} # o save refaz a cidade com ele
 
 
 ## `town`: de TownProgress.expedition_setup().
 func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Dictionary = {}) -> void:
 	super(heroes, world_seed, builds)
+	town_setup = town.duplicate(true)
 	rescued = town.get("rescued", [])
 	_build_ground()
 	_build_places()

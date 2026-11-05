@@ -21,7 +21,16 @@ const ROWS := [
 # Começo do nome da animação no export (o PixelLab troca maiúsculas e às vezes
 # reescreve o nome das custom). O ataque é a animação que sobra.
 const NAMES := {"idle": "idle", "walk": "walking", "hurt": "jerk_backward", "strong": "strong"}
-const CHARACTERS := ["guardiao", "duelista", "besteiro", "mago", "druida", "mago_agua", "esqueleto", "mumia", "diabrete", "feiticeira", "cerbero"]
+# Todo herói tem um ataque normal e um forte, usados por várias habilidades.
+# Nomes que não dizem o que são ficam aqui (a Druida: cura é o normal, atack é o forte).
+const RENAMES := {"druida": {"cura": "attack", "atack": "strong"}}
+# Chefes dos faróis: canvas grande, então a folha fica em 1x e o jogo amplia 2x.
+const BOSSES := ["boss_cervo", "boss_serpente", "boss_jarl", "boss_farao"]
+const CHARACTERS := ["boss_cervo", "boss_serpente", "boss_jarl", "boss_farao", "guardiao", "duelista", "besteiro", "mago", "druida", "mago_agua", "esqueleto", "mumia", "diabrete", "feiticeira", "cerbero"]
+
+
+var pixel_scale := PIXEL_SCALE
+var renames := {}
 
 
 func _initialize() -> void:
@@ -30,6 +39,8 @@ func _initialize() -> void:
 	var meta_path := out.path_join("meta.json")
 	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
 	for key in CHARACTERS:
+		pixel_scale = 1 if key in BOSSES else PIXEL_SCALE
+		renames = RENAMES.get(key, {})
 		meta[key] = _build_sheet(key, src.path_join(key), "%s/%s.png" % [out, key])
 	var file := FileAccess.open(meta_path, FileAccess.WRITE)
 	file.store_string(JSON.stringify(meta, "\t"))
@@ -82,6 +93,7 @@ func _build_sheet(key: String, dir: String, dst: String) -> Dictionary:
 		"frames": columns,
 		"row_frames": rows.map(func(r): return r.size()),
 		"pixel": true, "directions": true,
+		"texture_scale": PIXEL_SCALE / pixel_scale,
 	}
 
 
@@ -101,6 +113,10 @@ func _frames(dir: String, anims: Dictionary, kind: String, direction: String) ->
 
 
 func _kind_of(anim: String) -> String:
+	if renames.has(anim.to_lower()):
+		return renames[anim.to_lower()]
+	if anim.to_lower().contains("strong"): # "attack_strong", "2_attack_strong"...
+		return "strong"
 	for kind in NAMES:
 		if anim.to_lower().begins_with(NAMES[kind]):
 			return kind
@@ -110,7 +126,7 @@ func _kind_of(anim: String) -> String:
 func _load(dir: String, path: String, mirror: bool) -> Image:
 	var img := Image.load_from_file(dir.path_join(path))
 	img.convert(Image.FORMAT_RGBA8)
-	img.resize(img.get_width() * PIXEL_SCALE, img.get_height() * PIXEL_SCALE, Image.INTERPOLATE_NEAREST)
+	img.resize(img.get_width() * pixel_scale, img.get_height() * pixel_scale, Image.INTERPOLATE_NEAREST)
 	if mirror:
 		img.flip_x()
 	return img

@@ -318,8 +318,10 @@ func test_boss() -> void:
 	_visit(state, state.beacon_cell)
 	check(state.boss != null, "chegar ao farol acorda o guardião")
 	check(state.in_combat(), "o guardião começa o combate")
-	check(state.is_boss(state.boss) and state.boss.display_name == Exp.BOSS["name"], "o guardião tem nome")
-	check(state.boss.abilities == Exp.BOSS["abilities"], "o guardião tem habilidades próprias")
+	check(state.is_boss(state.boss) and state.boss.display_name != "", "o guardião tem nome")
+	check(state.boss.type_id == Exp.BOSS_BY_BIOME.get(state.biome_at(state.beacon_cell), Exp.BOSS["type"]), "o guardião é o do bioma do farol")
+	var own: bool = Exp.BOSS_BY_BIOME.has(state.biome_at(state.beacon_cell))
+	check(state.boss.abilities == (Data.UNIT_TYPES[state.boss.type_id]["abilities"] if own else Exp.BOSS["abilities"]), "o guardião tem habilidades próprias")
 	check(state.winner() < 0, "a luta ainda não acabou")
 	var total: int = state.brasas
 	state._apply_damage(state.boss, 99999, [], {})

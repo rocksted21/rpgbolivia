@@ -16,6 +16,7 @@ var terrain: Array
 var elevation: Array
 var units := []
 var next_uid := 1
+var builds_used: Variant = {} # nós da árvore usados ao criar os heróis; o save refaz a party com eles
 
 
 func _init(map_terrain: Array = Data.MAP_TERRAIN, map_elevation: Array = Data.MAP_ELEVATION) -> void:
@@ -35,6 +36,7 @@ func add_unit(type_id: String, team: int, pos: Vector2i, build: Array = []):
 ## `builds` traz os nós comprados: {índice em Data.BATTLE_UNITS: [nós]}.
 static func from_data(builds := {}):
 	var state = new()
+	state.builds_used = builds.duplicate(true)
 	for i in Data.BATTLE_UNITS.size():
 		var entry: Array = Data.BATTLE_UNITS[i]
 		state.add_unit(entry[0], entry[1], entry[2], builds.get(i, []))

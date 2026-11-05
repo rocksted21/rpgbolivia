@@ -24,6 +24,7 @@ var known := {} # toda unidade já vista, por uid: eventos podem citar quem já 
 ## ou a lista de nós quando há um herói só.
 func _init(heroes: Variant, world_seed: int, builds: Variant = {}) -> void:
 	super()
+	builds_used = builds.duplicate(true)
 	rng.seed = world_seed
 	gen = WorldGen.new(world_seed)
 	start_cell = gen.find_start()

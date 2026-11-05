@@ -37,6 +37,13 @@ const BOSS := {
 	"brasas": 15,
 	"xp": 100,
 }
+# Cada bioma tem o seu guardião (tipo em Data.UNIT_TYPES); o que não estiver aqui usa BOSS.
+const BOSS_BY_BIOME := {
+	"floresta": "boss_cervo",
+	"selva": "boss_serpente",
+	"neve": "boss_jarl",
+	"deserto": "boss_farao",
+}
 
 const KILL_XP := 10
 const LEVEL_XP := [0, 60, 160, 320, 520] # experiência total para cada nível da expedição
