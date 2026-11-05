@@ -17,11 +17,13 @@ var rescued := []
 var memories := []
 var known_residents := []
 var known_memories := 0
+var town_setup := {} # o que a cidade deu à party; o save refaz a expedição com ele
 
 
 ## `town`: o que a cidade dá à party, de TownProgress.expedition_setup().
 func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Dictionary = {}) -> void:
 	super(heroes, world_seed, builds)
+	town_setup = town.duplicate(true)
 	known_residents = town.get("rescued", [])
 	known_memories = town.get("memories", 0)
 	for member in party:
@@ -265,13 +267,15 @@ func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
 	var spots := _spots_around(cell, Exp.BOSS["escort"] + 1)
 	if spots.is_empty():
 		return
-	boss = _spawn_enemy(Exp.BOSS["type"], spots[0])
-	boss.display_name = Exp.BOSS["name"]
+	var boss_type: String = Exp.BOSS_BY_BIOME.get(biome_at(cell), Exp.BOSS["type"])
+	var own_boss := boss_type != Exp.BOSS["type"]
+	boss = _spawn_enemy(boss_type, spots[0])
+	boss.display_name = Data.UNIT_TYPES[boss_type]["name"] if own_boss else Exp.BOSS["name"]
 	boss.max_hp = roundi(boss.max_hp * Exp.BOSS["hp_mult"])
 	boss.hp = boss.max_hp
 	boss.atk = roundi(boss.atk * Exp.BOSS["atk_mult"])
 	boss.speed = Exp.BOSS["speed"]
-	boss.abilities = Exp.BOSS["abilities"].duplicate()
+	boss.abilities = (Data.UNIT_TYPES[boss_type]["abilities"] if own_boss else Exp.BOSS["abilities"]).duplicate()
 	events.append({"type": "spawn", "unit": boss})
 	var guards := [boss]
 	for i in range(1, spots.size()):
@@ -280,7 +284,7 @@ func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
 		events.append({"type": "spawn", "unit": unit})
 	entry["state"] = "fighting"
 	entry["guards"] = [boss]
-	events.append({"type": "landmark", "cell": cell, "title": Exp.BOSS["name"], "detail": "Derrote o guardião para acender o farol.", "done": false, "color": Color(1.0, 0.45, 0.35)})
+	events.append({"type": "landmark", "cell": cell, "title": boss.display_name, "detail": "Derrote o guardião para acender o farol.", "done": false, "color": Color(1.0, 0.45, 0.35)})
 	events.append_array(engage(guards, true))
 
 

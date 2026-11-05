@@ -12,6 +12,7 @@ var sound_manager:
 
 const GameData = preload("res://scripts/game_data.gd")
 const GameSettings = preload("res://scripts/game_settings.gd")
+const SaveGame = preload("res://scripts/save_game.gd")
 
 const INK := Color("191e2a")
 const GOLD := Color("f2ca76")
@@ -43,6 +44,10 @@ func _ready() -> void:
 	_spacer(column, 20)
 	single_player = _button(column, "Single Player", true)
 	single_player.pressed.connect(_enter_town)
+	var load_button := _button(column, "Carregar jogo")
+	load_button.disabled = not SaveGame.exists()
+	load_button.tooltip_text = SaveGame.summary()
+	load_button.pressed.connect(_load_game)
 	var online_button := _button(column, "Online")
 	online_button.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/online_lobby.tscn"))
 	var heroes_button := _button(column, "Heróis")
@@ -146,3 +151,13 @@ func _box(color: Color) -> StyleBoxFlat:
 	style.content_margin_left = 20
 	style.content_margin_right = 20
 	return style
+
+
+func _load_game() -> void:
+	var data := SaveGame.read()
+	if data.is_empty():
+		return
+	get_tree().root.set_meta("load_save", data)
+	var error := get_tree().change_scene_to_file("res://main.tscn")
+	if error != OK:
+		push_error("Não foi possível carregar o jogo: %s" % error)

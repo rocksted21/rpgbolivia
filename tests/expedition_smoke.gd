@@ -8,6 +8,7 @@ const HeroProgress = preload("res://scripts/hero_progress.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
 const GameSettings = preload("res://scripts/game_settings.gd")
+const SaveGame = preload("res://scripts/save_game.gd")
 
 const TIMEOUT_SECONDS := 240.0
 
@@ -22,6 +23,7 @@ func _initialize() -> void:
 	HeroProgress.path = "user://test_progress_expedition.cfg"
 	TownProgress.path = "user://test_town_smoke.cfg"
 	GameSettings.path = "user://test_settings_smoke.cfg"
+	SaveGame.path = "user://test_save_smoke.dat"
 	DirAccess.remove_absolute(GameSettings.path)
 	DirAccess.remove_absolute(HeroProgress.path)
 	DirAccess.remove_absolute(TownProgress.path)
@@ -222,22 +224,37 @@ func _put_party_near(state, cell: Vector2i) -> void:
 
 func _test_volume() -> void:
 	var hud = view.hud
-	_expect(hud.volume_button.text == "Volume 100%", "o botão mostra o volume")
-	_expect(not hud.volume_panel.visible, "o painel começa fechado")
-	hud.volume_button.pressed.emit()
-	_expect(hud.volume_panel.visible, "o botão abre o painel")
+	_expect(hud.options_button.text == "Opções", "o canto mostra o botão de opções")
+	_expect(not hud.options_open(), "o menu começa fechado")
+	hud.options_button.pressed.emit()
+	_expect(hud.options_open() and paused, "o botão abre o menu e pausa o jogo")
+	_expect(hud.volume_label.text == "Volume: 100%", "o menu mostra o volume")
 	hud.volume_slider.value = 35
 	_expect(is_equal_approx(AudioServer.get_bus_volume_linear(0), 0.35), "o controle abaixa o volume")
-	_expect(hud.volume_button.text == "Volume 35%", "o botão acompanha o volume")
+	_expect(hud.volume_label.text == "Volume: 35%", "o texto acompanha o volume")
+	hud.save_button.pressed.emit()
+	_expect(SaveGame.exists() and hud.options_note.text == "Jogo salvo!", "salvar grava o jogo")
+	_expect(not hud.load_button.disabled, "depois de salvar dá para carregar")
 	await _wait_frames(3)
-	await _shot("2b_volume")
+	await _shot("2b_opcoes")
 	hud.volume_mute.button_pressed = true
-	_expect(AudioServer.is_bus_mute(0) and hud.volume_button.text == "Sem som", "silenciar funciona")
+	_expect(AudioServer.is_bus_mute(0) and hud.volume_label.text == "Volume: sem som", "silenciar funciona")
 	hud.volume_slider.value = 60
 	_expect(not AudioServer.is_bus_mute(0), "mexer no volume tira do silêncio")
-	hud.volume_button.pressed.emit()
-	_expect(not hud.volume_panel.visible, "o botão fecha o painel")
+	for child in hud.options_panel.get_child(0).get_children():
+		if child is Button and child.text == "Sair do jogo":
+			child.pressed.emit()
+	_expect(hud.quit_panel.visible and not hud.options_panel.visible, "sair pede confirmação")
+	await _wait_frames(3)
+	await _shot("2c_sair_confirmar")
+	for child in hud.quit_panel.get_child(0).get_child(2).get_children():
+		if child.text == "Cancelar":
+			child.pressed.emit()
+	_expect(hud.options_panel.visible and not hud.quit_panel.visible, "cancelar volta ao menu")
+	hud.close_options()
+	_expect(not hud.options_open() and not paused, "voltar ao jogo fecha e despausa")
 	DirAccess.remove_absolute(GameSettings.path)
+	DirAccess.remove_absolute(SaveGame.path)
 	GameSettings.apply()
 
 

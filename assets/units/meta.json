@@ -21,7 +21,108 @@
 			13,
 			13,
 			13
-		]
+		],
+		"texture_scale": 1
+	},
+	"boss_cervo": {
+		"cell_h": 172,
+		"cell_w": 172,
+		"directions": true,
+		"feet_y": 146,
+		"frames": 13,
+		"height": 121,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			9,
+			1,
+			8,
+			8,
+			9,
+			9,
+			1,
+			1,
+			13,
+			13,
+			13
+		],
+		"texture_scale": 2
+	},
+	"boss_farao": {
+		"cell_h": 168,
+		"cell_w": 168,
+		"directions": true,
+		"feet_y": 141,
+		"frames": 13,
+		"height": 116,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			1,
+			1,
+			8,
+			8,
+			9,
+			1,
+			1,
+			1,
+			1,
+			13,
+			1
+		],
+		"texture_scale": 2
+	},
+	"boss_jarl": {
+		"cell_h": 250,
+		"cell_w": 250,
+		"directions": true,
+		"feet_y": 183,
+		"frames": 17,
+		"height": 118,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			12,
+			1,
+			8,
+			8,
+			12,
+			12,
+			1,
+			1,
+			12,
+			17,
+			12
+		],
+		"texture_scale": 2
+	},
+	"boss_serpente": {
+		"cell_h": 176,
+		"cell_w": 176,
+		"directions": true,
+		"feet_y": 143,
+		"frames": 13,
+		"height": 110,
+		"pixel": true,
+		"row_frames": [
+			8,
+			8,
+			1,
+			1,
+			8,
+			8,
+			12,
+			1,
+			1,
+			1,
+			1,
+			13,
+			1
+		],
+		"texture_scale": 2
 	},
 	"cerbero": {
 		"cell_h": 248,
@@ -42,7 +143,8 @@
 			9,
 			9,
 			9
-		]
+		],
+		"texture_scale": 1
 	},
 	"diabrete": {
 		"cell_h": 224,
@@ -63,7 +165,8 @@
 			8,
 			9,
 			9
-		]
+		],
+		"texture_scale": 1
 	},
 	"druida": {
 		"cell_h": 256,
@@ -87,7 +190,8 @@
 			13,
 			13,
 			13
-		]
+		],
+		"texture_scale": 1
 	},
 	"duelista": {
 		"cell_h": 256,
@@ -111,7 +215,8 @@
 			12,
 			12,
 			12
-		]
+		],
+		"texture_scale": 1
 	},
 	"esqueleto": {
 		"cell_h": 248,
@@ -132,7 +237,8 @@
 			8,
 			9,
 			9
-		]
+		],
+		"texture_scale": 1
 	},
 	"feiticeira": {
 		"cell_h": 248,
@@ -153,7 +259,8 @@
 			9,
 			9,
 			9
-		]
+		],
+		"texture_scale": 1
 	},
 	"guardiao": {
 		"cell_h": 288,
@@ -165,11 +272,11 @@
 		"pixel": true,
 		"row_frames": [
 			8,
-			1,
+			8,
 			8,
 			1,
 			8,
-			1,
+			8,
 			8,
 			8,
 			1,
@@ -177,7 +284,8 @@
 			13,
 			13,
 			13
-		]
+		],
+		"texture_scale": 1
 	},
 	"mago": {
 		"cell_h": 256,
@@ -201,7 +309,8 @@
 			8,
 			13,
 			8
-		]
+		],
+		"texture_scale": 1
 	},
 	"mago_agua": {
 		"cell_h": 256,
@@ -225,7 +334,8 @@
 			13,
 			13,
 			13
-		]
+		],
+		"texture_scale": 1
 	},
 	"mumia": {
 		"cell_h": 256,
@@ -246,6 +356,7 @@
 			8,
 			9,
 			9
-		]
+		],
+		"texture_scale": 1
 	}
 }

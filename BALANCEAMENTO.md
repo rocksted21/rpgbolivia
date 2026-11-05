@@ -107,3 +107,13 @@ Dados em `scripts/skill_data.gd`; save em `user://progress.cfg`.
 perigo sobe com a distância, mas não considera a build. Proteção e Pelas Costas
 dependem de aliados e não servem para o herói sozinho na exploração. As habilidades novas receberam
 valores iniciais e passaram só por testes de regra, não por partidas jogadas.
+
+## Ataques iniciais novos (2026-11-05)
+
+Cada herói tem duas animações de golpe, a normal e a forte, que servem a várias habilidades (lista em `scripts/hero_juice.gd`). Para usar as duas desde o início:
+
+- Duelista ganhou **Corte Giratório** (corpo a corpo, força 1,3, tempo 210).
+- Besteiro ganhou **Virote Pesado** (alcance 2–4, força 1,25, tempo 230).
+- Druida trocou o Golpe corpo a corpo por **Chicote de Vinhas** (alcance 1–2, força 0,9, tempo 150). A animação de cura dela é a normal; todos os ataques usam a forte.
+
+Ainda não foram medidos em partidas simuladas.

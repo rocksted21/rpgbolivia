@@ -3,6 +3,7 @@ extends Node
 ## O chão converge ao fundo; sprites e seus marcadores permanecem em pé.
 
 const SHADER = preload("res://scripts/battle_perspective.gdshader")
+const SHADER_ADD = preload("res://scripts/battle_perspective_add.gdshader")
 const FOCUS := Vector2(660, 450)
 const SCREEN_FOCUS := Vector2(660, 470)
 const GROUND_TILT := 0.60
@@ -105,9 +106,9 @@ func _apply_fog(mat: ShaderMaterial) -> void:
 	mat.set_shader_parameter("fog_end", fog_range.y)
 
 
-func _material(upright: bool) -> ShaderMaterial:
+func _material(upright: bool, additive := false) -> ShaderMaterial:
 	var result := ShaderMaterial.new()
-	result.shader = SHADER
+	result.shader = SHADER_ADD if additive else SHADER
 	result.set_shader_parameter("focus", FOCUS)
 	result.set_shader_parameter("screen_focus", SCREEN_FOCUS)
 	result.set_shader_parameter("ground_tilt", GROUND_TILT)
@@ -119,8 +120,9 @@ func _material(upright: bool) -> ShaderMaterial:
 
 
 ## Offset em coordenadas do pai, para efeitos cujo centro está acima do chão.
-func add_billboard(item: CanvasItem, ground_offset := Vector2.ZERO, elevation := 0.0) -> void:
-	var mat := _material(true)
+## additive soma a luz em vez de cobrir: brilhos, faíscas e clarões.
+func add_billboard(item: CanvasItem, ground_offset := Vector2.ZERO, elevation := 0.0, additive := false) -> void:
+	var mat := _material(true, additive)
 	_apply_material(item, mat)
 	_keep_drawn_tree(item)
 	var entry := {"item": weakref(item), "material": mat, "offset": ground_offset}

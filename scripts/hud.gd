@@ -7,9 +7,11 @@ var sound_manager:
 ## Interface: fila de turnos à esquerda e um menu que abre em cima da casa tocada.
 
 const GameSettings = preload("res://scripts/game_settings.gd")
-const VOLUME_WIDTH := 136
-const VOLUME_PANEL_WIDTH := 260
-const VOLUME_Y := 74
+const SaveGame = preload("res://scripts/save_game.gd")
+const OPTIONS_WIDTH := 136
+const OPTIONS_PANEL_WIDTH := 400
+const OPTIONS_CONFIRM_WIDTH := 460
+const OPTIONS_Y := 74
 
 signal option_pressed(index: int)
 signal order_toggled(on: bool)
@@ -20,6 +22,10 @@ signal party_pressed(unit)
 signal rotate_held(direction: int) # -1 ou 1 enquanto o botão está apertado; 0 ao soltar
 signal together_toggled(on: bool)
 signal unit_picked(unit)
+signal save_pressed
+signal load_pressed
+signal quit_pressed
+signal options_toggled(open: bool)
 
 const Data = preload("res://scripts/game_data.gd")
 const SpellPreview = preload("res://scripts/spell_preview.gd")
@@ -91,8 +97,16 @@ var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magi
 
 
 var journey: Label
-var volume_button: Button
-var volume_panel: PanelContainer
+var options_button: Button
+var options_overlay: ColorRect
+var options_panel: PanelContainer
+var quit_panel: PanelContainer
+var options_note: Label
+var volume_label: Label
+var save_button: Button
+var load_button: Button
+var save_allowed := true # falso no online e depois do fim da partida
+var load_allowed := true # falso no online
 var volume_slider: HSlider
 var volume_mute: Button
 var objective: Label
@@ -176,7 +190,7 @@ func setup(p_meta: Dictionary) -> void:
 	skills_button.pressed.connect(func(): skills_pressed.emit())
 	end_column.add_child(skills_button)
 
-	_build_volume()
+	_build_options()
 
 	# Cartão de detalhes: cobre a tela toda para que o toque que fecha não caia no tabuleiro.
 	card = ColorRect.new()
@@ -189,19 +203,26 @@ func setup(p_meta: Dictionary) -> void:
 	add_child(card)
 
 
-## Botão de volume, no canto, com um painel que abre embaixo dele.
-func _build_volume() -> void:
+## Botão "Opções", no canto: abre por cima de tudo o volume, salvar, carregar e sair.
+func _build_options() -> void:
 	GameSettings.apply()
-	volume_button = _corner_button("", Vector2(SCREEN.x - VOLUME_WIDTH - MARGIN, VOLUME_Y), VOLUME_WIDTH)
-	volume_panel = PanelContainer.new()
-	volume_panel.position = Vector2(SCREEN.x - VOLUME_PANEL_WIDTH - MARGIN, VOLUME_Y + 54)
-	volume_panel.custom_minimum_size.x = VOLUME_PANEL_WIDTH
-	volume_panel.add_theme_stylebox_override("panel", _box(Color(0.1, 0.11, 0.14, 0.95), Color(1.0, 0.85, 0.4), 2, 8, 10))
-	volume_panel.visible = false
-	add_child(volume_panel)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 8)
-	volume_panel.add_child(column)
+	options_button = _corner_button("Opções", Vector2(SCREEN.x - OPTIONS_WIDTH - MARGIN, OPTIONS_Y), OPTIONS_WIDTH)
+	options_button.pressed.connect(open_options)
+	var layer := CanvasLayer.new()
+	layer.layer = self.layer + 10 # acima de tudo que o HUD cria depois (party, cidade, cartão)
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS # o jogo fica pausado com o menu aberto
+	add_child(layer)
+	options_overlay = ColorRect.new()
+	options_overlay.color = Color(0, 0, 0, 0.6)
+	options_overlay.size = SCREEN
+	options_overlay.visible = false
+	layer.add_child(options_overlay)
+	options_panel = _options_box(OPTIONS_PANEL_WIDTH)
+	options_overlay.add_child(options_panel)
+	var column: VBoxContainer = options_panel.get_child(0)
+	column.add_child(_options_title("Opções"))
+	volume_label = _label("", 20, Color(1.0, 0.95, 0.8))
+	column.add_child(volume_label)
 	volume_slider = HSlider.new()
 	volume_slider.min_value = 0
 	volume_slider.max_value = 100
@@ -210,15 +231,9 @@ func _build_volume() -> void:
 	volume_slider.focus_mode = Control.FOCUS_NONE
 	volume_slider.custom_minimum_size.y = 36
 	column.add_child(volume_slider)
-	volume_mute = Button.new()
+	volume_mute = _options_button(column, "Silenciar")
 	volume_mute.toggle_mode = true
 	volume_mute.button_pressed = GameSettings.muted()
-	volume_mute.focus_mode = Control.FOCUS_NONE
-	volume_mute.text = "Silenciar"
-	volume_mute.custom_minimum_size.y = 44
-	sound_manager.bind_button(volume_mute, &"switch1")
-	column.add_child(volume_mute)
-	volume_button.pressed.connect(func(): volume_panel.visible = not volume_panel.visible)
 	volume_slider.value_changed.connect(func(value: float):
 		GameSettings.set_volume(int(value))
 		if volume_mute.button_pressed and value > 0.0: # mexer no volume tira do mudo
@@ -229,10 +244,112 @@ func _build_volume() -> void:
 		GameSettings.set_muted(on)
 		_show_volume())
 	_show_volume()
+	column.add_child(HSeparator.new())
+	save_button = _options_button(column, "Salvar jogo")
+	save_button.pressed.connect(func(): save_pressed.emit())
+	load_button = _options_button(column, "Carregar jogo")
+	load_button.pressed.connect(func(): load_pressed.emit())
+	options_note = _label("", 16, Color(1.0, 0.85, 0.4))
+	options_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	options_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	options_note.custom_minimum_size.x = OPTIONS_PANEL_WIDTH - 36
+	column.add_child(options_note)
+	column.add_child(HSeparator.new())
+	var quit := _options_button(column, "Sair do jogo")
+	quit.pressed.connect(func():
+		options_panel.visible = false
+		quit_panel.visible = true
+		_center(quit_panel))
+	var back := _options_button(column, "Voltar ao jogo")
+	back.pressed.connect(close_options)
+
+	quit_panel = _options_box(OPTIONS_CONFIRM_WIDTH)
+	quit_panel.visible = false
+	options_overlay.add_child(quit_panel)
+	var confirm: VBoxContainer = quit_panel.get_child(0)
+	confirm.add_child(_options_title("Sair do jogo?"))
+	var warning := _label("Você volta para a tela inicial. O que não foi salvo será perdido.", 18, Color(0.9, 0.9, 0.92))
+	warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	warning.custom_minimum_size.x = OPTIONS_CONFIRM_WIDTH - 36
+	confirm.add_child(warning)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	confirm.add_child(row)
+	var ok := _options_button(row, "OK")
+	ok.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ok.pressed.connect(func(): quit_pressed.emit())
+	var cancel := _options_button(row, "Cancelar")
+	cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cancel.pressed.connect(func():
+		quit_panel.visible = false
+		options_panel.visible = true
+		_center(options_panel))
+
+
+func _options_box(width: float) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size.x = width
+	panel.add_theme_stylebox_override("panel", _box(Color(0.1, 0.11, 0.14, 0.97), Color(1.0, 0.85, 0.4), 2, 10, 18))
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 10)
+	panel.add_child(column)
+	return panel
+
+
+func _options_title(text: String) -> Label:
+	var title := _label(text, 30, Color(1.0, 0.85, 0.4))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	return title
+
+
+func _options_button(parent: Control, text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", 20)
+	button.custom_minimum_size.y = 50
+	sound_manager.bind_button(button, &"click3")
+	parent.add_child(button)
+	return button
+
+
+## Salvar só com `save_allowed` (fora do online, partida em andamento); carregar, com `load_allowed`.
+func open_options() -> void:
+	var can_load := SaveGame.exists()
+	hide_card()
+	save_button.disabled = not save_allowed
+	load_button.disabled = not can_load or not load_allowed
+	load_button.text = "Carregar jogo" if not can_load else "Carregar jogo (%s)" % SaveGame.summary()
+	options_note.text = ""
+	options_panel.visible = true
+	quit_panel.visible = false
+	options_overlay.visible = true
+	_center(options_panel)
+	_center(quit_panel)
+	options_toggled.emit(true)
+
+
+func close_options() -> void:
+	options_overlay.visible = false
+	options_toggled.emit(false)
+
+
+func options_open() -> bool:
+	return options_overlay.visible
+
+
+func show_options_note(text: String) -> void:
+	options_note.text = text
+
+
+func _center(panel: Control) -> void:
+	panel.reset_size()
+	panel.position = (SCREEN - panel.get_combined_minimum_size()) / 2
 
 
 func _show_volume() -> void:
-	volume_button.text = "Sem som" if GameSettings.muted() or GameSettings.volume() == 0 else "Volume %d%%" % GameSettings.volume()
+	volume_label.text = "Volume: sem som" if GameSettings.muted() or GameSettings.volume() == 0 else "Volume: %d%%" % GameSettings.volume()
 
 
 func refresh(state) -> void:

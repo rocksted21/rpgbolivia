@@ -32,6 +32,12 @@ O combate está em `scripts/battle_state.gd`; as regras da jornada, em `scripts/
 
 Testes: `godot --headless --path . --script tests/test_world.gd` para as regras e `godot --path . --script tests/world_smoke.gd -- <pasta> [herói]` para jogar pela tela e salvar capturas. A integração online está em `tests/test_online.gd` e `tests/test_online_pair.gd`, com o relay aberto na porta 18787.
 
+## Peso dos golpes (juice)
+
+Golpes e magias dos 6 heróis têm hitstop, tremor de tela, clarão, tranco em quem apanha, números que saltam, rastros e câmera lenta no abate final. É só apresentação: as regras e os eventos não mudam. O peso de cada habilidade está em `scripts/hero_juice.gd`; os efeitos de tela, em `scripts/battle_juice.gd`. Os brilhos usam o shader aditivo `scripts/battle_perspective_add.gdshader` e partículas do Kenney Particle Pack (CC0) em `assets/fx/kenney`.
+
+Para ver cada golpe quadro a quadro: `godot --path . --fixed-fps 30 --script tests/juice_shots.gd -- <pasta> [cena]`. Com `--write-movie <arquivo>.avi` e a cena `video`, grava os melhores momentos.
+
 ## Referências
 
 - [Servidor e modo online](servidor/README.md)

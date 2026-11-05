@@ -97,21 +97,35 @@ const ABILITIES := {
 	"chama": {"name": "Chama", "kind": "charge", "min_range": 2, "range": 4, "radius": 1, "power": 1.2, "time": 240, "cast_time": 140},
 	"cura": {"name": "Cura", "kind": "heal", "min_range": 0, "range": 3, "heal": 14, "time": 170},
 	"guarda": {"name": "Guarda", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
+	# Ataques iniciais com a animação forte (cada herói tem um normal e um forte).
+	"vinha": {"name": "Chicote de Vinhas", "kind": "attack", "min_range": 1, "range": 2, "power": 0.9, "time": 150, "shot": "kit/magic"},
+	"virote_pesado": {"name": "Virote Pesado", "kind": "attack", "min_range": 2, "range": 4, "power": 1.25, "time": 230, "shot": "kit/arrow"},
+	"giro": {"name": "Corte Giratório", "kind": "attack", "min_range": 1, "range": 1, "power": 1.3, "time": 210},
 	"coronhada": {"name": "Coronhada", "kind": "attack", "min_range": 1, "range": 1, "power": 0.6, "time": 120},
+	# Golpes especiais dos chefes dos faróis (efeitos em BOSS_FX, battle_view.gd).
+	"esmagar": {"name": "Esmagar", "kind": "attack", "min_range": 1, "range": 1, "power": 1.6, "time": 230},
+	"bote": {"name": "Bote da Serpente", "kind": "attack", "min_range": 1, "range": 2, "power": 1.5, "time": 210},
+	"giro_machado": {"name": "Giro do Machado", "kind": "attack", "min_range": 1, "range": 1, "power": 1.7, "time": 240},
+	"decreto": {"name": "Decreto do Faraó", "kind": "attack", "min_range": 1, "range": 3, "power": 1.4, "time": 230},
 }
 
 const UNIT_TYPES := {
 	"guardiao": {"name": "Guardião", "role": "Tanque · segura a linha", "hp": 46, "atk": 11, "def": 5, "speed": 9, "abilities": ["golpe", "guarda"]},
-	"duelista": {"name": "Duelista", "role": "Ágil · age mais vezes", "hp": 28, "atk": 12, "def": 2, "speed": 14, "abilities": ["golpe", "rapido"]},
-	"besteiro": {"name": "Besteiro", "role": "Atirador · ataca de longe", "hp": 26, "atk": 13, "def": 1, "speed": 10, "abilities": ["tiro"]},
+	"duelista": {"name": "Duelista", "role": "Ágil · age mais vezes", "hp": 28, "atk": 12, "def": 2, "speed": 14, "abilities": ["golpe", "rapido", "giro"]},
+	"besteiro": {"name": "Besteiro", "role": "Atirador · ataca de longe", "hp": 26, "atk": 13, "def": 1, "speed": 10, "abilities": ["tiro", "virote_pesado"]},
 	"mago": {"name": "Mago de Fogo", "role": "Magia · fogo em área", "hp": 24, "atk": 15, "def": 1, "speed": 9, "abilities": ["faisca", "bola_fogo", "flor_fogo", "escudo_fogo"]},
-	"druida": {"name": "Druida Élfica", "role": "Suporte · cura aliados", "hp": 26, "atk": 10, "def": 1, "speed": 11, "abilities": ["golpe", "cura"]},
+	"druida": {"name": "Druida Élfica", "role": "Suporte · cura aliados", "hp": 26, "atk": 10, "def": 1, "speed": 11, "abilities": ["vinha", "cura"]},
 	"mago_agua": {"name": "Mago de Água", "role": "Magia · água e gelo", "hp": 24, "atk": 14, "def": 1, "speed": 10, "abilities": ["gota", "bola_agua", "floco_neve"]},
 	"esqueleto": {"name": "Esqueleto", "role": "Soldado · morto-vivo comum", "hp": 22, "atk": 10, "def": 1, "speed": 10, "abilities": ["golpe"]},
 	"mumia": {"name": "Múmia", "role": "Tanque · lenta e resistente", "hp": 40, "atk": 11, "def": 3, "speed": 7, "abilities": ["golpe"]},
 	"diabrete": {"name": "Diabrete", "role": "Ágil · fraco, mas age muito", "hp": 16, "atk": 8, "def": 0, "speed": 15, "abilities": ["golpe"]},
 	"feiticeira": {"name": "Feiticeira", "role": "Magia · chamas em área", "hp": 20, "atk": 13, "def": 0, "speed": 9, "abilities": ["chama"]},
 	"cerbero": {"name": "Cérbero", "role": "Fera · forte e veloz", "hp": 34, "atk": 14, "def": 2, "speed": 12, "abilities": ["golpe"]},
+	# Chefes dos faróis, um por bioma (ver BOSS_BY_BIOME em expedition_data.gd).
+	"boss_cervo": {"name": "Rei Cervo Sombrio", "role": "Chefe · floresta", "hp": 42, "atk": 12, "def": 3, "speed": 8, "abilities": ["golpe", "esmagar"]},
+	"boss_serpente": {"name": "Rainha Serpente", "role": "Chefe · selva", "hp": 38, "atk": 12, "def": 2, "speed": 10, "abilities": ["golpe", "bote"]},
+	"boss_jarl": {"name": "Jarl de Gelo Negro", "role": "Chefe · neve", "hp": 46, "atk": 13, "def": 3, "speed": 7, "abilities": ["golpe", "giro_machado"]},
+	"boss_farao": {"name": "Faraó Eclipse", "role": "Chefe · deserto", "hp": 38, "atk": 12, "def": 2, "speed": 9, "abilities": ["golpe", "decreto"]},
 }
 
 static func range_text(ability: Dictionary) -> String:

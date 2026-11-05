@@ -50,12 +50,27 @@ var directional := false
 var facing := Facing.SIDE
 var visual_root: Node2D
 var shadow: Polygon2D
+# Reações só de tela (juice): deslocamento do corpo, esticar/amassar e brilho.
+var nudge := Vector2.ZERO:
+	set(value):
+		nudge = value
+		_place_root()
+var jump_height := 0.0
+var base_scale := Vector2.ONE
+var nudge_tween: Tween
+var squash_tween: Tween
+var tint_tween: Tween
+var aura: Node2D # círculo de magia sob quem carrega um feitiço
+var aura_rune: Sprite2D
+var aura_time := 0.0
 
 
 func setup(p_unit, p_team_color: Color, meta: Dictionary) -> void:
 	unit = p_unit
 	team_color = p_team_color
-	head_y = -float(meta["height"])
+	# Folhas em 1x (chefes) dizem quanto ampliar para casar com as outras.
+	var texture_scale := float(meta.get("texture_scale", 1))
+	head_y = -float(meta["height"]) * texture_scale
 	frames = int(meta["frames"])
 	row_frames = meta.get("row_frames", [])
 	directional = meta.get("directions", false)
@@ -75,6 +90,8 @@ func setup(p_unit, p_team_color: Color, meta: Dictionary) -> void:
 	sprite.hframes = frames
 	sprite.vframes = row_frames.size() if not row_frames.is_empty() else Anim.STRONG
 	sprite.offset = Vector2(0, meta["cell_h"] / 2.0 - meta["feet_y"])
+	sprite.scale = Vector2.ONE * texture_scale
+	base_scale = sprite.scale
 	if meta.get("pixel", false):
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	visual_root.add_child(sprite)
@@ -145,6 +162,10 @@ func _build_markers() -> void:
 
 func _process(delta: float) -> void:
 	bounce_time += delta
+	if aura != null:
+		aura_time += delta
+		aura_rune.rotation += delta * 0.9
+		aura.modulate.a = 0.75 + sin(aura_time * 5.0) * 0.25
 	arrow.position.y = head_y - arrow_gap + sin(bounce_time * BOUNCE_SPEED) * BOUNCE_HEIGHT
 	frame_pos += delta * FPS
 	var sheet_row := _sheet_row()
@@ -206,8 +227,133 @@ func set_walking(walking: bool) -> void:
 
 
 func set_jump_height(height: float) -> void:
-	visual_root.position.y = -height
+	jump_height = height
+	_place_root()
 	shadow.scale = Vector2.ONE * lerpf(1.0, 0.55, clampf(height / 110.0, 0.0, 1.0))
+
+
+func _place_root() -> void:
+	if visual_root != null:
+		visual_root.position = nudge + Vector2(0, -jump_height)
+
+
+## Frames da animação que está tocando agora (muda com a direção).
+func anim_frame_count() -> int:
+	return _row_frames(_sheet_row())
+
+
+# --- Juice: reações só de tela ----------------------------------------------------
+
+## Brilho rápido: branco no golpe, vermelho quando o herói apanha.
+func flash(color := Color(7, 7, 7), seconds := 0.14) -> void:
+	if tint_tween != null:
+		tint_tween.kill()
+	sprite.modulate = color
+	tint_tween = create_tween()
+	tint_tween.tween_interval(0.04)
+	tint_tween.tween_property(sprite, "modulate", Color.WHITE, seconds)
+
+
+## Amassa (amount > 0) ou estica (< 0) e volta com mola.
+func squash(amount: float, seconds := 0.32) -> void:
+	if squash_tween != null:
+		squash_tween.kill()
+	sprite.scale = base_scale * Vector2(1.0 + amount, 1.0 - amount)
+	squash_tween = create_tween()
+	squash_tween.tween_property(sprite, "scale", base_scale, seconds).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+## Tranco de quem apanha: vai na hora (fica parado no hitstop) e volta deslizando.
+func knock(offset: Vector2, seconds := 0.3) -> void:
+	if nudge_tween != null:
+		nudge_tween.kill()
+	nudge = offset
+	nudge_tween = create_tween()
+	nudge_tween.tween_property(self, "nudge", Vector2.ZERO, seconds).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+## Avanço de quem bate: chega no impacto, segura um instante e volta.
+func lunge(offset: Vector2, reach_time: float, hold := 0.1, back := 0.25) -> void:
+	if nudge_tween != null:
+		nudge_tween.kill()
+	nudge_tween = create_tween()
+	nudge_tween.tween_property(self, "nudge", offset, reach_time).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	nudge_tween.tween_interval(hold)
+	nudge_tween.tween_property(self, "nudge", Vector2.ZERO, back).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+## Círculo de magia girando nos pés enquanto o feitiço carrega.
+func set_aura(color: Color) -> void:
+	if aura != null:
+		aura.modulate = Color(color, aura.modulate.a)
+		return
+	aura = Node2D.new()
+	aura.use_parent_material = true
+	aura.scale = Vector2(1.0, 0.45) # deitado no chão
+	aura.modulate = color
+	add_child(aura)
+	move_child(aura, shadow.get_index() + 1)
+	var pool := Sprite2D.new() # poça de luz embaixo de tudo
+	pool.texture = load("res://assets/fx/kenney/circle_05.png")
+	pool.scale = Vector2.ONE * 0.62
+	pool.modulate = Color(1.6, 1.6, 1.6, 0.55)
+	pool.use_parent_material = true
+	aura.add_child(pool)
+	var ring := Sprite2D.new()
+	ring.texture = load("res://assets/fx/kenney/circle_03.png")
+	ring.scale = Vector2.ONE * 0.46
+	ring.modulate = Color(2.2, 2.2, 2.2, 1.0)
+	ring.use_parent_material = true
+	aura.add_child(ring)
+	aura_rune = Sprite2D.new()
+	aura_rune.texture = load("res://assets/fx/kenney/magic_02.png")
+	aura_rune.scale = Vector2.ONE * 0.44
+	aura_rune.modulate = Color(2.4, 2.4, 2.4)
+	aura_rune.use_parent_material = true
+	aura.add_child(aura_rune)
+	# Faíscas subindo, em pé (fora do círculo deitado).
+	var motes := CPUParticles2D.new()
+	motes.name = "Motes"
+	motes.use_parent_material = true
+	motes.texture = load("res://assets/fx/kenney/star_04.png")
+	motes.amount = 16
+	motes.lifetime = 1.1
+	motes.local_coords = true
+	motes.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE_SURFACE
+	motes.emission_sphere_radius = 60.0
+	motes.direction = Vector2.UP
+	motes.spread = 15.0
+	motes.gravity = Vector2(0, -140)
+	motes.initial_velocity_min = 20.0
+	motes.initial_velocity_max = 60.0
+	motes.scale_amount_min = 0.14
+	motes.scale_amount_max = 0.24
+	var fade := Gradient.new()
+	fade.set_color(0, Color(color * 1.8, 1.0))
+	fade.set_color(1, Color(color, 0.0))
+	motes.color_ramp = fade
+	motes.position = Vector2(0, -10)
+	add_child(motes)
+	aura.set_meta("motes", motes)
+
+
+## O círculo cresce e some quando a magia sai (ou some na hora, se a unidade cair).
+func clear_aura(burst := true) -> void:
+	if aura == null:
+		return
+	var old := aura
+	var motes: CPUParticles2D = old.get_meta("motes")
+	aura = null
+	aura_rune = null
+	motes.emitting = false
+	get_tree().create_timer(1.2).timeout.connect(motes.queue_free)
+	if not burst:
+		old.queue_free()
+		return
+	var tween := create_tween().set_parallel()
+	tween.tween_property(old, "scale", Vector2(2.2, 0.92), 0.35).set_ease(Tween.EASE_OUT)
+	tween.tween_property(old, "modulate:a", 0.0, 0.35)
+	tween.chain().tween_callback(old.queue_free)
 
 
 func set_hp(hp: int) -> void:
