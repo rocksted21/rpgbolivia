@@ -2252,7 +2252,7 @@ func _play_attack(event: Dictionary) -> void:
 	var magic := SPELL_FX.has(id)
 	if not magic:
 		sound_manager.play_sfx(&"swing") # golpe corpo a corpo ou disparo da flecha
-	await view.play_once(UnitView.Anim.ATTACK)
+	await view.play_once(_attack_anim(unit, id))
 	var shot: String = Data.ABILITIES[id].get("shot", "") if Data.ABILITIES.has(id) else ""
 	if shot != "":
 		await _fly_projectile(shot, view.position + Vector2(0, -90), views[target].position + Vector2(0, -90))
@@ -2261,6 +2261,14 @@ func _play_attack(event: Dictionary) -> void:
 		await _play_spell_fx(id, view.position + Vector2(0, -90), [views[target].position])
 	else:
 		sound_manager.play_sfx(&"melee_hit")
+
+
+# A primeira habilidade da unidade é o ataque básico; as outras usam o ataque forte.
+func _attack_anim(unit, ability_id: String) -> UnitView.Anim:
+	var abilities: Array = Data.UNIT_TYPES.get(unit.type_id, {}).get("abilities", [])
+	if abilities.is_empty() or ability_id == "" or ability_id == abilities[0]:
+		return UnitView.Anim.ATTACK
+	return UnitView.Anim.STRONG
 
 
 func _play_damage(event: Dictionary) -> void:
@@ -2316,7 +2324,7 @@ func _play_cast_start(event: Dictionary) -> void:
 func _play_cast_resolve(event: Dictionary) -> void:
 	var view = views[event["unit"]]
 	_refresh_overlays()
-	await view.play_once(UnitView.Anim.ATTACK)
+	await view.play_once(UnitView.Anim.STRONG)
 	var id: String = event["id"]
 	var center: Vector2 = feet_of(event["tile"]) + Vector2(0, -20)
 	if SPELL_FX.has(id):

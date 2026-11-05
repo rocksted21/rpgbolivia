@@ -15,10 +15,12 @@ const ROWS := [
 	["walk", "south"], ["walk", "north"],
 	["attack", "south"], ["attack", "north"],
 	["hurt", "south"], ["hurt", "north"],
+	# Ataque forte: só entra na folha quando o personagem tem a animação.
+	["strong", "side"], ["strong", "south"], ["strong", "north"],
 ]
 # Começo do nome da animação no export (o PixelLab troca maiúsculas e às vezes
 # reescreve o nome das custom). O ataque é a animação que sobra.
-const NAMES := {"idle": "idle", "walk": "walking", "hurt": "jerk_backward"}
+const NAMES := {"idle": "idle", "walk": "walking", "hurt": "jerk_backward", "strong": "strong"}
 const CHARACTERS := ["guardiao", "duelista", "besteiro", "mago", "druida", "mago_agua", "esqueleto", "mumia", "diabrete", "feiticeira", "cerbero"]
 
 
@@ -44,8 +46,13 @@ func _build_sheet(key: String, dir: String, dst: String) -> Dictionary:
 
 	var rows := []
 	var cell := rest.get_size()
+	var has_strong := not _frames(dir, anims, "strong", "south").is_empty()
 	for spec in ROWS:
+		if spec[0] == "strong" and not has_strong:
+			continue
 		var row := _frames(dir, anims, spec[0], spec[1])
+		if row.is_empty() and spec[0] == "strong":
+			row = _frames(dir, anims, "attack", spec[1])
 		if row.is_empty():
 			push_warning("%s: sem %s/%s, usando a pose parada" % [key, spec[0], spec[1]])
 			row = [rest]
