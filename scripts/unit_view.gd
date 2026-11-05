@@ -3,7 +3,7 @@ extends Node2D
 
 signal anim_done
 
-enum Anim { IDLE, WALK, ATTACK, HURT }
+enum Anim { IDLE, WALK, ATTACK, HURT, STRONG }
 enum Facing { SIDE, SOUTH, NORTH }
 
 # Folhas com direção (PixelLab): as 4 primeiras linhas são as do Anim, de lado;
@@ -13,7 +13,10 @@ const DIRECTION_ROWS := {
 	Anim.WALK: {Facing.SIDE: 1, Facing.SOUTH: 4, Facing.NORTH: 5},
 	Anim.ATTACK: {Facing.SIDE: 2, Facing.SOUTH: 6, Facing.NORTH: 7},
 	Anim.HURT: {Facing.SIDE: 3, Facing.SOUTH: 8, Facing.NORTH: 9},
+	# Ataque forte (habilidades): só nas folhas novas; sem ele, usa o ataque.
+	Anim.STRONG: {Facing.SIDE: 10, Facing.SOUTH: 11, Facing.NORTH: 12},
 }
+const STRONG_ROWS := 13
 # Mais vertical que isso, a unidade vira de frente ou de costas.
 const VERTICAL_RATIO := 1.0
 const FPS := 16.0
@@ -70,7 +73,7 @@ func setup(p_unit, p_team_color: Color, meta: Dictionary) -> void:
 	sprite = Sprite2D.new()
 	sprite.texture = load("res://assets/units/%s.png" % unit.type_id)
 	sprite.hframes = frames
-	sprite.vframes = row_frames.size() if not row_frames.is_empty() else Anim.size()
+	sprite.vframes = row_frames.size() if not row_frames.is_empty() else Anim.STRONG
 	sprite.offset = Vector2(0, meta["cell_h"] / 2.0 - meta["feet_y"])
 	if meta.get("pixel", false):
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -165,7 +168,10 @@ static func row_frame_count(meta: Dictionary, sheet_row: int) -> int:
 
 
 func _sheet_row() -> int:
-	return DIRECTION_ROWS[row][facing] if directional else int(row)
+	var anim := row
+	if anim == Anim.STRONG and not (directional and row_frames.size() >= STRONG_ROWS):
+		anim = Anim.ATTACK
+	return DIRECTION_ROWS[anim][facing] if directional else int(anim)
 
 
 func _row_frames(sheet_row: int) -> int:
