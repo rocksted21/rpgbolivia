@@ -11,7 +11,7 @@ const BIOME_COLOR := {
 const TERRAIN_COLOR := {
 	WorldGen.WATER: Color("2c5f7f"), WorldGen.MOUNTAIN: Color("35343a"), WorldGen.FOREST: Color("1f3d26"),
 	WorldGen.HILLS: Color("8a7a58"), WorldGen.ROCKS: Color("85858a"), WorldGen.HOUSE: Color("e0402a"), WorldGen.TOWER: Color("e040d0"),
-	WorldGen.PATH: Color("d98c4a"),
+	WorldGen.PATH: Color("d98c4a"), WorldGen.BRIDGE: Color("ffd28a"),
 }
 
 

@@ -25,6 +25,7 @@ func check(ok: bool, text: String) -> void:
 func _initialize() -> void:
 	test_generation()
 	test_biomes()
+	test_paths()
 	test_negative_coordinates()
 	test_no_trap()
 	test_rules()
@@ -121,6 +122,51 @@ func _percent(kinds: Dictionary, total: int) -> Dictionary:
 	for id in kinds:
 		out[id] = kinds[id] * 100 / total
 	return out
+
+
+## O caminho é uma rede: a ligação vale dos dois lados, nenhuma casa fica solta e dá para andar nele.
+func test_paths() -> void:
+	const AREA := 110
+	for world_seed in [3, 42, 77]:
+		var gen = WorldGen.new(world_seed)
+		var seen := {}
+		var biggest := 0
+		var total := 0
+		var loose := 0
+		for row in range(-AREA, AREA):
+			for col in range(-AREA, AREA):
+				var cell := Vector2i(col, row)
+				if not gen.is_path(cell):
+					continue
+				total += 1
+				var links: Array = gen.path_links(cell)
+				check(gen.sample(cell)["terrain"] in [WorldGen.PATH, WorldGen.BRIDGE], "caminho vira terreno de caminho")
+				check(gen.walkable(cell), "dá para andar no caminho")
+				loose += 1 if links.is_empty() else 0
+				for dir in links:
+					check(gen.path_links(Hex.neighbor(cell, dir)).has((dir + 3) % 6), "a ligação vale dos dois lados")
+				if seen.has(cell):
+					continue
+				var size := 0
+				var frontier := [cell]
+				seen[cell] = true
+				while not frontier.is_empty():
+					var current: Vector2i = frontier.pop_back()
+					size += 1
+					for dir in gen.path_links(current):
+						var next: Vector2i = Hex.neighbor(current, dir)
+						if not seen.has(next) and absi(next.x) < AREA and absi(next.y) < AREA:
+							seen[next] = true
+							frontier.append(next)
+				biggest = maxi(biggest, size)
+		check(loose == 0, "nenhuma casa de caminho fica solta (%d)" % loose)
+		check(biggest >= total / 4, "o caminho forma trechos longos (%d de %d)" % [biggest, total])
+		print("Caminho, semente %d: %d casas, maior trecho %d, soltas %d" % [world_seed, total, biggest, loose])
+	for biome in Data.BIOMES:
+		for piece in ["trilha", "trilha_0", "trilha_5", "borda_0", "borda_5", "margem_0", "margem_5"]:
+			check(ResourceLoader.exists(BiomeArt.ROOT % [biome, piece]), "%s tem a peça %s" % [biome, piece])
+	for piece in ["ponte", "ponte_0", "ponte_5"]:
+		check(ResourceLoader.exists(BiomeArt.COMMON % piece), "existe a peça %s" % piece)
 
 
 func test_negative_coordinates() -> void:

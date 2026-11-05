@@ -64,14 +64,23 @@ TILES = {
     },
 }
 WATER_TINT = {"deserto": (0.55, 1.0, 1.0)}  # o oasis e mais claro e esverdeado que o pantano
-# Trilha: a mesma grade do chao, mas lavada para terra batida (menos verde/azul, mais parelha).
-TRAIL_TINT = {
-    "floresta": (1.05, 0.86, 0.62),
-    "selva": (0.92, 0.78, 0.66),
-    "neve": (0.9, 0.9, 0.95),
-    "deserto": (1.12, 1.0, 0.8),
+# Pecas de piso por lado do hexagono: encostam no meio da aresta, entao duas casas vizinhas
+# formam uma linha continua. A ordem dos lados e a de hex.gd (horario, a partir do leste).
+CENTER = np.array([93.0, 106.5])
+SIDES = [(186.0, 106.5), (139.5, 186.5), (46.5, 186.5), (0.0, 106.5), (46.5, 26.5), (139.5, 26.5)]
+# A textura se repete nestes vetores: as pedras seguem de uma casa para a outra.
+TILING = (np.array([186.0, 0.0]), np.array([93.0, 160.0]))
+PATH_HALF = 27  # meia largura do caminho
+BORDER_DEPTH = 46  # ate onde o chao vizinho avanca na casa
+SHORE_DEPTH = 24
+# Calcamento de cada bioma: pedras (escura, base, clara) e a junta entre elas.
+PAVING = {
+    "floresta": {"stones": ((96, 92, 88), (122, 118, 110), (146, 140, 128)), "joint": (58, 46, 38), "size": 15},
+    "selva": {"planks": ((70, 52, 38), (92, 68, 46), (112, 84, 54)), "joint": (22, 20, 20)},
+    "neve": {"stones": ((132, 144, 164), (156, 166, 184), (184, 192, 206)), "joint": (92, 100, 120), "size": 17},
+    "deserto": {"stones": ((178, 132, 74), (204, 158, 92), (226, 186, 116)), "joint": (122, 78, 44), "size": 19},
 }
-TRAIL_CONTRAST = 0.3  # terra pisada tem bem menos variacao que o campo
+BRIDGE = {"planks": ((88, 62, 40), (116, 84, 52), (140, 104, 64)), "joint": (30, 22, 18)}
 
 # Montes: claro, base e escuro, nas cores de cada prancha.
 MOUNDS = {
@@ -355,8 +364,144 @@ def build_props(biome: str, c: dict) -> None:
         save(compose([(big, -14 + i * 26, -8), (small, 44 - i * 92, 8), (tiny, -58 + i * 104, 16)]), biome, f"colinas_{name}")
 
 
+# --- Pecas que ligam as casas ------------------------------------------------------
+
+def pixel_grid() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Centro de cada "pixel" da arte e a mascara do topo do hexagono."""
+    rows, cols = H // PIXEL + 1, W // PIXEL + 1
+    gy, gx = np.mgrid[0:rows, 0:cols].astype(np.float32)
+    xs, ys = gx * PIXEL + PIXEL / 2, gy * PIXEL + PIXEL / 2
+    top = (ys >= np.abs(xs - 93) * 53 / 93) & (ys <= 213 - np.abs(xs - 93) * 53 / 93)
+    return xs, ys, top
+
+
+def to_tile(rgb: np.ndarray, mask: np.ndarray) -> Image.Image:
+    data = np.zeros((*mask.shape, 4), np.uint8)
+    data[mask, :3] = np.clip(rgb[mask], 0, 255)
+    data[mask, 3] = 255
+    big = np.repeat(np.repeat(data, PIXEL, axis=0), PIXEL, axis=1)[:H, :W]
+    # So o topo: a grade de "pixels" nao pode vazar pela borda do hexagono.
+    yy, xx = np.mgrid[0:H, 0:W]
+    big[(yy < np.abs(xx - 93) * 53 / 93) | (yy > 213 - np.abs(xx - 93) * 53 / 93), 3] = 0
+    return Image.fromarray(big, "RGBA")
+
+
+def smooth_noise(shape, seed: str, blur: float) -> np.ndarray:
+    rng = np.random.default_rng(abs(hash_text(seed)))
+    noise = ndimage.gaussian_filter(rng.random(shape), blur, mode="wrap")
+    return (noise - noise.min()) / max(noise.max() - noise.min(), 1e-6)
+
+
+def hash_text(text: str) -> int:
+    return sum((i + 1) * ord(c) for i, c in enumerate(text)) * 2654435761 % (2 ** 32)
+
+
+def stone_pattern(xs, ys, size: int, seed: str):
+    """Pedras irregulares que se repetem junto com a grade de hexagonos."""
+    rng = np.random.default_rng(hash_text(seed))
+    a, b = TILING
+    count = max(4, round(abs(a[0] * b[1] - a[1] * b[0]) / size ** 2))
+    base = [rng.random() * a + rng.random() * b for _ in range(count)]
+    points = np.array([p + i * a + j * b for p in base for i in range(-2, 3) for j in range(-2, 3)], np.float32)
+    ids = np.repeat(np.arange(count), 25)
+    dist = np.hypot(xs[..., None] - points[:, 0], ys[..., None] - points[:, 1])
+    order = np.argsort(dist, axis=-1)
+    near = np.take_along_axis(dist, order[..., :2], axis=-1)
+    stone = ids[order[..., 0]]
+    shade = rng.integers(0, 3, count)[stone]
+    joint = near[..., 1] - near[..., 0] < 2.6
+    return shade, joint
+
+
+def paving_colors(xs, ys, style: dict, seed: str, along: np.ndarray | None = None):
+    if "planks" in style:
+        # Tabuas atravessadas no sentido do caminho: a junta e uma linha a cada tabua.
+        offset = along if along is not None else ys
+        plank = np.floor(offset / 13.0).astype(int)
+        rng = np.random.default_rng(hash_text(seed))
+        shade = rng.integers(0, 3, 256)[plank % 256]
+        joint = (offset % 13.0) < 3.0
+        colors = np.array(style["planks"], np.float32)
+    else:
+        shade, joint = stone_pattern(xs, ys, style["size"], seed)
+        colors = np.array(style["stones"], np.float32)
+    rgb = colors[shade]
+    rgb[joint] = style["joint"]
+    return rgb
+
+
+def side_piece(style: dict, seed: str, side: int | None) -> Image.Image:
+    """Um braco do caminho, do centro ate o meio da aresta. side None: o miolo redondo."""
+    xs, ys, top = pixel_grid()
+    if side is None:
+        distance = np.hypot(xs - CENTER[0], ys - CENTER[1])
+        wobble = (smooth_noise(xs.shape, seed + "/miolo", 2.0) - 0.5) * 7
+        mask = distance < PATH_HALF + 2 + wobble
+        along = None
+    else:
+        end = np.array(SIDES[side])
+        vec = end - CENTER
+        length = np.linalg.norm(vec)
+        unit = vec / length
+        t = ((xs - CENTER[0]) * unit[0] + (ys - CENTER[1]) * unit[1]) / length
+        d = (xs - CENTER[0]) * -unit[1] + (ys - CENTER[1]) * unit[0]
+        # Ondula so no meio: nas pontas a largura e exata, para encontrar a vizinha.
+        taper = np.sin(np.clip(t, 0, 1) * np.pi)
+        edge = (smooth_noise(xs.shape, f"{seed}/{side}", 2.5) - 0.5) * 14 * taper
+        mask = (t >= -0.02) & (np.abs(d) < PATH_HALF + edge)
+        along = t * length
+    mask &= top
+    rgb = paving_colors(xs, ys, style, seed, along)
+    # Contorno escuro, como na arte das pranchas.
+    inner = ndimage.binary_erosion(mask, border_value=1)
+    rgb[mask & ~inner] = np.array(style["joint"], np.float32) * 0.8
+    return to_tile(rgb, mask)
+
+
+def edge_mask(xs, ys, side: int, depth: float, seed: str) -> np.ndarray:
+    """Faixa junto de uma aresta, cheia na borda e cada vez mais rala para dentro."""
+    vec = np.array(SIDES[side]) - CENTER
+    length = np.linalg.norm(vec)
+    from_edge = length - ((xs - CENTER[0]) * vec[0] + (ys - CENTER[1]) * vec[1]) / length
+    clumps = smooth_noise(xs.shape, f"{seed}/{side}", 2.0)
+    specks = smooth_noise(xs.shape, f"{seed}/{side}/fino", 0.6)
+    return from_edge + (clumps * 0.75 + specks * 0.25 - 0.5) * depth * 1.5 < depth * 0.55
+
+
+def build_edges(biome: str) -> None:
+    xs, ys, top = pixel_grid()
+    ground = np.array(Image.open(OUT / biome / "campo_a.png").convert("RGB"), np.float32)
+    cols = np.clip((xs / 1).astype(int), 0, W - 1)
+    rows = np.clip((ys / 1).astype(int), 0, H - 1)
+    colors = ground[rows, cols]
+    bank = np.median(colors[top], axis=0)
+    water = np.array(Image.open(OUT / biome / "agua_a.png").convert("RGB"), np.float32)[rows, cols]
+    foam = np.median(water[top], axis=0) * 0.45 + np.array([236, 240, 240], np.float32) * 0.55
+    for side in range(6):
+        save(to_tile(colors, edge_mask(xs, ys, side, BORDER_DEPTH, f"{biome}/borda") & top), biome, f"borda_{side}")
+        vec = np.array(SIDES[side]) - CENTER
+        length = np.linalg.norm(vec)
+        from_edge = length - ((xs - CENTER[0]) * vec[0] + (ys - CENTER[1]) * vec[1]) / length
+        land = edge_mask(xs, ys, side, SHORE_DEPTH, f"{biome}/margem") & top
+        rgb = np.broadcast_to(bank, colors.shape).copy()
+        grown = ndimage.binary_dilation(land) & top & ~land
+        rgb[grown] = foam
+        save(to_tile(rgb, (land | grown) & (from_edge < SHORE_DEPTH * 1.6)), biome, f"margem_{side}")
+
+
+def build_paths() -> None:
+    for biome, style in PAVING.items():
+        for side in range(6):
+            save(side_piece(style, f"{biome}/trilha", side), biome, f"trilha_{side}")
+        save(side_piece(style, f"{biome}/trilha", None), biome, "trilha")
+        build_edges(biome)
+    for side in range(6):
+        save(side_piece(BRIDGE, "ponte", side), "comum", f"ponte_{side}")
+    save(side_piece(BRIDGE, "ponte", None), "comum", "ponte")
+
+
 def main() -> None:
-    sheets = {biome: Sheet(REFS / f"{biome}.jpg") for biome in CUTS}
+    sheets ={biome: Sheet(REFS / f"{biome}.jpg") for biome in CUTS}
     for biome, boxes in CUTS.items():
         sheet = sheets[biome]
         cuts = {
@@ -369,8 +514,8 @@ def main() -> None:
             save(make_tile(sheets[source], x, y, tint=tint, contrast=contrast), biome, name)
         source, x, y = TILES[biome]["campo_a"]
         save(make_tile(sheets[source], x, y, wall_only=True), biome, "parede")
-        save(make_tile(sheets[source], x, y, tint=TRAIL_TINT[biome], contrast=TRAIL_CONTRAST), biome, "trilha")
         build_props(biome, cuts)
+    build_paths()
     print("biomas gerados em", OUT)
 
 

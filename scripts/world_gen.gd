@@ -15,6 +15,7 @@ const HILLS := 7
 const HOUSE := 10
 const TOWER := 11
 const PATH := 13
+const BRIDGE := 14
 const MAX_LEVEL := 3
 const START_CLEARING := 2 # raio sem obstáculos em volta do início
 # Entortar as coordenadas tira das manchas o desenho do ruído: bordas de bioma, rios e serras ficam orgânicos.
@@ -34,7 +35,6 @@ const SITE_LIMIT := 0.5 # ruínas: enfeites juntos em um lugar, não espalhados 
 const SITE_DECOR := 0.45
 const SITE_BUILDING := 0.03
 const FIELD_DECOR := 0.012
-const PATH_WIDTH := 0.014 # trilha: mesma ideia do rio, só que mais fina e mais rara
 const DECOR_DETAIL := 0.1 # abaixo disso a arte põe um enfeite (ver biome_art.gd)
 
 var world_seed: int
@@ -48,6 +48,8 @@ var river_noise := FastNoiseLite.new()
 var crossing_noise := FastNoiseLite.new()
 var site_noise := FastNoiseLite.new()
 var path_noise := FastNoiseLite.new()
+var path_cross_noise := FastNoiseLite.new()
+var path_cells := {}
 var warp_x_noise := FastNoiseLite.new()
 var warp_y_noise := FastNoiseLite.new()
 var cache := {}
@@ -70,7 +72,9 @@ func _init(p_seed: int) -> void:
 	_setup(site_noise, p_seed + 8, 0.045, 1)
 	_setup(warp_x_noise, p_seed + 9, 0.025, 2)
 	_setup(warp_y_noise, p_seed + 10, 0.025, 2)
-	_setup(path_noise, p_seed + 11, 0.0065, 1) # baixa frequência: trilhas longas e suaves, poucas bifurcações
+	# Duas famílias de curvas: onde elas se cruzam, nasce uma encruzilhada.
+	_setup(path_noise, p_seed + 11, 0.0065, 1)
+	_setup(path_cross_noise, p_seed + 12, 0.0045, 1)
 
 
 func _setup(noise: FastNoiseLite, noise_seed: int, frequency: float, octaves: int) -> void:
@@ -134,6 +138,16 @@ func _biome(x: float, y: float, roll: float) -> String:
 func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, roll: float, spot: Dictionary) -> void:
 	var field := FIELD_A if roll < 0.5 else FIELD_B
 	spot["terrain"] = field
+	if is_path(cell):
+		# O caminho vem antes de tudo, para nunca se partir: cruza a água por uma ponte.
+		var over_water := absf(river_noise.get_noise_2d(x, y)) < RIVER_WIDTH and crossing_noise.get_noise_2d(x, y) < FORD_LIMIT
+		if over_water or (level == 0 and feature_noise.get_noise_2d(x, y) > biome["water"]):
+			spot["terrain"] = BRIDGE
+			if over_water:
+				spot["elevation"] = maxi(level - 1, 0)
+		else:
+			spot["terrain"] = PATH
+		return
 	if has_clearing and Hex.distance(cell, clearing_center) <= START_CLEARING:
 		return
 	var crossing := crossing_noise.get_noise_2d(x, y)
@@ -154,9 +168,6 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 	if level == 0 and feature > biome["water"]:
 		spot["terrain"] = WATER
 		return
-	if absf(path_noise.get_noise_2d(x, y)) < PATH_WIDTH:
-		spot["terrain"] = PATH
-		return
 	var moisture := moisture_noise.get_noise_2d(x, y)
 	if moisture > biome["forest"] or (moisture > biome["forest"] - FOREST_EDGE and roll > 0.65):
 		spot["terrain"] = FOREST
@@ -175,6 +186,54 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 		spot["detail"] = roll / maxf(SITE_DECOR if in_site else FIELD_DECOR, 0.001) * DECOR_DETAIL * 0.99
 	elif spot["detail"] < DECOR_DETAIL:
 		spot["detail"] = DECOR_DETAIL + spot["detail"] * 9.0 # enfeite só onde foi escolhido
+
+
+## O caminho é a linha onde o ruído troca de sinal: a borda de uma mancha é contínua e tem
+## uma casa de largura, então ele nunca vira um borrão nem sobra em pedaços.
+func is_path(cell: Vector2i) -> bool:
+	if not path_cells.has(cell):
+		var on_line := false
+		for noise in [path_noise, path_cross_noise]:
+			if _path_value(noise, cell) < 0.0:
+				continue
+			for next in Hex.neighbors(cell):
+				if _path_value(noise, next) < 0.0:
+					on_line = true
+					break
+		path_cells[cell] = on_line
+	return path_cells[cell]
+
+
+func _path_value(noise: FastNoiseLite, cell: Vector2i) -> float:
+	var x := cell.x + (cell.y & 1) * 0.5
+	var y := cell.y * 0.866
+	return noise.get_noise_2d(x + warp_x_noise.get_noise_2d(x, y) * WARP, y + warp_y_noise.get_noise_2d(x, y) * WARP)
+
+
+## Quão perto do centro da linha a casa está. Menor é mais perto.
+func _path_rank(cell: Vector2i) -> float:
+	return minf(absf(_path_value(path_noise, cell)), absf(_path_value(path_cross_noise, cell)))
+
+
+## Direções (0 a 5) em que o caminho desta casa continua. Quando três casas se tocam,
+## o lado entre as duas mais longe da linha sai: fica um traço, não um triângulo.
+func path_links(cell: Vector2i) -> Array:
+	var links := []
+	if not is_path(cell):
+		return links
+	for dir in 6:
+		var next := Hex.neighbor(cell, dir)
+		if is_path(next) and not _triangle_cuts(cell, next, dir):
+			links.append(dir)
+	return links
+
+
+func _triangle_cuts(a: Vector2i, b: Vector2i, dir: int) -> bool:
+	var limit := minf(_path_rank(a), _path_rank(b))
+	for side in [Hex.neighbor(a, (dir + 1) % 6), Hex.neighbor(a, (dir + 5) % 6)]:
+		if is_path(side) and _path_rank(side) < limit:
+			return true
+	return false
 
 
 ## Número de 0 a 1 fixo para cada casa e semente.

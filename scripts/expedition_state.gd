@@ -4,6 +4,7 @@ extends "res://scripts/world_state.gd"
 ## e outra está em town_progress.gd; `result()` diz o que esta rende.
 
 const Exp = preload("res://scripts/expedition_data.gd")
+const Content = preload("res://scripts/town_content.gd")
 
 var landmarks := {} # casa: {kind, state ("idle", "fighting" ou "done"), guards, resident}
 var terrain_override := {}
@@ -17,6 +18,13 @@ var rescued := []
 var memories := []
 var known_residents := []
 var known_memories := 0
+var potions := 0
+var free_potions := 0 # as primeiras poções usadas são as de graça: não saem da mochila
+var potions_used := 0
+var far_compass := false
+var brasa_bonus := false
+var items := []
+var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0}
 
 
 ## `town`: o que a cidade dá à party, de TownProgress.expedition_setup().
@@ -28,6 +36,12 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 		member.max_hp += town.get("hp", 0)
 		member.hp = member.max_hp
 		member.atk += town.get("atk", 0)
+		member.def += town.get("def", 0)
+	potions = town.get("potions", 0)
+	free_potions = town.get("free_potions", 0)
+	far_compass = town.get("far_compass", 0) > 0
+	brasa_bonus = town.get("brasa_bonus", 0) > 0
+	items = town.get("items", [])
 	_place_landmarks()
 
 
@@ -159,12 +173,33 @@ func _rest(unit, events: Array) -> void:
 ## O que a expedição rende para a cidade. Quem foi resgatado continua salvo mesmo na derrota.
 func result() -> Dictionary:
 	var won := winner() == Data.Team.PLAYER
+	var kept: int = brasas if won else floori(brasas * Exp.DEFEAT_BRASAS)
+	if brasa_bonus:
+		kept += floori(kept * Content.BRASA_BONUS)
+	var counted := tally.duplicate()
+	counted["kills"] = kills
+	counted["beacons"] = 1 if won else 0
+	counted["brasas"] = kept
 	return {
 		"won": won,
-		"brasas": brasas if won else floori(brasas * Exp.DEFEAT_BRASAS),
+		"brasas": kept,
 		"rescued": rescued.duplicate(),
 		"memories": memories.size(),
+		"items": items.duplicate(),
+		"bag_potions_used": maxi(potions_used - free_potions, 0),
+		"tally": counted,
 	}
+
+
+## Poção de Luz: cura a party inteira. Não gasta a vez de ninguém.
+func use_potion() -> Array:
+	var events := []
+	if potions <= 0 or alive_party().all(func(member): return member.hp >= member.max_hp):
+		return events
+	potions -= 1
+	potions_used += 1
+	_heal_party(Content.POTION_HEAL, events)
+	return events
 
 
 # --- Experiência ---------------------------------------------------------------
@@ -300,6 +335,8 @@ func _complete(cell: Vector2i, events: Array) -> void:
 	var kind: String = entry["kind"]
 	var data: Dictionary = Exp.LANDMARKS[kind]
 	entry["state"] = "done"
+	var counts := {"ruina": "ruins", "emboscada": "ambushes", "vila": "villages", "fonte": "fountains", "memoria": "memories"}
+	tally[counts[kind]] += 1
 	var title: String = data["label"]
 	var detail := ""
 	match kind:

@@ -20,6 +20,7 @@ signal party_pressed(unit)
 signal rotate_held(direction: int) # -1 ou 1 enquanto o botão está apertado; 0 ao soltar
 signal together_toggled(on: bool)
 signal unit_picked(unit)
+signal potion_pressed
 
 const Data = preload("res://scripts/game_data.gd")
 const SpellPreview = preload("res://scripts/spell_preview.gd")
@@ -92,6 +93,8 @@ var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magi
 
 var journey: Label
 var volume_button: Button
+var potion_button: Button
+var tracker: Label
 var volume_panel: PanelContainer
 var volume_slider: HSlider
 var volume_mute: Button
@@ -820,6 +823,29 @@ func set_objective(text: String) -> void:
 		objective.add_theme_constant_override("outline_size", 6)
 		add_child(objective)
 	objective.text = text
+
+
+## Missão em andamento, abaixo da linha da expedição.
+func set_tracker(text: String) -> void:
+	if tracker == null:
+		tracker = _label("", 17, Color(0.78, 0.86, 0.95))
+		tracker.position = Vector2(0, 78)
+		tracker.custom_minimum_size = Vector2(SCREEN.x - 320, 0)
+		tracker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tracker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tracker.add_theme_color_override("font_outline_color", Color.BLACK)
+		tracker.add_theme_constant_override("outline_size", 5)
+		add_child(tracker)
+	tracker.text = text
+
+
+## Botão da Poção de Luz, no canto. Sem poção, ele some.
+func set_potions(count: int) -> void:
+	if potion_button == null:
+		potion_button = _corner_button("", Vector2(SCREEN.x - VOLUME_WIDTH - MARGIN, 124), VOLUME_WIDTH)
+		potion_button.pressed.connect(func(): potion_pressed.emit())
+	potion_button.text = "Poção (%d)" % count
+	potion_button.visible = count > 0
 
 
 ## Texto do que acabou de acontecer no mapa, como uma memória encontrada. Some sozinho.

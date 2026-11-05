@@ -4,6 +4,7 @@ extends "res://scripts/battle_state.gd"
 ## vê o herói ou é atacado, e as ações dentro dele são as de battle_state.gd.
 
 const WorldGen = preload("res://scripts/world_gen.gd")
+const BiomeArt = preload("res://scripts/biome_art.gd")
 
 var gen
 var party := [] # os heróis, sempre no começo de units e na mesma ordem
@@ -88,6 +89,13 @@ func terrain_id_at(cell: Vector2i) -> int:
 
 func tile_at(cell: Vector2i) -> Dictionary:
 	return Data.TERRAIN[terrain_id_at(cell)]
+
+
+## Peças de piso que ligam esta casa às vizinhas: caminho, margem e transição de bioma.
+func ground_overlays(cell: Vector2i) -> Array:
+	return BiomeArt.overlays(biome_at(cell), terrain_id_at(cell), elevation_at(cell), gen.path_links(cell), func(dir: int) -> Dictionary:
+		var next: Vector2i = Hex.neighbor(cell, dir)
+		return {"biome": biome_at(next), "terrain": terrain_id_at(next), "elevation": elevation_at(next)})
 
 
 func elevation_at(cell: Vector2i) -> int:

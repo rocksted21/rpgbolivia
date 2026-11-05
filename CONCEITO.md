@@ -26,7 +26,9 @@ Ao vencer, a party leva todas as brasas. Na derrota, leva metade. Quem foi resga
 
 Já existe no modo solo: a Cidade-Farol, por onde a party anda e conversa com os moradores, 2 moradores para resgatar (Curandeira e Ferreiro), 1 região, 5 tipos de local e 1 chefe.
 
-Os números e textos da expedição ficam em `scripts/expedition_data.gd`, e a planta e os textos da cidade, em `scripts/town_data.gd`. As regras estão em `scripts/expedition_state.gd` e `scripts/town_state.gd`, e o save da cidade, em `scripts/town_progress.gd`.
+Na cidade também há conversas com escolhas, 10 missões com recompensa, loja (Mercadora e Sacerdotisa), mochila, melhorias na forja e na enfermaria, mural de missões e moradores que andam e falam pelas ruas.
+
+Os números e textos da expedição ficam em `scripts/expedition_data.gd`, e a planta da cidade, em `scripts/town_data.gd`. Itens, missões e conversas ficam em `scripts/town_content.gd`. As regras estão em `scripts/expedition_state.gd` e `scripts/town_state.gd`, e o save da cidade, em `scripts/town_progress.gd`.
 
 ## O que falta
 

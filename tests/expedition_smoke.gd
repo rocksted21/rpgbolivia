@@ -70,6 +70,11 @@ func _run() -> void:
 	await _wait_frames(30)
 	var state = view.state
 	_expect(state.has_method("result"), "a cena abre uma expedição")
+	_expect(state.potions == 1 and view.hud.potion_button.visible, "a poção comprada vai junto")
+	_expect(view.hud.tracker.text.contains("A Primeira Chama"), "a expedição mostra a missão aceita")
+	state.party[0].hp = 1
+	view.hud.potion_button.pressed.emit()
+	_expect(state.party[0].hp > 1 and state.potions == 0 and not view.hud.potion_button.visible, "a poção cura pela tela")
 	await _shot("2_inicio_expedicao")
 	_expect(view.hud.objective.text.contains("Farol"), "a bússola aponta o farol")
 	await _test_volume()
@@ -135,6 +140,7 @@ func _run() -> void:
 	_expect(not view.landmark_nodes.has(state.beacon_cell), "o farol aceso perde a marca de objetivo")
 	_expect(view.hud.end_panel.visible, "tela de fim aparece")
 	_expect(view.hud.end_label.text.contains("farol"), "o fim fala do farol")
+	_expect(view.hud.end_note.text.contains("A Primeira Chama"), "o fim avisa da missão cumprida")
 	_expect(TownProgress.beacons() == 1 and TownProgress.brasas() > 0, "o resultado foi salvo")
 	_expect(not TownProgress.rescued().is_empty(), "o morador foi salvo na cidade")
 	view.hud.restart_pressed.emit()
@@ -175,6 +181,7 @@ func _test_town() -> void:
 		view.town_panels.open_person(other)
 		_expect(view.town_panels.window_open(), "a conversa abre: %s" % other["name"])
 		view.town_panels.close_window()
+	await _test_city_life(state)
 	view.town_panels.open_party()
 	await _wait_frames(3)
 	await _shot("1d_party")
@@ -182,6 +189,63 @@ func _test_town() -> void:
 	view.town_panels.start_button.pressed.emit()
 	await _wait_frames(3)
 	_expect(view.state != old_state and view.expedition and not view.town, "partir abre a expedição")
+
+
+## Conversa, missão, loja e registro, pelos botões da tela.
+func _test_city_life(state) -> void:
+	var panels = view.town_panels
+	var keeper: Dictionary = state.people.values().filter(func(p): return p["id"] == "guarda")[0]
+	var label: Label = view.person_labels.get(keeper["cell"])
+	if label != null:
+		_expect(label.text.begins_with("!"), "o Faroleiro mostra que tem pedido")
+	panels.open_person(keeper)
+	await _wait_frames(3)
+	await _shot("1e_conversa_faroleiro")
+	var offer: Button = _find_button(panels.window, "! Pedido")
+	_expect(offer != null, "a conversa oferece a missão")
+	offer.pressed.emit()
+	await _wait_frames(3)
+	await _shot("1f_missao")
+	_find_button(panels.window, "Aceitar").pressed.emit()
+	_expect(TownProgress.quest_status("primeira_chama") == "active", "aceitar pela tela funciona")
+	if label != null:
+		_expect(not label.text.begins_with("!"), "a marca some depois de aceitar")
+	panels.close_window()
+	TownProgress.record({"won": false, "brasas": 40, "rescued": [], "memories": 0})
+	var seller: Dictionary = state.people.values().filter(func(p): return p["id"] == "mercadora")[0]
+	await _put_party_near(state, seller["cell"])
+	await _wait_frames(30)
+	await _shot("1g_mercadora")
+	panels.open_person(seller)
+	_find_button(panels.window, "Ver o que tem").pressed.emit()
+	await _wait_frames(3)
+	await _shot("1h_loja")
+	var before := TownProgress.brasas()
+	_find_button(panels.window, "8 brasas").pressed.emit()
+	_expect(TownProgress.brasas() == before - 8 and TownProgress.item_count("pocao") == 1, "comprar pela tela funciona")
+	panels.close_window()
+	panels.log_button.pressed.emit()
+	await _wait_frames(3)
+	await _shot("1i_missoes")
+	panels.close_window()
+	var board: Dictionary = state.people.values().filter(func(p): return p["id"] == "mural")[0]
+	panels.open_person(board)
+	await _wait_frames(3)
+	await _shot("1j_mural")
+	panels.close_window()
+	view.town_life.say(view.selected.pos, "Boa sorte lá fora!")
+	await _wait_frames(70)
+	await _shot("1k_vida")
+
+
+func _find_button(node: Node, text: String) -> Button:
+	if node is Button and node.text.contains(text):
+		return node
+	for child in node.get_children():
+		var found: Button = _find_button(child, text)
+		if found != null:
+			return found
+	return null
 
 
 ## Depois do resgate, a forja ou a tenda existem e vendem melhorias.

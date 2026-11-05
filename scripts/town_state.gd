@@ -140,6 +140,11 @@ func tile_name_at(cell: Vector2i) -> String:
 	return tile_at(cell)["name"]
 
 
+## A cidade é desenhada à mão: não usa as peças de ligação do mapa gerado.
+func ground_overlays(_cell: Vector2i) -> Array:
+	return []
+
+
 ## Objetos em pé desta casa. A cidade é toda planejada: fora da planta, só chão.
 func art_at(cell: Vector2i) -> Array:
 	return [props[cell]] if props.has(cell) else []

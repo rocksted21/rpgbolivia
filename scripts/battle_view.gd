@@ -22,10 +22,12 @@ const TownProgress = preload("res://scripts/town_progress.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const TownState = preload("res://scripts/town_state.gd")
 const TownPanels = preload("res://scripts/town_panels.gd")
+const TownLife = preload("res://scripts/town_life.gd")
+const TownContent = preload("res://scripts/town_content.gd")
 const TownData = preload("res://scripts/town_data.gd")
 const TOWN_META := "town"
 const TOWN_PANELS_LAYER := 50
-const TOWN_TINT := Color(0.8, 0.8, 0.92)
+const TOWN_TINT := Color(0.6, 0.63, 0.82) # noite: as fogueiras e o farol iluminam a cidade
 const EXPEDITION_META := "expedition"
 const BOSS_SCALE := 1.35
 const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
@@ -174,6 +176,9 @@ var exploring := false
 var expedition := false # solo: cidade, locais especiais e chefe (ver expedition_state.gd)
 var town := false # a Cidade-Farol: mapa fixo, moradores e nada de inimigos
 var town_panels
+var town_life
+var person_labels := {}
+var quests_finished := []
 var landmark_nodes := {} # casa: marcas no mapa de um local especial
 var selected # o herói que recebe os cliques fora de combate
 var together := true # fora de combate, os heróis do jogador andam em fila atrás do selecionado
@@ -295,6 +300,10 @@ func _start_battle() -> void:
 		battle_camera.queue_free()
 	if hud != null:
 		hud.queue_free()
+	if town_life != null:
+		town_life.queue_free()
+		town_life = null
+	person_labels.clear()
 
 	board = Node2D.new()
 	board.position = BOARD_POS
@@ -337,6 +346,8 @@ func _start_battle() -> void:
 		hud.menu_pressed.connect(_back_to_menu)
 		if expedition:
 			hud.use_town_exit()
+			hud.set_potions(state.potions)
+			hud.potion_pressed.connect(_use_potion)
 		if town:
 			_setup_town()
 		hud.setup_party(state.party, _owner_names())
@@ -367,6 +378,7 @@ func _update_journey() -> void:
 	hud.set_journey(state.alive_party().size(), state.party.size(), state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(camera_cell)]["name"])
 	if expedition:
 		hud.set_objective(_objective_text())
+		hud.set_tracker(_quest_tracker())
 	hud.update_party(selected if _free_roam() else state.active_unit())
 
 
@@ -392,7 +404,7 @@ func _show_result(result: int) -> void:
 		if exploring:
 			gain = Skills.journey_points(state.kills, state.farthest)
 		if expedition:
-			TownProgress.record(state.result())
+			quests_finished = TownProgress.record(state.result())
 			_set_return_to_town()
 			if won:
 				_rebuild_cell(state.beacon_cell) # o farol acende
@@ -411,6 +423,9 @@ func _show_result(result: int) -> void:
 			gain = after - before
 		if count > 0:
 			note = "+%d %s de skill%s" % [gain, "pontos" if gain > 1 else "ponto", " para %d heróis" % count if count > 1 else ""]
+	for id in quests_finished:
+		note += "%sMissão cumprida: %s" % ["\n" if note != "" else "", TownContent.QUESTS[id]["title"]]
+	quests_finished = []
 	hud.show_end(_end_text() if exploring else ("Vitória!" if won else "Derrota"), note)
 
 
@@ -474,13 +489,15 @@ func _build_cell(cell: Vector2i) -> void:
 			_add_tile(wall, base - Vector2(0, layer * SIDE_HEIGHT), row, layer * SIDE_HEIGHT)
 	_add_tile(ground, cell_origin(cell), row, layers * SIDE_HEIGHT)
 	if exploring:
+		for overlay_path in state.ground_overlays(cell):
+			_add_tile(overlay_path, cell_origin(cell), row, layers * SIDE_HEIGHT)
 		_add_biome_props(biome, terrain_id, cell)
+	elif SCENERY_BASE.has(terrain_id):
+		_add_scenery(terrain_id, cell)
 	if expedition:
 		_add_landmark(cell, row)
 	if town:
 		_add_person_name(cell, row)
-	elif SCENERY_BASE.has(terrain_id):
-		_add_scenery(terrain_id, cell)
 	var overlay := Polygon2D.new()
 	overlay.polygon = hex_poly
 	_place_ground_marker(overlay, cell)
@@ -2192,9 +2209,33 @@ func _objective_text() -> String:
 	var growth := "máx." if state.xp_to_next() < 0 else "%d XP" % state.xp_to_next()
 	var text := "Nível %d (%s)   ·   Brasas %d   ·   Farol %s" % [state.level, growth, state.brasas, _direction_to(state.beacon_cell)]
 	var open: Array = state.open_landmarks(camera_cell)
-	if not open.is_empty() and Hex.distance(open[0], camera_cell) <= Exp.COMPASS_RADIUS:
+	if not open.is_empty() and (state.far_compass or Hex.distance(open[0], camera_cell) <= Exp.COMPASS_RADIUS):
 		text += "   ·   %s %s" % [state.landmark_label(open[0]), _direction_to(open[0])]
 	return text
+
+
+## A primeira missão aceita, somando o que a expedição já fez por ela.
+func _quest_tracker() -> String:
+	var result: Dictionary = state.result()
+	for id in TownProgress.quests_with("active"):
+		var quest: Dictionary = TownContent.QUESTS[id]
+		var done: int = mini(TownProgress.quest_progress(id) + int(result["tally"].get(quest["count"], 0)), quest["target"])
+		return "Missão: %s (%d/%d)" % [quest["title"], done, quest["target"]]
+	return ""
+
+
+func _use_potion() -> void:
+	if state.winner() >= 0:
+		return
+	var events: Array = state.use_potion()
+	if events.is_empty():
+		hud.set_hint("A party está com a vida cheia.")
+		return
+	sound_manager.play_sfx(&"heal")
+	for event in events:
+		_play_regen(event)
+	hud.set_potions(state.potions)
+	_update_journey()
 
 
 func _direction_to(cell: Vector2i) -> String:
@@ -2235,7 +2276,17 @@ func _setup_town() -> void:
 	town_panels.depart.connect(_depart)
 	town_panels.skills_requested.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
 	town_panels.menu_requested.connect(_back_to_menu)
-	town_panels.changed.connect(_update_town)
+	town_panels.changed.connect(_town_changed)
+	town_life = TownLife.new()
+	add_child(town_life)
+	town_life.setup(self)
+
+
+func _town_changed() -> void:
+	town_panels.refresh()
+	_update_town()
+	for cell in person_labels:
+		_show_person_mark(cell)
 
 
 func _party_types() -> Array:
@@ -2264,20 +2315,31 @@ func _update_town() -> void:
 func _add_person_name(cell: Vector2i, row: int) -> void:
 	if not state.people.has(cell) or not state.is_present(state.people[cell]):
 		return
-	var person: Dictionary = state.people[cell]
 	var name_label := Label.new()
-	name_label.text = "! %s" % person["name"]
 	name_label.position = feet_of(cell) + Vector2(-140, -176)
 	name_label.custom_minimum_size = Vector2(280, 0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.z_index = _z(row) + 7
 	name_label.add_theme_font_size_override("font_size", 30)
-	name_label.add_theme_color_override("font_color", BEACON_COLOR)
 	name_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	name_label.add_theme_constant_override("outline_size", 8)
 	board.add_child(name_label)
 	building.append(name_label)
 	battle_camera.add_billboard(name_label, Vector2(140, 176), _cell_elevation(cell))
+	person_labels[cell] = name_label
+	_show_person_mark(cell)
+
+
+## "!" tem pedido novo, "?" tem missão para entregar. Sem nada, só o nome.
+func _show_person_mark(cell: Vector2i) -> void:
+	var name_label = person_labels[cell]
+	if not is_instance_valid(name_label): # a casa saiu de perto e será refeita ao voltar
+		return
+	var person: Dictionary = state.people[cell]
+	var mark: String = TownProgress.person_mark(person["id"])
+	name_label.text = "%s %s" % [mark, person["name"]] if mark != "" else person["name"]
+	var color: Color = Color("9fe39a") if mark == "?" else (BEACON_COLOR if mark == "!" else Color(0.92, 0.9, 0.82))
+	name_label.add_theme_color_override("font_color", color)
 
 
 func _play_move(event: Dictionary) -> void:

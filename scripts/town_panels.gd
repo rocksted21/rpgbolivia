@@ -10,6 +10,7 @@ const Data = preload("res://scripts/game_data.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const Town = preload("res://scripts/town_data.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
+const Content = preload("res://scripts/town_content.gd")
 
 const SCREEN := Vector2(1280, 720)
 const WINDOW_WIDTH := 720
@@ -19,11 +20,16 @@ const PANEL := Color("252d3e")
 const GOLD := Color("f2ca76")
 const TEXT := Color("f5efdf")
 const MUTED := Color("aab2c2")
+const GOOD := Color("9fe39a")
+const PORTRAIT := 124
+const SCROLL_HEIGHT := 400
+const CHOICE_WIDTH := 330
 
 var sound_manager:
 	get: return get_node("/root/SoundManager")
 
 var action_button: Button
+var log_button: Button
 var nearby := {}
 var window: Control
 var party := []
@@ -42,6 +48,15 @@ func setup(chosen: Array) -> void:
 	_place_corner(action_button, 56, SCREEN.y - 190)
 	action_button.visible = false
 	action_button.pressed.connect(func(): open_person(nearby))
+	log_button = _button(self, "")
+	_place_corner(log_button, 48, 136)
+	log_button.pressed.connect(open_log)
+	refresh()
+
+
+## Atualiza o que muda quando se compra, aceita ou entrega algo.
+func refresh() -> void:
+	log_button.text = "Missões (%d)" % (TownProgress.quests_with("active").size() + TownProgress.quests_with("ready").size())
 
 
 func _place_corner(button: Button, height: float, y: float) -> void:
@@ -62,52 +77,175 @@ func set_nearby(person: Dictionary) -> void:
 	nearby = person
 	action_button.visible = not person.is_empty()
 	if not person.is_empty():
-		action_button.text = "Falar: %s" % person["name"]
+		action_button.text = ("Ler: %s" if person["service"] == "board" else "Falar: %s") % person["name"]
 
 
 func open_person(person: Dictionary) -> void:
+	if person["service"] == "board":
+		open_board(person)
+		return
+	if person.get("needs", "") != "" and person["needs"] not in TownProgress.rescued():
+		var ruins := _open(person["name"])
+		_paragraph(ruins, Town.MISSING_TEXT)
+		_close_button(ruins)
+		return
+	_conversation(person, _greeting(person))
+	if not TownProgress.met(person["id"]):
+		TownProgress.set_met(person["id"])
+
+
+func _greeting(person: Dictionary) -> String:
+	var talk: Dictionary = Content.TALK[person["id"]]
+	if not TownProgress.met(person["id"]):
+		return talk["first"]
+	if TownProgress.beacons() > 0 and talk.has("after_beacon") and TownProgress.expeditions() % 2 == 1:
+		return talk["after_beacon"]
+	return talk["greetings"][TownProgress.expeditions() % talk["greetings"].size()]
+
+
+## A conversa: retrato, a fala e o que dá para responder.
+func _conversation(person: Dictionary, text: String) -> void:
 	var body := _open(person["name"])
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 18)
+	body.add_child(top)
+	top.add_child(_portrait(person["art"]))
+	var said := _label(text, 21, TEXT)
+	said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	said.custom_minimum_size.x = WINDOW_WIDTH - 44 - PORTRAIT - 18
+	said.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(said)
+	var choices := GridContainer.new()
+	choices.columns = 2
+	choices.add_theme_constant_override("h_separation", 10)
+	choices.add_theme_constant_override("v_separation", 10)
+	body.add_child(choices)
+	_add_quest_choices(choices, person)
+	_add_service_choice(choices, person)
+	for topic in Content.TALK[person["id"]]["topics"]:
+		_choice(choices, topic[0]).pressed.connect(func(): _conversation(person, topic[1]))
+	_choice(choices, "Até mais").pressed.connect(close_window)
+
+
+func _add_quest_choices(choices: Control, person: Dictionary) -> void:
+	for id in TownProgress.quests_of(person["id"]):
+		var quest: Dictionary = Content.QUESTS[id]
+		match TownProgress.quest_status(id):
+			"ready":
+				_choice(choices, "? Entregar: %s" % quest["title"], true).pressed.connect(func(): _turn_in(person, id))
+			"available":
+				_choice(choices, "! Pedido: %s" % quest["title"], true).pressed.connect(func(): _offer(person, id))
+			"active":
+				_choice(choices, "%s (%d/%d)" % [quest["title"], TownProgress.quest_progress(id), quest["target"]]).disabled = true
+
+
+func _add_service_choice(choices: Control, person: Dictionary) -> void:
 	match person["service"]:
 		"resident":
-			_fill_resident(body, person)
+			var service: String = Exp.RESIDENTS[person["id"]]["service"]
+			_choice(choices, "Ver: %s" % service).pressed.connect(func(): _open_resident(person))
+		"shop":
+			_choice(choices, "Ver o que tem à venda").pressed.connect(func(): open_shop(person))
 		"memories":
-			_fill_memories(body)
+			_choice(choices, "Ouvir as memórias").pressed.connect(func(): _open_memories(person))
 		"skills":
-			_paragraph(body, Town.SKILLS_TEXT)
-			var train := _button(body, "Abrir árvores de skills", true)
-			train.pressed.connect(func(): skills_requested.emit())
+			_choice(choices, "Treinar (árvores de skills)").pressed.connect(func(): skills_requested.emit())
 		"beacon":
-			_paragraph(body, Town.BEACON_TEXT)
-			_paragraph(body, "Faróis acesos: %d   ·   Expedições: %d" % [TownProgress.beacons(), TownProgress.expeditions()], GOLD)
-			if TownProgress.beacons() > 0:
-				_paragraph(body, Town.NEXT_REGION_TEXT, MUTED)
-		"talk":
-			var lines: Array = person["lines"]
-			_paragraph(body, lines[TownProgress.expeditions() % lines.size()])
-	_close_button(body)
+			_choice(choices, "Como está a cidade?").pressed.connect(func(): _open_beacon(person))
 
 
-func _fill_resident(body: Control, person: Dictionary) -> void:
-	var id: String = person["id"]
-	if id not in TownProgress.rescued():
-		_paragraph(body, Town.MISSING_TEXT)
+func _offer(person: Dictionary, id: String) -> void:
+	var quest: Dictionary = Content.QUESTS[id]
+	var body := _open(quest["title"])
+	_paragraph(body, quest["offer"])
+	_paragraph(body, "Objetivo: %s" % quest["goal"], GOLD)
+	_paragraph(body, "Recompensa: %s" % _reward_text(quest["reward"]), GOOD)
+	var row := _row(body)
+	_button(row, "Aceitar", true).pressed.connect(func():
+		TownProgress.accept_quest(id)
+		changed.emit()
+		_conversation(person, "Conto com você."))
+	_button(row, "Agora não").pressed.connect(func(): _conversation(person, _greeting(person)))
+
+
+func _turn_in(person: Dictionary, id: String) -> void:
+	if not TownProgress.complete_quest(id):
 		return
+	sound_manager.play_sfx(&"victory")
+	changed.emit()
+	var quest: Dictionary = Content.QUESTS[id]
+	_conversation(person, "%s\n\nRecebido: %s" % [quest["done"], _reward_text(quest["reward"])])
+
+
+func _reward_text(reward: Dictionary) -> String:
+	var parts := []
+	if reward["brasas"] > 0:
+		parts.append("%d brasas" % reward["brasas"])
+	for item in reward["items"]:
+		parts.append("%d× %s" % [reward["items"][item], Content.ITEMS[item]["name"]])
+	return ", ".join(parts)
+
+
+func _open_resident(person: Dictionary) -> void:
+	var id: String = person["id"]
 	var data: Dictionary = Exp.RESIDENTS[id]
-	var costs: Array = data["costs"]
-	var level := TownProgress.service_level(id)
-	_paragraph(body, "%s %d de %d" % [data["service"], level, costs.size()], GOLD)
-	_paragraph(body, data["effect"] % data["per_level"])
-	_paragraph(body, "Brasas: %d" % TownProgress.brasas(), MUTED)
-	var cost := TownProgress.next_cost(id)
-	var buy := _button(body, "Melhorar (%d brasas)" % cost if cost >= 0 else "Nível máximo", true)
-	buy.disabled = cost < 0 or cost > TownProgress.brasas()
-	buy.pressed.connect(func():
+	var body := _open(data["service"])
+	_paragraph(body, "Brasas: %d" % TownProgress.brasas(), GOLD)
+	var main_cost := TownProgress.next_cost(id)
+	_offer_row(body, "%s (%d de %d)" % [data["service"], TownProgress.service_level(id), data["costs"].size()], data["effect"] % data["per_level"], main_cost, func():
 		if TownProgress.buy(id):
 			changed.emit()
-			open_person(person))
+			_open_resident(person))
+	for upgrade_id in Content.UPGRADE_ORDER:
+		var upgrade: Dictionary = Content.UPGRADES[upgrade_id]
+		if upgrade["resident"] != id:
+			continue
+		_offer_row(body, "%s (%d de %d)" % [upgrade["name"], TownProgress.upgrade_level(upgrade_id), upgrade["costs"].size()], upgrade["effect"] % upgrade["per_level"], TownProgress.upgrade_cost(upgrade_id), func():
+			if TownProgress.buy_upgrade(upgrade_id):
+				changed.emit()
+				_open_resident(person))
+	_back_button(body, person)
 
 
-func _fill_memories(body: Control) -> void:
+## Uma linha com nome, efeito e botão de pagar. cost negativo: nível máximo.
+func _offer_row(parent: Control, title: String, effect: String, cost: int, on_buy: Callable) -> Button:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	parent.add_child(row)
+	var text := VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(text)
+	text.add_child(_label(title, 20, TEXT))
+	var detail := _label(effect, 16, MUTED)
+	detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	detail.custom_minimum_size.x = WINDOW_WIDTH - 44 - 200 - 12
+	text.add_child(detail)
+	var buy := _button(row, "%d brasas" % cost if cost >= 0 else "Máximo", true)
+	buy.disabled = cost < 0 or cost > TownProgress.brasas()
+	buy.pressed.connect(on_buy)
+	return buy
+
+
+func open_shop(person: Dictionary) -> void:
+	var body := _open("%s: à venda" % person["name"])
+	_paragraph(body, "Brasas: %d" % TownProgress.brasas(), GOLD)
+	for id in Content.ITEM_ORDER:
+		var item: Dictionary = Content.ITEMS[id]
+		if item["seller"] != person["id"]:
+			continue
+		var have := TownProgress.item_count(id)
+		var full: bool = have >= item["max"]
+		var buy := _offer_row(body, "%s (na mochila: %d de %d)" % [item["name"], have, item["max"]], item["text"], -1 if full else item["price"], func():
+			if TownProgress.buy_item(id):
+				changed.emit()
+				open_shop(person))
+		if full:
+			buy.text = "Mochila cheia"
+	_back_button(body, person)
+
+
+func _open_memories(person: Dictionary) -> void:
+	var body := _open("Memórias")
 	var note := TownProgress.last_note()
 	if note != "":
 		_paragraph(body, note, GOLD)
@@ -116,6 +254,112 @@ func _fill_memories(body: Control) -> void:
 		_paragraph(body, Town.NO_MEMORY_TEXT)
 	for i in found:
 		_paragraph(body, Exp.MEMORIES[i])
+	_back_button(body, person)
+
+
+func _open_beacon(person: Dictionary) -> void:
+	var body := _open("Cidade-Farol")
+	_paragraph(body, Town.BEACON_TEXT)
+	_paragraph(body, "Faróis acesos: %d   ·   Expedições: %d" % [TownProgress.beacons(), TownProgress.expeditions()], GOLD)
+	var missing: Array = Exp.RESIDENT_ORDER.filter(func(id): return id not in TownProgress.rescued())
+	if not missing.is_empty():
+		_paragraph(body, "Ainda faltam na cidade: %s. Procure as vilas lá fora." % ", ".join(missing.map(func(id): return Exp.RESIDENTS[id]["name"])), MUTED)
+	if TownProgress.beacons() > 0:
+		_paragraph(body, Town.NEXT_REGION_TEXT, MUTED)
+	_back_button(body, person)
+
+
+func open_board(_person: Dictionary = {}) -> void:
+	var body := _open("Mural de Missões")
+	_paragraph(body, Content.BOARD_TEXT, MUTED)
+	_fill_quests(_scroll(body))
+	_close_button(body)
+
+
+## Missões e mochila, de qualquer lugar da cidade.
+func open_log() -> void:
+	var body := _open("Missões e mochila")
+	var list := _scroll(body)
+	_fill_quests(list)
+	list.add_child(_label("Mochila", 22, GOLD))
+	var carrying := false
+	for id in Content.ITEM_ORDER:
+		var count := TownProgress.item_count(id)
+		if count > 0:
+			carrying = true
+			_paragraph(list, "%d× %s: %s" % [count, Content.ITEMS[id]["name"], Content.ITEMS[id]["text"]])
+	if not carrying:
+		_paragraph(list, "Vazia. A Mercadora fica na praça.", MUTED)
+	_close_button(body)
+
+
+func _fill_quests(list: Control) -> void:
+	var names := {}
+	for person in Town.PEOPLE:
+		names[person["id"]] = person["name"]
+	var sections := [["ready", "Prontas para entregar", GOOD], ["active", "Em andamento", GOLD], ["available", "Pedidos novos", TEXT]]
+	var any := false
+	for section in sections:
+		var quests: Array = TownProgress.quests_with(section[0])
+		if quests.is_empty():
+			continue
+		any = true
+		list.add_child(_label(section[1], 22, section[2]))
+		for id in quests:
+			var quest: Dictionary = Content.QUESTS[id]
+			var progress := " (%d/%d)" % [TownProgress.quest_progress(id), quest["target"]] if section[0] != "available" else ""
+			_paragraph(list, "%s%s · %s %s" % [quest["title"], progress, quest["goal"], "Fale com: %s." % names[quest["giver"]]])
+	if not any:
+		_paragraph(list, Content.NOTHING_TEXT, MUTED)
+
+
+func _scroll(body: Control) -> VBoxContainer:
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(WINDOW_WIDTH - 44, SCROLL_HEIGHT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 8)
+	scroll.add_child(list)
+	return list
+
+
+## Só a figura do morador, sem as margens transparentes da arte.
+func _portrait(art: String) -> Control:
+	var frame := PanelContainer.new()
+	frame.custom_minimum_size = Vector2(PORTRAIT, PORTRAIT)
+	frame.add_theme_stylebox_override("panel", _box(PANEL))
+	var texture: Texture2D = load(Town.TOWN_ROOT % art)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = Rect2(texture.get_image().get_used_rect())
+	var picture := TextureRect.new()
+	picture.texture = atlas
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	frame.add_child(picture)
+	return frame
+
+
+func _choice(parent: Control, text: String, primary := false) -> Button:
+	var button := _button(parent, text, primary)
+	button.custom_minimum_size = Vector2(CHOICE_WIDTH, 48)
+	button.clip_text = true
+	button.add_theme_font_size_override("font_size", 16)
+	return button
+
+
+func _row(parent: Control) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	parent.add_child(row)
+	return row
+
+
+func _back_button(parent: Control, person: Dictionary) -> void:
+	_button(parent, "Voltar").pressed.connect(func(): _conversation(person, _greeting(person)))
 
 
 func open_party() -> void:
@@ -125,6 +369,10 @@ func open_party() -> void:
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 10)
 	body.add_child(grid)
+	var carried: Array = Content.ITEM_ORDER.filter(func(id): return TownProgress.item_count(id) > 0).map(func(id):
+		return "%d× %s" % [TownProgress.item_count(id), Content.ITEMS[id]["name"]])
+	if not carried.is_empty():
+		_paragraph(body, "Na mochila: %s" % ", ".join(carried), GOLD)
 	hero_buttons.clear()
 	var units_meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
 	for id in Data.WORLD_HEROES:

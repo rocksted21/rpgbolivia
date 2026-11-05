@@ -3,7 +3,12 @@ extends RefCounted
 ## arquivos são gerados por tools/build_biomes.py.
 
 const ROOT := "res://assets/biomes/%s/%s.png"
-const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra", 13: "trilha"}
+const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra", 13: "campo_a", 14: "agua_a"}
+const COMMON := "res://assets/biomes/comum/%s.png"
+# A borda que invade a vizinha: quem vem depois na lista pinta por cima de quem vem antes.
+const BIOME_ORDER := ["deserto", "selva", "floresta", "neve"]
+const SHADED := [3, 6, 10, 11] # terrenos com piso de sombra: o campo em volta avança sobre eles
+const WET := [5, 14]
 const DECOR_CHANCE := 0.1 # abaixo disso a casa de campo ganha um enfeite; world_gen.gd escolhe quais
 const MOUNTAIN_LANDMARK := 0.08
 # Altura da base de cada objeto dentro do hexágono: fundo atrás do personagem, frente diante dele.
@@ -24,6 +29,27 @@ static func ground(biome: String, terrain_id: int, detail := 0.0) -> String:
 	if terrain_id == 5 and detail >= 0.5: # a água tem duas versões: repetida, ela vira padrão
 		return ROOT % [biome, "agua_b"]
 	return ROOT % [biome, GROUND[terrain_id]]
+
+
+## Peças de piso que completam a casa, desenhadas em ordem por cima dela. Cada lado é uma
+## peça: juntas, elas ligam a casa às vizinhas. look(dir) -> {biome, terrain, elevation}.
+static func overlays(biome: String, terrain_id: int, elevation: int, links: Array, look: Callable) -> Array:
+	var out := []
+	for dir in 6:
+		var next: Dictionary = look.call(dir)
+		if terrain_id in WET:
+			if not next["terrain"] in WET:
+				out.append(ROOT % [biome, "margem_%d" % dir])
+		elif not next["terrain"] in WET and next["elevation"] == elevation:
+			if BIOME_ORDER.find(next["biome"]) > BIOME_ORDER.find(biome):
+				out.append(ROOT % [next["biome"], "borda_%d" % dir])
+			elif next["biome"] == biome and terrain_id in SHADED and not next["terrain"] in SHADED:
+				out.append(ROOT % [biome, "borda_%d" % dir])
+	if not links.is_empty():
+		for dir in links:
+			out.append(COMMON % ("ponte_%d" % dir) if terrain_id == 14 else ROOT % [biome, "trilha_%d" % dir])
+		out.append(COMMON % "ponte" if terrain_id == 14 else ROOT % [biome, "trilha"])
+	return out
 
 
 ## Objetos em pé de uma casa: [{path, ground_y, depth, layer}]. detail varia o desenho.

@@ -5,6 +5,9 @@ const Hex = preload("res://scripts/hex.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Town = preload("res://scripts/town_data.gd")
 const TownState = preload("res://scripts/town_state.gd")
+const Content = preload("res://scripts/town_content.gd")
+const TownProgress = preload("res://scripts/town_progress.gd")
+const Expedition = preload("res://scripts/expedition_state.gd")
 
 var checks := 0
 var failures := 0
@@ -21,6 +24,12 @@ func _initialize() -> void:
 	test_walking()
 	test_art()
 	test_growth()
+	test_roads()
+	test_content()
+	test_shop()
+	test_upgrades()
+	test_quests()
+	DirAccess.remove_absolute(TownProgress.path)
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -77,6 +86,113 @@ func test_art() -> void:
 		check(not cells.has(person["cell"]), "%s fica fora dos prédios" % person["name"])
 
 
+## Nenhum enfeite pode fechar uma rua ou o caminho de quem anda pela cidade.
+func test_roads() -> void:
+	var state = _new(["ferreiro", "curandeira"])
+	var seen := _reachable(state)
+	for road in Town.ROADS:
+		for cell in state._line(road[0], road[1]):
+			if state.levels.has(cell):
+				check(seen.has(cell), "a rua continua aberta em %s" % cell)
+	for cell in Town.WALK_ROUTE:
+		check(seen.has(cell), "quem passeia chega a %s" % cell)
+	for art in Town.WALKER_ART:
+		check(ResourceLoader.exists(Town.TOWN_ROOT % art), "arte de quem passeia: %s" % art)
+
+
+func test_content() -> void:
+	for person in Town.PEOPLE:
+		check(ResourceLoader.exists(Town.TOWN_ROOT % person["art"]), "%s tem arte" % person["name"])
+		if person["service"] != "board":
+			check(Content.TALK.has(person["id"]), "%s tem conversa" % person["name"])
+	var ids: Array = Town.PEOPLE.map(func(person): return person["id"])
+	for id in Content.QUESTS:
+		var quest: Dictionary = Content.QUESTS[id]
+		check(id in Content.QUEST_ORDER, "%s está na ordem" % id)
+		check(quest["giver"] in ids, "%s tem quem pediu" % id)
+		for item in quest["reward"]["items"]:
+			check(Content.ITEMS.has(item), "%s dá um item que existe" % id)
+	for id in Content.ITEMS:
+		check(id in Content.ITEM_ORDER and Content.ITEMS[id]["seller"] in ids, "%s tem quem venda" % id)
+
+
+func _clean_save() -> void:
+	TownProgress.path = "user://test_town_rules.cfg"
+	DirAccess.remove_absolute(TownProgress.path)
+
+
+func _give(brasas: int) -> void:
+	TownProgress.record({"won": false, "brasas": brasas, "rescued": ["ferreiro", "curandeira"], "memories": 0})
+
+
+func test_shop() -> void:
+	_clean_save()
+	check(not TownProgress.buy_item("pocao"), "sem brasas não compra")
+	_give(60)
+	check(TownProgress.buy_item("pocao") and TownProgress.brasas() == 52, "a loja cobra o preço")
+	check(TownProgress.item_count("pocao") == 1, "o item vai para a mochila")
+	check(TownProgress.buy_item("pedra") and not TownProgress.buy_item("pedra"), "o limite da mochila vale")
+	check(TownProgress.buy_item("amuleto"), "compra o amuleto")
+	var setup := TownProgress.expedition_setup()
+	check(setup["atk"] == 2 and setup["potions"] == 1 and setup["brasa_bonus"] == 1, "os itens valem na expedição")
+	var trip = Expedition.new(Data.DEFAULT_PARTY, 5, {}, setup)
+	check(trip.potions == 1, "a poção vai junto")
+	check(trip.use_potion().is_empty() and trip.potions == 1, "com a vida cheia, a poção não é gasta")
+	var hurt = trip.party[0]
+	hurt.hp = 1
+	check(not trip.use_potion().is_empty() and hurt.hp > 1, "a poção cura")
+	check(trip.potions == 0 and trip.use_potion().is_empty(), "sem poção, nada acontece")
+	trip.brasas = 10
+	check(trip.result()["brasas"] == 7, "o amuleto rende mais, mesmo na derrota (5 + 50%)")
+	TownProgress.record(trip.result())
+	check(TownProgress.item_count("pocao") == 0 and TownProgress.item_count("pedra") == 0, "a expedição gasta o que levou")
+	check(TownProgress.expedition_setup()["atk"] == 0, "o efeito não passa para a próxima")
+
+
+func test_upgrades() -> void:
+	_clean_save()
+	check(TownProgress.upgrade_cost("armadura") == -1, "sem o ferreiro não há armadura")
+	_give(100)
+	check(TownProgress.buy_upgrade("armadura") and TownProgress.brasas() == 80, "a forja cobra")
+	check(TownProgress.buy_upgrade("frascos"), "a enfermaria vende frascos")
+	var setup := TownProgress.expedition_setup()
+	check(setup["def"] == 1 and setup["potions"] == 1 and setup["free_potions"] == 1, "as melhorias valem")
+	var trip = Expedition.new(Data.DEFAULT_PARTY, 5, {}, setup)
+	check(trip.party[0].def == Data.UNIT_TYPES[trip.party[0].type_id]["def"] + 1, "a armadura protege")
+	trip.party[0].hp = 1
+	trip.use_potion()
+	check(trip.result()["bag_potions_used"] == 0, "o frasco de graça não sai da mochila")
+
+
+func test_quests() -> void:
+	_clean_save()
+	check(TownProgress.quest_status("primeira_chama") == "available", "o Faroleiro já tem pedido")
+	check(TownProgress.quest_status("sucata") == "locked", "sem o ferreiro, sem pedido dele")
+	check(TownProgress.person_mark("guarda") == "!", "quem tem pedido ganha marca")
+	check(TownProgress.quest_status("vigilia") == "locked", "a vigília vem depois da primeira chama")
+	check(not TownProgress.complete_quest("primeira_chama"), "não entrega o que não aceitou")
+	check(TownProgress.accept_quest("primeira_chama") and TownProgress.quest_status("primeira_chama") == "active", "aceita")
+	check(TownProgress.person_mark("guarda") == "", "aceita, a marca some")
+	var trip = Expedition.new(Data.DEFAULT_PARTY, 5, {}, TownProgress.expedition_setup())
+	TownProgress.record(trip.result())
+	check(TownProgress.quest_status("primeira_chama") == "active", "perder não acende o farol")
+	var tally := {"beacons": 1, "kills": 5, "ruins": 1}
+	var finished := TownProgress.record({"won": true, "brasas": 0, "rescued": ["ferreiro"], "memories": 0, "tally": tally})
+	check(finished == ["primeira_chama"], "o fim da expedição avisa que a missão ficou pronta")
+	check(TownProgress.last_note().contains("A Primeira Chama"), "a nota da cidade fala da missão")
+	check(TownProgress.quest_status("primeira_chama") == "ready" and TownProgress.person_mark("guarda") == "?", "fica pronta")
+	check(TownProgress.quest_status("sucata") == "available", "o resgate abre o pedido do ferreiro")
+	check(TownProgress.accept_quest("sucata"), "aceita a sucata")
+	TownProgress.record({"won": false, "brasas": 0, "rescued": [], "memories": 0, "tally": {"ruins": 2}})
+	check(TownProgress.quest_progress("sucata") == 2, "o que veio antes de aceitar não conta")
+	var before := TownProgress.brasas()
+	check(TownProgress.complete_quest("primeira_chama"), "entrega")
+	check(TownProgress.brasas() == before + 30 and TownProgress.item_count("pocao") == 1, "a recompensa chega")
+	check(not TownProgress.complete_quest("primeira_chama"), "não recebe duas vezes")
+	check(TownProgress.quest_status("vigilia") == "available", "abre a próxima missão")
+	check(TownProgress.person_mark("guarda") == "", "sem mais nada, sem marca")
+
+
 func test_growth() -> void:
 	var empty = _new()
 	var saved = _new(["ferreiro"])
@@ -88,3 +204,4 @@ func test_growth() -> void:
 	check(not saved.tile_at(smith)["walkable"], "o ferreiro ocupa uma casa")
 	check(saved.person_near(smith + Vector2i(1, 0))["id"] == "ferreiro", "dá para falar com quem está perto")
 	check(saved.person_near(Vector2i(200, 200)).is_empty(), "longe não há conversa")
+	check(not saved.tile_at(Town.PEOPLE.filter(func(p): return p["id"] == "mercadora")[0]["cell"])["walkable"], "a mercadora ocupa uma casa")

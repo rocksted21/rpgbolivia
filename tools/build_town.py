@@ -30,13 +30,19 @@ BUILDINGS = {
     "barco_a": (1818, 695, 1930, 832), "barco_b": (1622, 852, 1732, 932),
     "fogueira_a": (678, 395, 732, 458), "fogueira_b": (860, 850, 915, 908),
     "escada_a": (900, 460, 1040, 588), "escada_b": (980, 295, 1092, 402),
+    "barraca_b": (930, 768, 1052, 880), "barraca_c": (1512, 682, 1612, 798),
+    "tocha": (705, 545, 738, 632),
 }
 # (caixa, parte certamente do morador): sem ela, o corpo escuro some junto com o chão escuro.
 RESIDENTS = {
     "morador_ferreiro": (830, 815, 882, 892), "morador_curandeira": (1602, 458, 1642, 527),
     "morador_taverneira": (238, 535, 277, 606), "morador_guarda": (585, 445, 637, 508),
     "morador_a": (373, 765, 422, 836), "morador_b": (1462, 585, 1502, 652), "morador_c": (925, 830, 966, 906),
+    "morador_d": (1138, 645, 1182, 712), "morador_e": (575, 708, 612, 778), "morador_f": (545, 730, 585, 792),
+    "morador_g": (1185, 703, 1222, 765),
 }
+# A fogueira atrás da mercadora: o que for fogo sai da figura.
+FIRE_ERASE = ("morador_d",)
 # Partes que sobraram na taverna: a cabeça de quem está na frente dela.
 ERASE = {"taverna": [(300, 305, 345, 352)]}
 STONE = (1000, 625, 1125, 705)
@@ -119,6 +125,31 @@ def stone_tile(image: np.ndarray) -> Image.Image:
     return Image.fromarray(tile, "RGBA")
 
 
+def mural() -> Image.Image:
+    """Quadro de missoes, desenhado em "pixels" de 3, com as cores da madeira da cidade."""
+    wood, dark, light, paper, ink, seal = (92, 66, 44), (46, 32, 26), (124, 92, 60), (222, 208, 170), (96, 82, 66), (196, 72, 56)
+    g = 3
+    cols, rows = 32, 34
+    data = np.zeros((rows, cols, 4), np.uint8)
+
+    def box(x0, y0, x1, y1, color):
+        data[y0:y1, x0:x1] = (*color, 255)
+
+    box(4, 8, 7, 34, dark); box(25, 8, 28, 34, dark)  # postes
+    box(5, 8, 6, 34, wood); box(26, 8, 27, 34, wood)
+    box(1, 6, 31, 25, dark); box(2, 7, 30, 24, wood)  # quadro
+    for y in range(9, 24, 4):
+        box(2, y, 30, y + 1, (74, 52, 36))
+    box(0, 3, 32, 7, dark); box(1, 4, 31, 6, light)  # telhadinho
+    for x0, y0, seal_on in ((4, 9, True), (13, 8, False), (22, 10, True), (8, 16, False), (18, 16, True)):
+        box(x0, y0, x0 + 6, y0 + 7, paper)
+        for line in (y0 + 2, y0 + 4):
+            box(x0 + 1, line, x0 + 5, line + 1, ink)
+        if seal_on:
+            box(x0 + 2, y0, x0 + 4, y0 + 1, seal)
+    return Image.fromarray(data, "RGBA").resize((cols * g, rows * g), Image.Resampling.NEAREST)
+
+
 def main() -> None:
     image = cv2.imread(str(SOURCE))
     OUT.mkdir(parents=True, exist_ok=True)
@@ -131,7 +162,23 @@ def main() -> None:
             picture = Image.fromarray(data, "RGBA")
         anchored(resized(picture, SCALE)).save(OUT / f"{name}.png", optimize=True)
     for name, box in RESIDENTS.items():
-        anchored(resized(cut(image, box, person=True), SCALE * 1.15)).save(OUT / f"{name}.png", optimize=True)
+        picture = cut(image, box, person=True)
+        if name in FIRE_ERASE:
+            data = np.array(picture).astype(np.int32)
+            fire = (data[..., 0] > 170) & (data[..., 0] - data[..., 2] > 90) & (data[..., 1] > 55)
+            data[..., 3][np.array(fire)] = 0
+            picture = Image.fromarray(data.astype(np.uint8), "RGBA")
+        anchored(resized(picture, SCALE * 1.15)).save(OUT / f"{name}.png", optimize=True)
+    anchored(mural()).save(OUT / "mural.png", optimize=True)
+    # A chama saiu da imagem sem a haste, que é escura como o chão atrás dela.
+    flame = Image.open(OUT / "tocha.png").convert("RGBA")
+    flame = flame.crop(flame.getbbox())
+    pole = Image.new("RGBA", (10, 58), (58, 40, 30, 255))
+    pole.paste((96, 70, 48, 255), (3, 0, 7, 58))
+    torch = Image.new("RGBA", (max(flame.width, 10), flame.height + 50), (0, 0, 0, 0))
+    torch.alpha_composite(pole, ((torch.width - 10) // 2, torch.height - 58))
+    torch.alpha_composite(flame, ((torch.width - flame.width) // 2, 0))
+    anchored(torch).save(OUT / "tocha.png", optimize=True)
     beacon = beacon_with_beams()
     anchored(beacon, foot_from_bottom=0).save(OUT / "farol.png", optimize=True)
     stone_tile(image).save(OUT / "calcada.png", optimize=True)
