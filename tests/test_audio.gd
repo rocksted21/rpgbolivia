@@ -90,7 +90,11 @@ func _run() -> void:
 	var combat = manager.get_node("Combate")
 	_expect(AudioServer.get_bus_send(AudioServer.get_bus_index(&"Combate")) == &"SoundManager", "Combate passa pelo volume geral")
 	# A tela também toca sons de UI; valide cada nome no grupo correto.
+	# A tela foi dividida em módulos (scripts/battle/): os sons de todos contam.
 	var source := FileAccess.get_file_as_string("res://scripts/battle_view.gd")
+	for file in DirAccess.get_files_at("res://scripts/battle"):
+		if file.ends_with(".gd"):
+			source += "\n" + FileAccess.get_file_as_string("res://scripts/battle/" + file)
 	var ui_names := []
 	for found in RegEx.create_from_string("play_ui\\(&\"(\\w+)\"").search_all(source):
 		var sound_name := found.get_string(1)

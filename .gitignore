@@ -14,5 +14,8 @@ update/runtime.cfg
 /rpg bolivia/
 /rpgbolivia/
 
+# Resultado de tools/rodar_testes.bat
+/tools/saida_testes/
+
 # Credenciais LootLocker locais (copie account/lootlocker.cfg.example)
 account/lootlocker.cfg

@@ -129,3 +129,35 @@ Cada herói tem duas animações de golpe, a normal e a forte, que servem a vár
 - Druida trocou o Golpe corpo a corpo por **Chicote de Vinhas** (alcance 1–2, força 0,9, tempo 150). A animação de cura dela é a normal; todos os ataques usam a forte.
 
 Ainda não foram medidos em partidas simuladas.
+
+# Habilidades novas dos heróis — 05/11/2026
+
+Cada herói trocou nós de só atributo por habilidades com mecânicas próprias. A árvore continua 3 × 4 e com o mesmo custo; saves antigos são convertidos (`RENAMED` em `skill_data.gd`): o nó antigo vira o novo na mesma posição.
+
+| Herói | Nó trocado | Habilidade nova | O que faz |
+| --- | --- | --- | --- |
+| Guardião | Placas (+1 DEF) | **Interpor** | Põe um aliado a até 2 casas em Guarda (110). |
+| Guardião | Braço Forte (+2 ATQ) | **Escudada** | Corpo a corpo, força 0,6, empurra 1 casa (120). |
+| Guardião | Inabalável (+8 HP, +1 VEL) | **Carga do Escudo** | Salta até inimigo a 2-3 casas, força 1,0, empurra 1 (210). |
+| Duelista | Afiar (+2 ATQ) | **Golpe Marcante** | Força 0,6; alvo Marcado (+25% de dano recebido) por 2 turnos (110). |
+| Duelista | Frenesi (+2 VEL) | **Investida** | Salta até inimigo a 2-4 casas, força 0,9, sem oportunidade (160). |
+| Duelista | Cicatrizes (+1 DEF) | **Lâmina Sedenta** | Força 0,9; recupera metade do dano (160). |
+| Besteiro | Mira Firme (+2 ATQ) | **Virote Marcador** | Alcance 2-5, força 0,5, Marca 2 turnos (130). |
+| Besteiro | Recuo Treinado (+1 VEL) | **Chute** | Corpo a corpo, força 0,5, empurra 2 casas (100). |
+| Besteiro | Gibão (+5 HP, +1 DEF) | **Tiro na Perna** | Alcance 2-4, força 0,7, Lento 2 turnos (160). |
+| Mago de Fogo | Alma Ardente (+3 ATQ) | **Incinerar** | Alcance 1-3, força 0,6, queima 4 por turno por 3 turnos (160). |
+| Mago de Fogo | Couraça de Brasa (+8 HP, +1 DEF) | **Rajada de Calor** | Corpo a corpo, força 0,7, empurra 2; +4 de vida (120). |
+| Mago de Água | Inverno Eterno (+3 ATQ) | **Toque Gélido** | Alcance 2-4, força 0,6, atrasa 30 e Lento 2 turnos (170). |
+| Mago de Água | Fluxo Calmo (+1 VEL) | **Corrente** | Adianta o relógio de um aliado em 60, nunca antes de agora (140). |
+| Druida | Ira da Mata (+2 ATQ) | **Espinhos Venenosos** | Alcance 2-3, força 0,4, veneno 3 por turno por 3 turnos (150). |
+| Druida | Graça Élfica (+1 VEL, +1 DEF) | **Bênção da Mata** | Aliado (ou ela) Fortalecido: +25% de dano por 2 turnos (140). |
+
+Regras novas (`battle_state.gd`, números em `game_data.gd`):
+
+- **Empurrar:** só alvo colado, na direção do golpe. Bater em obstáculo, degrau alto, borda ou unidade para o empurrão e tira `PUSH_IMPACT` (3, sem defesa) de quem foi empurrado e de quem estava no caminho. Não provoca ataque de oportunidade.
+- **Investida:** cai na casa livre vizinha ao alvo mais perto de quem salta; sem casa livre, não dá para mirar. Flanco e altura contam de onde cai.
+- **Efeitos** (`STATUS`): contam no fim de cada turno de quem os tem (agir ou encerrar o turno). Queimadura e veneno tiram vida sem defesa nem Guarda. Lento anda `SLOW_MOVE` (100) a menos. Repetir renova pelo maior tempo e força. Só correm em combate e somem quando o combate acaba. Vão no save e no estado da rede.
+- **Ajuda em aliado** (tipo `buff`): mira um aliado; Interpor e Corrente não miram quem usa.
+- **IA:** pontua efeitos novos, empurrão e roubo de vida no ataque; usa ajuda em aliado só quando ele tem inimigo a até 2 casas.
+
+**Ainda não balanceado.** Os heróis perderam atributos (o Mago de Fogo perdeu +3 ATQ e a couraça); os números são um primeiro chute validado só por testes de regra. Luta IA × IA com todas as habilidades novas compradas termina (32 ações). 441 verificações em `test_battle.gd`, 0 falhas; `test_save` e `test_expedition` iguais a antes.

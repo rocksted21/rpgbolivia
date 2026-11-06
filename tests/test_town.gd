@@ -256,3 +256,15 @@ func test_growth() -> void:
 	check(saved.person_near(smith + Vector2i(1, 0))["id"] == "ferreiro", "dá para falar com quem está perto")
 	check(saved.person_near(Vector2i(200, 200)).is_empty(), "longe não há conversa")
 	check(not saved.tile_at(Town.PEOPLE.filter(func(p): return p["id"] == "mercadora")[0]["cell"])["walkable"], "a mercadora ocupa uma casa")
+	# Cada morador resgatado traz de volta o prédio do seu ofício.
+	var everyone = _new(Exp.RESIDENT_ORDER)
+	for building in Town.BUILDINGS:
+		if building.get("needs", "") == "":
+			continue
+		var cell: Vector2i = building["cell"]
+		check(empty.props[cell][0]["path"] == Town.RUBBLE, "sem %s, %s em ruínas" % [building["needs"], building["art"]])
+		check(everyone.props[cell][0]["path"] != Town.RUBBLE, "com %s, %s de pé" % [building["needs"], building["art"]])
+	for id in Exp.RESIDENT_ORDER:
+		var home: Array = Town.PEOPLE.filter(func(p): return p["id"] == id)
+		check(home.size() == 1 and home[0]["needs"] == id, "%s tem casa na cidade" % id)
+		check(Town.BUILDINGS.any(func(b): return b.get("needs", "") == id), "%s reabre um prédio" % id)

@@ -88,6 +88,8 @@ static func capture(state) -> Dictionary:
 					rows.append(row)
 			landmarks[cell] = entry
 		data.landmarks = landmarks
+		# O arquivo grava as chaves em ordem alfabética; a ordem original dos locais decide jogadas.
+		data.landmark_order = state.landmarks.keys()
 		data.terrain_override = state.terrain_override.duplicate()
 		data.beacon_cell = state.beacon_cell
 		data.boss = state.boss.uid if state.boss != null else 0
@@ -115,7 +117,7 @@ static func _unit_row(unit, state) -> Dictionary:
 		uid = unit.uid, type = unit.type_id, team = unit.team, pos = unit.pos, name = unit.display_name,
 		hp = unit.hp, max_hp = unit.max_hp, atk = unit.atk, def = unit.def, speed = unit.speed,
 		abilities = unit.abilities.duplicate(), clock = unit.clock, moved = unit.moved, jumped = unit.jumped, guarding = unit.guarding,
-		pending = unit.pending.duplicate(true), taunt_actions = unit.taunt_actions,
+		pending = unit.pending.duplicate(true), taunt_actions = unit.taunt_actions, statuses = unit.statuses.duplicate(true),
 		taunted_by = unit.taunted_by.uid if unit.taunted_by != null else 0,
 		engaged = "engaged" in state and state.engaged.has(unit), gone = false,
 	}
@@ -149,7 +151,7 @@ static func restore(data: Dictionary):
 		state.last_walker = by_uid.get(data.last_walker, state.party[0])
 	if data.mode == "expedition":
 		state.landmarks.clear()
-		for cell in data.landmarks:
+		for cell in data.get("landmark_order", data.landmarks.keys()):
 			var entry: Dictionary = data.landmarks[cell].duplicate()
 			entry.guards = entry.guards.map(func(uid): return by_uid.get(uid)).filter(func(u): return u != null)
 			state.landmarks[cell] = entry
@@ -208,6 +210,8 @@ static func _restore_units(state, data: Dictionary) -> Dictionary:
 		unit.guarding = row.guarding
 		unit.pending = row.pending.duplicate(true)
 		unit.taunt_actions = row.taunt_actions
+		var statuses: Variant = row.get("statuses", {})
+		unit.statuses = statuses.duplicate(true) if statuses is Dictionary else {}
 		by_uid[unit.uid] = unit
 		if "known" in state:
 			state.known[unit.uid] = unit

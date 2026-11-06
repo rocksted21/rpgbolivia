@@ -9,6 +9,9 @@ const KILL_BONUS := 20
 const CHARGE_HIT_SCORE := 12
 const CHARGE_FRIENDLY_PENALTY := 18
 const HEAL_BELOW := 0.6
+const STATUS_SCORE := 4 # efeito novo no alvo (marca, lentidão, veneno...)
+const PUSH_SCORE := 2
+const BUFF_SCORE := 8
 
 
 ## Devolve {"kind": "ability", "id", "cell"}, {"kind": "step", "cell"} ou {"kind": "wait"}.
@@ -81,7 +84,18 @@ static func _score(state, unit, id: String, cell: Vector2i) -> int:
 		"attack":
 			var target = state.unit_at(cell)
 			var amount: int = state.preview_attack(unit, id, target)["amount"]
-			return amount + (KILL_BONUS if amount >= target.hp else 0)
+			if amount >= target.hp:
+				return amount + KILL_BONUS
+			var extra := 0
+			if ability.has("status") and not target.has_status(ability["status"]["id"]):
+				extra += STATUS_SCORE
+			if ability.has("push"):
+				extra += PUSH_SCORE
+			if ability.has("lifesteal") and unit.hp < unit.max_hp:
+				extra += roundi(amount * ability["lifesteal"])
+			return amount + extra
+		"buff":
+			return _buff_score(state, unit, ability, state.unit_at(cell))
 		"heal":
 			var target = state.unit_at(cell)
 			return ability["heal"] if float(target.hp) / target.max_hp < HEAL_BELOW else 0
@@ -92,6 +106,22 @@ static func _score(state, unit, id: String, cell: Vector2i) -> int:
 					score += CHARGE_HIT_SCORE if other.team != unit.team else -CHARGE_FRIENDLY_PENALTY
 			return score
 	return 0
+
+
+## Ajuda em aliado só vale perto da briga: Guarda em quem está ferido e colado num
+## inimigo, Fortalecer e adiantar quem tem inimigo por perto.
+static func _buff_score(state, unit, ability: Dictionary, target) -> int:
+	var near: bool = state.enemies_of(target).any(func(enemy): return Hex.distance(enemy.pos, target.pos) <= 2)
+	if not near:
+		return 0
+	var score := 0
+	if ability.get("guard_ally", false) and not target.guarding and target.hp * 10 < target.max_hp * 6:
+		score += BUFF_SCORE
+	if ability.has("haste") and target != unit and target.pending.is_empty():
+		score += BUFF_SCORE - 2
+	if ability.has("status") and not target.has_status(ability["status"]["id"]):
+		score += BUFF_SCORE - 1
+	return score
 
 
 static func _can_hit_from(state, unit, cell: Vector2i, only = null) -> bool:

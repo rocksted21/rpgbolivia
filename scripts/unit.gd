@@ -24,6 +24,7 @@ var passives := {} # regras especiais das skills (ver skill_data.gd)
 var ability_mods := {} # {habilidade: {campo: soma}}
 var taunted_by = null # quem a IA é obrigada a perseguir
 var taunt_actions := 0
+var statuses := {} # efeitos com duração: {id: {"turns": n, "amount": x}} (ver Data.STATUS)
 var uid := 0 # identifica a unidade na rede, mesmo com inimigos entrando e saindo
 
 
@@ -79,6 +80,18 @@ func ability(ability_id: String) -> Dictionary:
 
 func passive(key: String, fallback: Variant = null) -> Variant:
 	return passives.get(key, fallback)
+
+
+func has_status(id: String) -> bool:
+	return statuses.has(id)
+
+
+## Nomes dos efeitos ativos, para o texto embaixo da unidade.
+func status_names() -> Array:
+	var out := []
+	for id in statuses:
+		out.append(Data.STATUS[id]["name"])
+	return out
 
 
 func alive() -> bool:

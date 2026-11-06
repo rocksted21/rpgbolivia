@@ -42,6 +42,26 @@ Golpes e magias dos 6 heróis têm hitstop, tremor de tela, clarão, tranco em q
 
 Para ver cada golpe quadro a quadro: `godot --path . --fixed-fps 30 --script tests/juice_shots.gd -- <pasta> [cena]`. Com `--write-movie <arquivo>.avi` e a cena `video`, grava os melhores momentos.
 
+## Onde fica cada parte da tela de jogo
+
+`scripts/battle_view.gd` (classe `BattleView`) é a tela de jogo: começa a partida, roda o laço de turnos, a câmera e as contas de posição das casas. O resto mora em módulos em `scripts/battle/`, cada um com acesso à tela por `battle`:
+
+| Arquivo | O que faz |
+| --- | --- |
+| `board_art.gd` | Chão, casas, paredes, enfeites, locais e o mapa que carrega aos poucos |
+| `battle_input.gd` | Cliques, teclas, menu de ações, ficha e troca de herói |
+| `battle_marks.gd` | Destaques no chão (caminho, alcance, área), dica do rodapé e marcadores da fila |
+| `event_player.gd` | Anima os eventos das regras: andar, atacar, dano, cura, morte e magias |
+| `hero_fx.gd` | Peso dos golpes dos heróis (juice) |
+| `roam_control.gd` | Caminhada livre e fila da party fora de combate |
+| `journey_ui.gd` | Objetivo, bússola, missão, poção e resultado da expedição |
+| `town_mode.gd` | Cidade-Farol: moradores e partida |
+| `net_bridge.gd` | Comandos e pacotes do online |
+
+O HUD segue a mesma ideia: `scripts/hud.gd` (classe `BattleHud`) guarda os sinais e os textos do topo, e os componentes ficam em `scripts/hud/` (`options_menu.gd`, `unit_card.gd`, `action_menu.gd`, `party_bar.gd` e `timeline.gd`). As funções que outros scripts e os testes chamam continuam na tela e no HUD, no fim de cada arquivo, em "Repasses".
+
+Os nomes `BattleView` e `BattleHud` são registrados pelo editor: depois de baixar o projeto, abra-o uma vez no Godot (ou rode `godot --headless --path . --import`) antes de rodar os testes pela linha de comando.
+
 ## Referências
 
 - [Servidor e modo online](servidor/README.md)

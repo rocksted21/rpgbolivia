@@ -1,0 +1,2 @@
+Cópia dos arquivos como estavam antes da divisão do battle_view.gd e do hud.gd (05/11/2026).
+O Godot ignora esta pasta (.gdignore). Pode apagar quando tudo estiver testado e enviado ao GitHub.

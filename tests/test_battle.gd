@@ -45,6 +45,7 @@ func _initialize() -> void:
 	test_attack_reach()
 	test_full_battles()
 	test_skills()
+	test_new_abilities()
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -77,9 +78,10 @@ func test_skills() -> void:
 
 	# Regras de compra e limpeza do que vem de fora.
 	check(not Skills.can_unlock("besteiro", [], "bes_longo", 12), "exige o nó anterior")
-	check(Skills.can_unlock("besteiro", ["bes_mira"], "bes_longo", 12), "libera com o anterior")
-	check(not Skills.can_unlock("besteiro", ["bes_mira"], "bes_longo", 1), "sem pontos não compra")
-	check(Skills.sanitize("besteiro", ["bes_longo", "bes_mira", "bes_mira", "x", 5]) == ["bes_mira", "bes_longo"], "limpa e ordena a build")
+	check(Skills.can_unlock("besteiro", ["bes_marcador"], "bes_longo", 12), "libera com o anterior")
+	check(not Skills.can_unlock("besteiro", ["bes_marcador"], "bes_longo", 1), "sem pontos não compra")
+	check(Skills.sanitize("besteiro", ["bes_longo", "bes_marcador", "bes_marcador", "x", 5]) == ["bes_marcador", "bes_longo"], "limpa e ordena a build")
+	check(Skills.sanitize("besteiro", ["bes_mira", "bes_longo"]) == ["bes_marcador", "bes_longo"], "save antigo troca o nó renomeado")
 	check(Skills.sanitize("besteiro", ["bes_longo"]).is_empty(), "remove nó sem requisito")
 	check(Skills.sanitize("besteiro", "lixo").is_empty(), "ignora build inválida")
 	var everything := []
@@ -108,14 +110,14 @@ func test_skills() -> void:
 
 	# Proteção, Muralha e Contragolpe.
 	state = flat()
-	var tank = state.add_unit("guardiao", PLAYER, Vector2i(2, 2), ["gua_ferro", "gua_placas", "gua_protecao"])
+	var tank = state.add_unit("guardiao", PLAYER, Vector2i(2, 2), ["gua_ferro", "gua_interpor", "gua_protecao"])
 	var friend = state.add_unit("duelista", PLAYER, Hex.neighbor(Vector2i(2, 2), 0))
 	var foe = state.add_unit("cerbero", ENEMY, Hex.neighbor(friend.pos, 0))
 	var open_hit: int = state.preview_attack(foe, "golpe", friend)["amount"]
 	state.do_ability(tank, "guarda", tank.pos)
 	check(state.preview_attack(foe, "golpe", friend)["amount"] < open_hit, "Proteção reduz dano no vizinho")
 	state = flat()
-	var wall = state.add_unit("guardiao", PLAYER, Vector2i(2, 2), ["gua_forca", "gua_pesado", "gua_contra"])
+	var wall = state.add_unit("guardiao", PLAYER, Vector2i(2, 2), ["gua_escudada", "gua_pesado", "gua_contra"])
 	var biter = state.add_unit("cerbero", ENEMY, Hex.neighbor(Vector2i(2, 2), 0))
 	state.do_ability(wall, "guarda", wall.pos)
 	var hp_before: int = biter.hp
@@ -124,7 +126,7 @@ func test_skills() -> void:
 
 	# Perfurante, Raízes, Executor e Sede de Sangue.
 	state = flat()
-	var archer = state.add_unit("besteiro", PLAYER, Vector2i(0, 2), ["bes_mira", "bes_longo", "bes_certeiro", "bes_perfurante"])
+	var archer = state.add_unit("besteiro", PLAYER, Vector2i(0, 2), ["bes_marcador", "bes_longo", "bes_certeiro", "bes_perfurante"])
 	var armored = state.add_unit("guardiao", ENEMY, Vector2i(3, 2))
 	var expected := roundi(archer.atk * 1.0)
 	check(state.preview_attack(archer, "perfurante", armored)["amount"] == expected, "Perfurante ignora defesa")
@@ -132,13 +134,13 @@ func test_skills() -> void:
 	armored.hp = 5
 	check(state.preview_attack(archer, "tiro", armored)["amount"] > healthy, "Olho de Falcão pune alvo ferido")
 	state = flat()
-	var elf = state.add_unit("druida", PLAYER, Vector2i(0, 2), ["dru_espinho", "dru_raizes", "dru_ira", "dru_cipos"])
+	var elf = state.add_unit("druida", PLAYER, Vector2i(0, 2), ["dru_espinho", "dru_raizes", "dru_venenoso", "dru_cipos"])
 	var rooted = state.add_unit("mumia", ENEMY, Vector2i(2, 2))
 	var clock_before: int = rooted.clock
 	state.do_ability(elf, "raizes", rooted.pos)
 	check(rooted.clock == clock_before + 80, "Raízes e Cipós atrasam o alvo")
 	state = flat()
-	var killer = state.add_unit("duelista", PLAYER, Vector2i(2, 2), ["due_couro", "due_aparar", "due_casca", "due_sede"])
+	var killer = state.add_unit("duelista", PLAYER, Vector2i(2, 2), ["due_couro", "due_aparar", "due_sangria", "due_sede"])
 	var weak = state.add_unit("diabrete", ENEMY, Hex.neighbor(Vector2i(2, 2), 0))
 	weak.hp = 1
 	killer.hp = 10
@@ -155,7 +157,7 @@ func test_skills() -> void:
 	state.do_step(slip, away)
 	check(slip.hp == hp_full, "Escapada evita oportunidade")
 	state = flat()
-	var healer = state.add_unit("druida", PLAYER, Vector2i(2, 2), ["dru_seiva", "dru_alcance", "dru_clareira", "dru_comunhao", "dru_vigor", "dru_casca", "dru_agil", "dru_abrigo"])
+	var healer = state.add_unit("druida", PLAYER, Vector2i(2, 2), ["dru_seiva", "dru_alcance", "dru_clareira", "dru_comunhao", "dru_vigor", "dru_casca", "dru_bencao", "dru_abrigo"])
 	var left = state.add_unit("guardiao", PLAYER, Vector2i(1, 2))
 	var right = state.add_unit("besteiro", PLAYER, Hex.neighbor(Vector2i(1, 2), 3))
 	left.hp = 10
@@ -222,6 +224,190 @@ func test_skills() -> void:
 			AI.apply(a, unit, AI.decide(a, unit))
 		actions += 1
 	check(a.winner() >= 0, "luta com builds termina")
+
+
+## Habilidades novas: empurrão, investida, efeitos com duração, roubo de vida e ajuda em aliado.
+func test_new_abilities() -> void:
+	var Skills = preload("res://scripts/skill_data.gd")
+	# Toda árvore tem pelo menos 2 habilidades novas e todo nó renomeado existe.
+	for old_id in Skills.RENAMED:
+		var new_id: String = Skills.RENAMED[old_id]
+		var found := false
+		for type_id in Skills.hero_types():
+			found = found or not Skills.locate(type_id, new_id).is_empty()
+		check(found, "renomeado existe: " + new_id)
+	for id in Data.ABILITIES:
+		if Data.ABILITIES[id].has("status"):
+			check(Data.STATUS.has(Data.ABILITIES[id]["status"]["id"]), "efeito existe: " + id)
+
+	# Escudada empurra 1; bater em algo dói em quem foi empurrado e em quem estava atrás.
+	var state := flat()
+	var tank = state.add_unit("guardiao", PLAYER, Vector2i(1, 2), ["gua_escudada"])
+	var east := Hex.neighbor(tank.pos, 0)
+	var foe = state.add_unit("esqueleto", ENEMY, east)
+	var hp_before: int = foe.hp
+	var events: Array = state.do_ability(tank, "escudada", foe.pos)
+	check(foe.pos == Hex.neighbor(east, 0), "Escudada empurra 1 casa")
+	check(events.any(func(e): return e["type"] == "move" and e.get("push", false)), "empurrão vira evento de movimento")
+	var pushed_damage: int = hp_before - foe.hp
+	state = flat()
+	tank = state.add_unit("guardiao", PLAYER, Vector2i(1, 2), ["gua_escudada"])
+	foe = state.add_unit("esqueleto", ENEMY, Hex.neighbor(tank.pos, 0))
+	var wall = state.add_unit("mumia", ENEMY, Hex.neighbor(foe.pos, 0))
+	hp_before = foe.hp
+	var wall_hp: int = wall.hp
+	state.do_ability(tank, "escudada", foe.pos)
+	check(foe.pos == Hex.neighbor(tank.pos, 0), "bloqueado, não sai do lugar")
+	check(hp_before - foe.hp == pushed_damage + Data.PUSH_IMPACT, "batida dá dano extra")
+	check(wall.hp == wall_hp - Data.PUSH_IMPACT, "quem estava atrás também leva")
+	state = flat()
+	var archer = state.add_unit("besteiro", PLAYER, Vector2i(0, 2), ["bes_chute"])
+	foe = state.add_unit("diabrete", ENEMY, Hex.neighbor(archer.pos, 0))
+	state.do_ability(archer, "chute", foe.pos)
+	check(Hex.distance(archer.pos, foe.pos) == 3, "Chute empurra 2 casas")
+	state = flat()
+	archer = state.add_unit("besteiro", PLAYER, Vector2i(3, 2), ["bes_chute"])
+	foe = state.add_unit("diabrete", ENEMY, Hex.neighbor(archer.pos, 0))
+	hp_before = foe.hp
+	state.do_ability(archer, "chute", foe.pos)
+	check(foe.pos == Vector2i(4, 2) and foe.hp < hp_before - 1, "na borda do mapa, bate e para")
+
+	# Investida: salta até colar, sem oportunidade, e conta flanco de onde cai.
+	state = flat()
+	var duel = state.add_unit("duelista", PLAYER, Vector2i(0, 2), ["due_leve", "due_escape", "due_relampago", "due_investida"])
+	var guard = state.add_unit("esqueleto", ENEMY, Hex.neighbor(duel.pos, 0))
+	foe = state.add_unit("mumia", ENEMY, Vector2i(3, 2))
+	var duel_hp: int = duel.hp
+	check(foe.pos in state.valid_targets(duel, "investida"), "investida mira a 3 casas")
+	check(not guard.pos in state.valid_targets(duel, "investida"), "investida não mira colado")
+	var land: Vector2i = state.dash_cell(duel, foe.pos)
+	events = state.do_ability(duel, "investida", foe.pos)
+	check(duel.pos == land and Hex.distance(duel.pos, foe.pos) == 1, "cai colada no alvo")
+	check(events[0]["type"] == "move" and events[0].get("dash", false), "o salto vem antes do golpe")
+	check(duel.hp == duel_hp, "salto não sofre oportunidade")
+	state = flat()
+	tank = state.add_unit("guardiao", PLAYER, Vector2i(0, 0), ["gua_passo", "gua_vigia", "gua_provocar", "gua_carga"])
+	foe = state.add_unit("esqueleto", ENEMY, Vector2i(2, 0))
+	state.add_unit("esqueleto", ENEMY, Vector2i(1, 0))
+	state.add_unit("esqueleto", ENEMY, Vector2i(1, 1))
+	state.add_unit("esqueleto", ENEMY, Vector2i(2, 1))
+	state.add_unit("esqueleto", ENEMY, Vector2i(3, 0))
+	state.add_unit("esqueleto", ENEMY, Vector2i(3, 1))
+	check(not foe.pos in state.valid_targets(tank, "carga"), "sem casa livre ao lado, não salta")
+
+	# Efeitos: marca aumenta o dano, lentidão tira passos, veneno dói e acaba.
+	state = flat()
+	duel = state.add_unit("duelista", PLAYER, Vector2i(1, 2), ["due_marcar"])
+	foe = state.add_unit("mumia", ENEMY, Hex.neighbor(duel.pos, 0))
+	var plain: int = state.preview_attack(duel, "golpe", foe)["amount"]
+	state.do_ability(duel, "marcar", foe.pos)
+	check(foe.has_status("mark"), "Golpe Marcante marca")
+	check(state.preview_attack(duel, "golpe", foe)["amount"] > plain, "marcado leva mais dano")
+	state.do_wait(foe)
+	check(foe.has_status("mark"), "marca dura 2 turnos dele")
+	var ends: Array = state.do_wait(foe)
+	check(not foe.has_status("mark") and ends.any(func(e): return e["type"] == "status_end"), "marca acaba e avisa")
+	state = flat()
+	archer = state.add_unit("besteiro", PLAYER, Vector2i(0, 2), ["bes_chute", "bes_adaga", "bes_perna"])
+	foe = state.add_unit("esqueleto", ENEMY, Vector2i(3, 2))
+	var free_steps: int = state.steps_left(foe)
+	state.do_ability(archer, "tiro_perna", foe.pos)
+	check(state.steps_left(foe) == free_steps - 1, "lento anda 1 casa a menos")
+	state = flat()
+	var elf = state.add_unit("druida", PLAYER, Vector2i(0, 2), ["dru_espinho", "dru_raizes", "dru_venenoso"])
+	foe = state.add_unit("mumia", ENEMY, Vector2i(2, 2))
+	state.do_ability(elf, "espinhos_venenosos", foe.pos)
+	hp_before = foe.hp
+	events = state.do_wait(foe)
+	check(foe.hp == hp_before - 3 and events.any(func(e): return e.get("dot", "") == "poison"), "veneno dói no fim do turno")
+	state.do_wait(foe)
+	state.do_wait(foe)
+	hp_before = foe.hp
+	state.do_wait(foe)
+	check(foe.hp == hp_before and not foe.has_status("poison"), "veneno acaba depois de 3 turnos")
+	state = flat()
+	var mage = state.add_unit("mago", PLAYER, Vector2i(0, 2), ["fog_labareda", "fog_pilar", "fog_solar", "fog_incinerar"])
+	foe = state.add_unit("diabrete", ENEMY, Vector2i(2, 2))
+	state.do_ability(mage, "incinerar", foe.pos)
+	foe.hp = 2
+	state.do_wait(foe)
+	check(not foe.alive(), "queimadura pode matar")
+	state = flat()
+	var ice = state.add_unit("mago_agua", PLAYER, Vector2i(0, 2), ["agu_estaca", "agu_estilhaco", "agu_cristal", "agu_toque"])
+	foe = state.add_unit("esqueleto", ENEMY, Vector2i(3, 2))
+	var foe_clock: int = foe.clock
+	state.do_ability(ice, "toque_gelido", foe.pos)
+	check(foe.clock == foe_clock + 30 and foe.has_status("slow"), "Toque Gélido atrasa e deixa lento")
+
+	# Roubo de vida.
+	state = flat()
+	duel = state.add_unit("duelista", PLAYER, Vector2i(1, 2), ["due_couro", "due_aparar", "due_sangria"])
+	foe = state.add_unit("mumia", ENEMY, Hex.neighbor(duel.pos, 0))
+	duel.hp = 10
+	var dealt: int = state.preview_attack(duel, "sangria", foe)["amount"]
+	state.do_ability(duel, "sangria", foe.pos)
+	check(duel.hp == 10 + roundi(dealt * 0.5), "Lâmina Sedenta devolve metade do dano")
+
+	# Ajuda em aliado.
+	state = flat()
+	tank = state.add_unit("guardiao", PLAYER, Vector2i(1, 2), ["gua_ferro", "gua_interpor"])
+	var friend = state.add_unit("mago", PLAYER, Vector2i(3, 2))
+	check(friend.pos in state.valid_targets(tank, "interpor") and not tank.pos in state.valid_targets(tank, "interpor"), "Interpor mira aliado, não ele mesmo")
+	state.do_ability(tank, "interpor", friend.pos)
+	check(friend.guarding and not tank.guarding, "Interpor põe o aliado em Guarda")
+	state = flat()
+	var water = state.add_unit("mago_agua", PLAYER, Vector2i(1, 2), ["agu_corrente"])
+	friend = state.add_unit("guardiao", PLAYER, Vector2i(3, 2))
+	friend.clock = water.clock + 100
+	var water_clock: int = water.clock
+	state.do_ability(water, "corrente", friend.pos)
+	check(friend.clock == water_clock + 40, "Corrente adianta o aliado")
+	friend.clock = water.clock + 10
+	var now: int = water.clock
+	state.do_ability(water, "corrente", friend.pos)
+	check(friend.clock == now, "Corrente não volta no tempo")
+	state = flat()
+	elf = state.add_unit("druida", PLAYER, Vector2i(1, 2), ["dru_vigor", "dru_casca", "dru_bencao"])
+	friend = state.add_unit("duelista", PLAYER, Vector2i(2, 2))
+	foe = state.add_unit("mumia", ENEMY, Hex.neighbor(friend.pos, 0))
+	plain = state.preview_attack(friend, "golpe", foe)["amount"]
+	state.do_ability(elf, "bencao", friend.pos)
+	check(state.preview_attack(friend, "golpe", foe)["amount"] > plain, "Bênção fortalece o aliado")
+	state.do_ability(friend, "golpe", foe.pos)
+	check(friend.has_status("might"), "fortalecido dura 2 turnos do aliado")
+	state.do_ability(elf, "bencao", elf.pos)
+	check(elf.statuses["might"]["turns"] == 2, "em si mesma dura o mesmo")
+
+	# A IA usa as novas: Bênção num aliado em briga, nada longe dela.
+	state = flat()
+	elf = state.add_unit("druida", ENEMY, Vector2i(0, 0), ["dru_vigor", "dru_casca", "dru_bencao"])
+	friend = state.add_unit("cerbero", ENEMY, Vector2i(2, 1))
+	state.add_unit("guardiao", PLAYER, Hex.neighbor(friend.pos, 0))
+	var action: Dictionary = AI.decide(state, elf)
+	check(action["kind"] == "ability" and action["id"] == "bencao", "IA fortalece aliado perto do inimigo")
+
+	# Luta inteira com todas as habilidades novas compradas.
+	var builds := {}
+	for i in Data.BATTLE_UNITS.size():
+		var type_id: String = Data.BATTLE_UNITS[i][0]
+		if Skills.has_tree(type_id):
+			var everything := []
+			for branch in Skills.tree(type_id):
+				for node in branch["nodes"]:
+					if node.has("unlock") or node.has("passive"):
+						everything.append(node["id"])
+			builds[i] = everything
+	var a = BattleState.from_data(builds)
+	var actions := 0
+	while a.winner() < 0 and actions < 3000:
+		var unit = a.active_unit()
+		if not unit.pending.is_empty():
+			a.resolve_pending(unit)
+		else:
+			AI.apply(a, unit, AI.decide(a, unit))
+		actions += 1
+	check(a.winner() >= 0, "luta com as habilidades novas termina")
+	print("luta com habilidades novas: %d ações" % actions)
 
 
 func check(condition: bool, label: String) -> void:
@@ -459,7 +645,7 @@ func test_move_and_act() -> void:
 	var walked: Array = state.do_move(hero, Vector2i(2, 0))
 	check(walked.size() == 2 and walked[0]["type"] == "move", "anda o caminho inteiro em um comando")
 	check(hero.pos == Vector2i(2, 0) and hero.clock == clock and state.active_unit() == hero, "andar não passa a vez")
-	check(state.steps_left(hero) == 3, "sobram 3 casas")
+	check(state.steps_left(hero) == 1, "sobra 1 casa depois de andar 2")
 	state.do_ability(hero, "golpe", foe.pos)
 	check(hero.clock == clock + state.time_for(150, hero), "o ataque cobra o relógio")
 	check(hero.moved == 0, "o ataque encerra o turno: o próximo começa com todos os passos")
