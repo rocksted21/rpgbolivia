@@ -126,6 +126,31 @@ func test_placement() -> void:
 	check(a.camps.cells == restored.camps.cells, "save restaura composição e colisão do acampamento")
 
 
+## Ponte curta: a rota contorna o lago e o rio tem largura de 1 a 2 casas.
+func _check_bridges(state, world_seed: int) -> void:
+	var bridges := {}
+	for cell in state.area_of(state.start_cell, state._route_radius()):
+		if state.gen.sample(cell)["terrain"] == state.gen.BRIDGE:
+			bridges[cell] = true
+	var longest := 0
+	var seen := {}
+	for cell in bridges:
+		if seen.has(cell):
+			continue
+		var size := 0
+		var frontier := [cell]
+		seen[cell] = true
+		while not frontier.is_empty():
+			var current: Vector2i = frontier.pop_back()
+			size += 1
+			for next in Hex.neighbors(current):
+				if bridges.has(next) and not seen.has(next):
+					seen[next] = true
+					frontier.append(next)
+		longest = maxi(longest, size)
+	check(longest <= 6, "semente %d: nenhuma ponte longa (maior: %d casas)" % [world_seed, longest])
+
+
 ## Os locais se espalham pelo mapa: quase toda zona tem algum, e há prêmio no alto de platô.
 func _check_spread(state, world_seed: int) -> void:
 	var zones := {}
@@ -245,6 +270,7 @@ func test_layout() -> void:
 		check(cut == 0, "semente %d: nenhum caminho fura a serra (%d)" % [world_seed, cut])
 		for zone in layout.zones:
 			check(state.gen.is_path(zone["center"]), "semente %d: a trilha chega ao centro da zona %s" % [world_seed, zone["center"]])
+		_check_bridges(state, world_seed)
 	print("Forma do mapa: %d reparos em 6 mapas" % total_repairs)
 	# Atrás da serra o inimigo não entra na luta.
 	var walled = ExpeditionState.new(Data.DEFAULT_PARTY, 93)

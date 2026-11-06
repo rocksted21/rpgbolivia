@@ -33,8 +33,20 @@ const BORDER_FREQUENCY := 0.035
 # Planaltos: manchas largas de terra alta, com bordas em penhasco. Sobem em até três degraus.
 const LEVEL_OFFSET := 0.16
 const LEVEL_STEP := 0.15
-const RIVER_WIDTH := 0.016
-const FORD_LIMIT := 0.12 # acima disso o rio dá passagem; ele nunca corta o mundo em dois
+# O rio é a linha onde o ruído passa por zero. A largura é a distância real até essa linha
+# (valor dividido pela inclinação): sem isso, onde o ruído é plano o rio incha e vira lago.
+const RIVER_HALF_WIDTH := 0.85 # em casas, para cada lado da linha: 1 a 2 casas de largura
+const RIVER_SKIP := 0.06 # longe assim de zero, nem calcula a inclinação
+const FORD_LIMIT := 0.42 # acima disso o rio dá passagem (vau); ele nunca corta o mundo em dois
+# Lagos: manchas do ruído de relevo, com a beira tremida por um ruído fino (sem linha reta).
+# A forma é só do lago: a água fica no nível 0 e rebaixa a margem até SHORE_LEVEL, em vez de
+# o lago ser cortado pelo penhasco (era isso que fazia losangos).
+const WATER_COST := 45.0 # cada casa de ponte vale uma volta longa: a rota contorna o lago
+const LAKE_RAISE := 0.13 # somado ao "water" do bioma: lagos menores
+const LAKE_EDGE := 0.07 # quanto o ruído fino entorta a beira
+# A margem desce em degraus de um nível: perto do limiar do lago, no máximo 1; um pouco além, 2.
+const SHORE_STEPS := [[0.07, 1], [0.15, 2]]
+const LAKE_MIN_NEIGHBORS := 2 # casa d'água com menos vizinhas d'água vira terra (sem poça solta)
 const RANGE_START := 0.5 # serra: o miolo é montanha, a beira vira colinas e pedras
 const RANGE_BAND := 0.08
 const MOUNTAIN_CHANCE := 0.4
@@ -84,6 +96,7 @@ var bound_radius := -1 # menor que zero: mundo sem borda
 ## que contornam as serras e passam pelas passagens, em vez de cortá-las.
 var noise_paths := true
 var walls := {} # casas que nenhum caminho aberto atravessa (a serra da expedição)
+var lake_values := {} # cache do valor do lago por casa (o limiar fica fora, varia com o bioma)
 
 
 func _init(p_seed: int) -> void:
@@ -137,8 +150,10 @@ func _generate(cell: Vector2i) -> Dictionary:
 	var wx := x + warp_x_noise.get_noise_2d(x, y) * WARP
 	var wy := y + warp_y_noise.get_noise_2d(x, y) * WARP
 	var roll := _roll(cell)
-	var level: int = layout_levels.get(cell, _level(cell))
 	var biome := biome_of(cell)
+	var level: int = layout_levels.get(cell, _level(cell))
+	if not layout_levels.has(cell):
+		level = mini(level, _shore_cap(cell, Data.BIOMES[biome]))
 	var spot := {"elevation": level, "biome": biome, "detail": fmod(roll * 97.0, 1.0)}
 	_shape(cell, wx, wy, level, Data.BIOMES[biome], roll, spot)
 	if layout_terrain.has(cell) and not is_path(cell):
@@ -207,7 +222,10 @@ func _raw_level(cell: Vector2i) -> int:
 	if not raw_levels.has(cell):
 		var x := cell.x + (cell.y & 1) * 0.5
 		var y := cell.y * 0.866
-		raw_levels[cell] = clampi(floori((height_noise.get_noise_2d(x, y) + LEVEL_OFFSET) / LEVEL_STEP), 0, MAX_LEVEL)
+		# Entortada como o resto: sem isso o penhasco segue a grade e sai em retas de 60 graus.
+		var wx := x + warp_x_noise.get_noise_2d(x, y) * WARP
+		var wy := y + warp_y_noise.get_noise_2d(x, y) * WARP
+		raw_levels[cell] = clampi(floori((height_noise.get_noise_2d(wx, wy) + LEVEL_OFFSET) / LEVEL_STEP), 0, MAX_LEVEL)
 	return raw_levels[cell]
 
 
@@ -244,18 +262,22 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 	spot["terrain"] = field
 	if is_path(cell):
 		# O caminho vem antes de tudo, para nunca se partir: cruza a água por uma ponte.
-		var over_water := absf(river_noise.get_noise_2d(x, y)) < RIVER_WIDTH and crossing_noise.get_noise_2d(x, y) < FORD_LIMIT
-		if over_water or (level == 0 and feature_noise.get_noise_2d(x, y) > biome["water"]):
+		# Passagem, platô e rampa foram limpos pelo mapa: ali é chão, não há água para ponte.
+		var wet := DRY if layout_levels.has(cell) else _water_kind(cell, x, y, level, biome)
+		# Sobre água, fica na altura dela (a rota foi traçada assim), com ou sem ponte.
+		if wet == RIVER:
+			spot["elevation"] = maxi(level - 1, 0)
+		elif wet == LAKE:
+			spot["elevation"] = 0
+		if wet != DRY and _water_beside(cell):
 			spot["terrain"] = BRIDGE
-			if over_water:
-				spot["elevation"] = maxi(level - 1, 0)
 		else:
 			spot["terrain"] = ROAD if is_road(cell) else PATH
 		return
 	if has_clearing and Hex.distance(cell, clearing_center) <= START_CLEARING:
 		return
 	var crossing := crossing_noise.get_noise_2d(x, y)
-	if absf(river_noise.get_noise_2d(x, y)) < RIVER_WIDTH:
+	if _river_at(x, y):
 		if crossing < FORD_LIMIT:
 			spot["terrain"] = WATER
 			spot["elevation"] = maxi(level - 1, 0)
@@ -272,8 +294,9 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 		spot["terrain"] = HILLS if roll < 0.55 else (ROCKS if roll < 0.8 else field)
 		return
 	var feature := feature_noise.get_noise_2d(x, y)
-	if level == 0 and feature > biome["water"]:
+	if _water_kind(cell, x, y, level, biome) == LAKE:
 		spot["terrain"] = WATER
+		spot["elevation"] = 0
 		return
 	var moisture := moisture_noise.get_noise_2d(x, y)
 	if moisture > biome["forest"] or (moisture > biome["forest"] - FOREST_EDGE and roll > 0.65):
@@ -294,6 +317,71 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 		spot["detail"] = roll / maxf(SITE_DECOR if in_site else FIELD_DECOR, 0.001) * DECOR_DETAIL * 0.99
 	elif spot["detail"] < DECOR_DETAIL:
 		spot["detail"] = DECOR_DETAIL + spot["detail"] * 9.0 # enfeite só onde foi escolhido
+
+
+const DRY := 0
+const RIVER := 1
+const LAKE := 2
+
+
+## Que água a casa teria sem caminho em cima: DRY, RIVER ou LAKE. `x` e `y` já entortados.
+func _water_kind(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary) -> int:
+	if _river_at(x, y):
+		return RIVER if crossing_noise.get_noise_2d(x, y) < FORD_LIMIT else DRY
+	if not _raw_lake(cell, biome):
+		return DRY
+	if range_noise.get_noise_2d(x, y) > RANGE_START:
+		return DRY
+	var wet := 0
+	for next in Hex.neighbors(cell):
+		if _raw_lake(next, biome):
+			wet += 1
+	return LAKE if wet >= LAKE_MIN_NEIGHBORS else DRY
+
+
+## A casa (coordenadas já entortadas) fica a menos de RIVER_HALF_WIDTH casas da linha do rio?
+func _river_at(x: float, y: float) -> bool:
+	var value := river_noise.get_noise_2d(x, y)
+	if absf(value) > RIVER_SKIP:
+		return false
+	var dx := river_noise.get_noise_2d(x + 0.5, y) - river_noise.get_noise_2d(x - 0.5, y)
+	var dy := river_noise.get_noise_2d(x, y + 0.5) - river_noise.get_noise_2d(x, y - 0.5)
+	var slope := sqrt(dx * dx + dy * dy)
+	return absf(value) < slope * RIVER_HALF_WIDTH
+
+
+## A mancha do lago, só pelo ruído (sem olhar vizinhos): beira tremida, sem degrau de altura.
+func _raw_lake(cell: Vector2i, biome: Dictionary) -> bool:
+	return _lake_value(cell) > biome["water"] + LAKE_RAISE
+
+
+func _lake_value(cell: Vector2i) -> float:
+	if not lake_values.has(cell):
+		var x := cell.x + (cell.y & 1) * 0.5
+		var y := cell.y * 0.866
+		var wx := x + warp_x_noise.get_noise_2d(x, y) * WARP
+		var wy := y + warp_y_noise.get_noise_2d(x, y) * WARP
+		var edge := crossing_noise.get_noise_2d(wx * 1.7, wy * 1.7) * LAKE_EDGE
+		lake_values[cell] = feature_noise.get_noise_2d(wx, wy) + edge
+	return lake_values[cell]
+
+
+## Altura máxima perto de lago: o valor do ruído cresce aos poucos até o lago, então a
+## distância no valor vira distância no mapa e a margem desce degrau por degrau.
+func _shore_cap(cell: Vector2i, biome: Dictionary) -> int:
+	var gap: float = biome["water"] + LAKE_RAISE - _lake_value(cell)
+	for step in SHORE_STEPS:
+		if gap < step[0]:
+			return step[1]
+	return MAX_LEVEL
+
+
+## Ponte só onde há água de verdade ao lado; num fio d'água isolado, o caminho passa por cima.
+func _water_beside(cell: Vector2i) -> bool:
+	for next in Hex.neighbors(cell):
+		if not is_path(next) and sample(next)["terrain"] == WATER:
+			return true
+	return false
 
 
 ## O caminho é a linha onde o ruído troca de sinal: a borda de uma mancha é contínua e tem
@@ -455,7 +543,7 @@ func _route_cost(from: Vector2i, to: Vector2i) -> float:
 		MOUNTAIN, HOUSE, TOWER:
 			return -1.0
 		WATER:
-			return 24.0 + wander
+			return WATER_COST + wander
 		FOREST, TREE:
 			return 5.0 + wander
 		HILLS, ROCKS:
