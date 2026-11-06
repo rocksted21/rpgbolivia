@@ -19,7 +19,6 @@ const TILE_SLOPE := 53.0 # quanto as bordas inclinadas descem do centro até o l
 const TILE_WALL := 31.0 # altura da parede abaixo da borda da frente
 # Cantos do topo do hexágono; o lado i dá para a vizinha na direção i de Hex.neighbor.
 const HEX_CORNERS := [Vector2(185, 53), Vector2(185, 160), Vector2(93, 213), Vector2(0, 160), Vector2(0, 53), Vector2(93, 0)]
-const HEX_MIDDLE := Vector2(93, 107)
 const WALL_SIDE_MARGIN := 0.4
 const MODEL_META := "res://assets/town/modelos/meta.json"
 const MODEL_SCALE := 2.0 # como os personagens: 1 pixel de arte vale 2 no tabuleiro
@@ -31,7 +30,6 @@ const RING_RADIUS := Vector2(78, 62)
 const TOWN_WOBBLE := 0.55
 const TRAIL_STRENGTH := 0.86 # abaixo de 1 estreita o traço; a estrada é mais larga
 const ROAD_CORNER := 0.22
-const FOREST_HEIGHT := 1.65
 const SCENERY_BASE := {3: 1, 6: 7, 10: 9, 11: 9}
 const TILE_PATH := "res://assets/tiles/%d.png"
 const FOG_SIDE_SQUEEZE := 0.6 # igual ao peso lateral da névoa no shader
@@ -83,7 +81,7 @@ func _build_cell(cell: Vector2i) -> void:
 			for overlay_path in battle.state.ground_overlays(cell):
 				_add_tile(overlay_path, battle.cell_origin(cell), row, layers * battle.SIDE_HEIGHT)
 		_add_biome_props(biome, terrain_id, cell)
-	elif SCENERY_BASE.has(terrain_id):
+	elif terrain_id in [2, 3, 6, 7, 10, 11, 16]:
 		_add_scenery(terrain_id, cell)
 	if battle.expedition:
 		_add_landmark(cell, row)
@@ -136,14 +134,14 @@ func _natural_wall_mesh(cell: Vector2i, dir: int) -> Dictionary:
 	var origin := Vector2(battle._column_x(cell), cell.y * battle.ROW_STEP)
 	var a := _natural_corner(cell, dir) - origin
 	var b := _natural_corner(cell, (dir + 1) % 6) - origin
-	var drop := Vector2(signf(a.x - HEX_MIDDLE.x) if is_equal_approx(a.x, b.x) else 0.0, TILE_WALL)
+	var drop := Vector2(signf(a.x - battle.HEX_MIDDLE.x) if is_equal_approx(a.x, b.x) else 0.0, TILE_WALL)
 	return {"vertices": PackedVector2Array([a, b, b + drop, a + drop]), "uv": base["uv"], "faces": base["faces"]}
 
 
 ## Canto de uma casa, no plano do mundo. Casas vizinhas calculam o mesmo canto, então nunca abre fresta.
 func _natural_corner(cell: Vector2i, index: int) -> Vector2:
 	var corner: Vector2 = HEX_CORNERS[index]
-	var key := Vector2i(battle._column_x(cell) + (battle.TILE_WIDTH if corner.x > HEX_MIDDLE.x else int(corner.x)) , cell.y * battle.ROW_STEP + int(corner.y))
+	var key := Vector2i(battle._column_x(cell) + (battle.TILE_WIDTH if corner.x > battle.HEX_MIDDLE.x else int(corner.x)) , cell.y * battle.ROW_STEP + int(corner.y))
 	var mixed := (key.x * 73856093) ^ (key.y * 19349663)
 	mixed = (mixed ^ (mixed >> 13)) * 1274126177
 	mixed = mixed ^ (mixed >> 16)
@@ -285,7 +283,7 @@ func _wall_mesh(dir: int) -> Dictionary:
 	var a: Vector2 = HEX_CORNERS[dir]
 	var b: Vector2 = HEX_CORNERS[(dir + 1) % 6]
 	# Nos lados verticais, 1 pixel para fora: o Godot não desenha malha sem área.
-	var drop := Vector2(signf(a.x - HEX_MIDDLE.x) if a.x == b.x else 0.0, TILE_WALL)
+	var drop := Vector2(signf(a.x - battle.HEX_MIDDLE.x) if a.x == b.x else 0.0, TILE_WALL)
 	# A arte da parede é a faixa inclinada da frente do tile.
 	var ua := Vector2(0, TILE_FRONT - TILE_SLOPE)
 	var ub := Vector2(battle.TILE_WIDTH / 2.0, TILE_FRONT)
@@ -366,7 +364,7 @@ func _work_on_map(budget: int) -> void:
 ## Quantas colunas para cada lado cabem na tela nessa linha: mais ao fundo, mais colunas.
 func _visible_columns(row_gap: int) -> int:
 	var depth := 1.0 / maxf(0.25, 1.0 - row_gap * battle.ROW_STEP * battle.BOARD_SCALE * BattleCamera.PERSPECTIVE)
-	var on_screen: float = 760.0 / (depth * battle.battle_camera.zoom) / (battle.TILE_WIDTH * battle.BOARD_SCALE)
+	var on_screen: float = 760.0 / (depth * minf(battle.battle_camera.zoom, battle._base_zoom())) / (battle.TILE_WIDTH * battle.BOARD_SCALE)
 	var row_distance := row_gap * battle.ROW_STEP * battle.BOARD_SCALE
 	var in_fog := sqrt(maxf(0.0, battle.FOG_END * battle.FOG_END - row_distance * row_distance)) / FOG_SIDE_SQUEEZE / (battle.TILE_WIDTH * battle.BOARD_SCALE)
 	return ceili(minf(on_screen, in_fog)) + 1
@@ -383,6 +381,8 @@ func _unload_cell(cell: Vector2i) -> void:
 		battle.world_light.forget_cell(cell)
 	battle.overlays.erase(cell)
 	battle.reach_lines.erase(cell)
+	battle.move_tiles.erase(cell)
+	battle.move_shown.erase(cell)
 	battle.forests.erase(cell)
 	battle.trees.erase(cell)
 
@@ -392,7 +392,7 @@ func _new_place_ring(color: Color) -> Line2D:
 	var ring := _new_hex_line(color, 6)
 	var points := PackedVector2Array()
 	for i in 24:
-		points.append(HEX_MIDDLE + Vector2.from_angle(TAU * i / 24.0) * RING_RADIUS)
+		points.append(battle.HEX_MIDDLE + Vector2.from_angle(TAU * i / 24.0) * RING_RADIUS)
 	ring.points = points
 	return ring
 
@@ -463,6 +463,8 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	var art: Array
 	if battle.town:
 		art = battle.state.art_at(cell)
+	elif battle.expedition and battle.state.camps.cells.has(cell):
+		art = battle.state.camps.art_at(cell)
 	elif battle.expedition and cell == battle.state.beacon_cell:
 		art = [BiomeArt.beacon(biome, battle.state.defeated_boss)]
 	else:
@@ -530,7 +532,7 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	# O ponto de apoio de cada arte é o centro da imagem.
 	var foot: Vector2 = sprite.texture.get_size() / 2.0
 	sprite.position = battle.cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"]) - foot
-	if battle.natural and not battle.town and not _is_marked_place(cell):
+	if battle.natural and not battle.town and not _is_marked_place(cell) and not prop.get("fixed", false):
 		sprite.position += Vector2(fmod(detail * 53.0, 1.0) - 0.5, fmod(detail * 71.0, 1.0) - 0.5) * PROP_WOBBLE * (1.0 if prop["layer"] != "front" else 0.6)
 	sprite.flip_h = prop.get("flip", false) or (not prop.get("fixed", false) and fmod(detail * 13.0, 1.0) < 0.5)
 	sprite.z_index = battle._z(battle._row(cell)) + prop["depth"]
@@ -546,12 +548,12 @@ func _is_marked_place(cell: Vector2i) -> bool:
 
 
 func _add_scenery(id: int, cell: Vector2i) -> void:
-	if id == 3:
-		var back := _scenery_layer(id, cell, 3, FOREST_HEIGHT, 1)
-		var front := _scenery_layer(id, cell, 6, FOREST_HEIGHT, 2)
-		battle.forests[cell] = {"back": back, "front": front}
-	else:
-		_scenery_layer(id, cell, 3)
+	# Batalha fixa e expedição usam os mesmos sprites, separados do piso hexagonal.
+	var made := {}
+	for prop in BiomeArt.props("floresta", id, 0.5):
+		made[prop["layer"]] = _biome_prop(prop, cell, 0.5)
+	if made.has("back") and made.has("front"):
+		battle.forests[cell] = made
 
 
 func _scenery_layer(id: int, cell: Vector2i, depth: int, height := 1.0, slice := 0) -> Sprite2D:
@@ -586,7 +588,7 @@ func _add_unit_view(unit) -> void:
 
 func _show_facing_walls() -> void:
 	for dir in battle.wall_groups.size():
-		var outward: Vector2 = HEX_CORNERS[dir] + HEX_CORNERS[(dir + 1) % 6] - HEX_MIDDLE * 2.0
+		var outward: Vector2 = HEX_CORNERS[dir] + HEX_CORNERS[(dir + 1) % 6] - battle.HEX_MIDDLE * 2.0
 		# Folga: com a perspectiva, paredes quase de lado ainda aparecem nas pontas da tela.
 		battle.wall_groups[dir].visible = outward.rotated(battle.view_angle).y > -outward.length() * WALL_SIDE_MARGIN
 

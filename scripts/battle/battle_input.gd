@@ -5,7 +5,12 @@ extends RefCounted
 
 const Hex = preload("res://scripts/hex.gd")
 const Data = preload("res://scripts/game_data.gd")
+const Skills = preload("res://scripts/skill_data.gd")
+const HeroProgress = preload("res://scripts/hero_progress.gd")
 
+const DRAG_START := 14.0 # pixels antes de o toque virar arrasto da câmera
+const TWIST_START := 0.08 # radianos de torção com dois dedos antes de girar
+const PINCH_IN := 1.3 # abrir os dedos nessa proporção aproxima; fechar o inverso afasta
 const TURN_DRAG := 0.007 # radianos por pixel ao arrastar com o botão do meio
 const ABILITY_ICONS := {
 	"golpe": "sword", "rapido": "sword", "giro": "sword", "golpe_pesado": "sword", "estocada": "sword", "adaga": "sword", "coronhada": "sword",
@@ -34,9 +39,23 @@ func _on_timeline_pick(unit) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_handle_touch(event)
+		return
 	# Arrastar com o botão do meio gira a câmera, inclusive na vez dos inimigos.
 	if battle.exploring and event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 		battle._set_view_angle(battle.view_angle + event.relative.x * TURN_DRAG)
+		return
+	# Com zoom, arrastar a partir de uma casa sem inimigo move a câmera (mouse e um dedo).
+	if event is InputEventMouseMotion and battle.pressing and battle.drag_ok and battle.gesture.is_empty():
+		if not battle.dragging and event.position.distance_to(battle.press_pos) > DRAG_START:
+			battle.dragging = true
+			battle.press_token += 1 # não abre o cartão de quem estava embaixo do dedo
+		if battle.dragging:
+			battle._pan_by(event.relative)
+			return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_Z:
+		battle._set_zoomed(not battle.zoomed)
 		return
 	if event is InputEventMouseButton:
 		_handle_button(event)
@@ -70,6 +89,40 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_option_pressed(event.keycode - KEY_1)
 
 
+## Dois dedos: torcer gira a câmera (fora da arena), abrir ou fechar muda o zoom.
+## Um dedo só chega também como mouse emulado e cai no arrasto normal.
+func _handle_touch(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			battle.touches[event.index] = event.position
+		else:
+			battle.touches.erase(event.index)
+		if battle.touches.size() == 2:
+			battle.pressing = false # o primeiro dedo não vale mais como toque
+			battle.dragging = false
+			battle.press_token += 1
+			var start: Array = battle.touches.values()
+			battle.gesture = {"angle": (start[1] - start[0]).angle(), "distance": maxf(1.0, start[0].distance_to(start[1])), "turning": false, "pinched": false}
+		elif battle.touches.size() < 2:
+			battle.gesture = {}
+		return
+	battle.touches[event.index] = event.position
+	if battle.touches.size() != 2 or battle.gesture.is_empty():
+		return
+	var points: Array = battle.touches.values()
+	var angle: float = (points[1] - points[0]).angle()
+	var twist := angle_difference(battle.gesture["angle"], angle)
+	if battle.exploring and (battle.gesture["turning"] or absf(twist) > TWIST_START):
+		battle.gesture["turning"] = true
+		battle.gesture["angle"] = angle
+		battle._set_view_angle(battle.view_angle + twist)
+	if not battle.gesture["pinched"]:
+		var ratio: float = points[0].distance_to(points[1]) / battle.gesture["distance"]
+		if ratio > PINCH_IN or ratio < 1.0 / PINCH_IN:
+			battle.gesture["pinched"] = true
+			battle._set_zoomed(ratio > 1.0)
+
+
 func _end_turn() -> void:
 	if battle.busy or battle._free_roam():
 		return
@@ -82,12 +135,17 @@ func _end_turn() -> void:
 ## O botão só aparece quando é a vez de alguém que este jogador controla.
 func _refresh_end_turn() -> void:
 	var unit = battle.state.active_unit()
-	battle.hud.show_end_turn(not battle.busy and battle.state.winner() < 0 and not battle._free_roam() and unit != null and unit.team == Data.Team.PLAYER and battle.online_session.can_control(unit))
+	var mine: bool = not battle.busy and battle.state.winner() < 0 and not battle._free_roam() and unit != null and unit.team == Data.Team.PLAYER and battle.online_session.can_control(unit)
+	battle.hud.show_end_turn(mine)
+	battle.hud.show_jump(mine and (battle.jump_mode or not battle.state.jump_cells(unit).is_empty()), battle.jump_mode)
 
 
 # O toque vira clique ao soltar, para dar tempo de saber se a pessoa está segurando.
 # Segurar num personagem (ou o botão direito) abre o cartão dele, até no turno inimigo.
 func _handle_button(event: InputEventMouseButton) -> void:
+	if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		battle._set_zoomed(event.button_index == MOUSE_BUTTON_WHEEL_UP)
+		return
 	var cell := battle._pick_cell(event.position)
 	if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 		if battle.state.unit_at(cell) != null:
@@ -99,12 +157,18 @@ func _handle_button(event: InputEventMouseButton) -> void:
 		if event.pressed:
 			battle.pressing = true
 			battle.press_cell = cell
+			battle.press_pos = event.position
+			battle.dragging = false
+			var occupant = battle.state.unit_at(cell)
+			battle.drag_ok = battle.zoomed and (occupant == null or occupant.team != Data.Team.ENEMY)
 			if battle.state.unit_at(cell) != null:
 				var token := battle.press_token
 				battle.get_tree().create_timer(battle.HOLD_TIME).timeout.connect(func(): _on_hold(token))
 		elif battle.pressing:
 			battle.pressing = false
-			if not battle.busy:
+			if battle.dragging:
+				battle.dragging = false
+			elif not battle.busy:
 				_click(battle.press_cell)
 
 
@@ -155,7 +219,7 @@ func _spell_icon(id: String) -> String:
 ## Dados de uma habilidade para a ficha: alcance, efeito, tempo e quanto tiraria do herói da vez.
 func _card_ability(unit, id: String) -> Dictionary:
 	var ability: Dictionary = unit.ability(id)
-	var out := {"name": ability["name"], "icon": ABILITY_ICONS.get(id, _spell_icon(id)), "time": battle.state.time_for(ability["time"], unit)}
+	var out := {"name": ability["name"], "icon": ABILITY_ICONS.get(id, _spell_icon(id)), "time": battle.state.action_time(ability["time"], unit)}
 	if ability["kind"] == "charge":
 		out["time"] = "%d + %d" % [battle.state.cast_time_for(unit, id), battle.state.recovery_time_for(unit, id)]
 		out["time_hint"] = "Conjuração + recuperação após o impacto"
@@ -210,6 +274,12 @@ func _click(cell: Vector2i) -> void:
 			_open_menu(cell)
 		return
 	var unit = battle._actor()
+	# Casa verde pula na hora: no modo pulo, qualquer uma; fora dele, as que andando não dá.
+	if battle.state.jump_cells(unit).has(cell) and (battle.jump_mode or not _can_walk_to(unit, cell)):
+		_jump(unit, cell)
+		return
+	if battle.jump_mode:
+		_set_jump_mode(false)
 	# Se alguma ação mira essa casa, o menu pergunta: assim dá para mirar no chão
 	# onde o inimigo ainda vai pisar sem o herói sair andando.
 	var aimable := _cell_options(cell).any(func(option): return option["kind"] == "ability")
@@ -221,6 +291,25 @@ func _click(cell: Vector2i) -> void:
 			battle._perform(battle.state.do_move(unit, cell))
 		return
 	_open_menu(cell)
+
+
+func _jump(unit, cell: Vector2i) -> void:
+	if battle.online_session.playing:
+		battle.jump_mode = false
+		battle.net_bridge._submit_online("jump", cell)
+	else:
+		battle._perform(battle.state.do_jump(unit, cell))
+
+
+func _set_jump_mode(on: bool) -> void:
+	if on and (battle.busy or battle._free_roam() or battle.state.jump_cells(battle._actor()).is_empty()):
+		battle.hud.set_hint("Sem movimento para pular agora (o pulo gasta %d casas)." % (Data.JUMP_TIME / Data.STEP_TIME))
+		return
+	battle.jump_mode = on
+	_close_menu()
+	_refresh_end_turn()
+	battle.marks_ctl._refresh_overlays()
+	battle.marks_ctl._update_hint()
 
 
 func _can_walk_to(unit, cell: Vector2i) -> bool:
@@ -252,8 +341,8 @@ func _open_menu(cell: Vector2i) -> void:
 	# Sem ações, um menu só cobriria o alcance que a pessoa quer ver: a informação vai na dica.
 	if not options.is_empty():
 		var title: String = occupant.display_name if occupant != null else battle.state.tile_name_at(cell)
-		var info: String = _menu_info(occupant) if occupant != null else "\n".join(_terrain_notes(battle._actor(), cell))
-		battle.hud.show_menu(battle.cell_to_screen(cell), title, occupant.team if occupant != null else -1, info, options)
+		var info: String = "" if occupant != null else "\n".join(_terrain_notes(battle._actor(), cell))
+		battle.hud.show_menu(battle.cell_to_screen(cell), title, occupant.team if occupant != null else -1, info, options, battle._menu_status(occupant))
 	# A fila mostra onde a magia seria solta, antes de confirmar.
 	var spell := battle.marks_ctl._menu_spell()
 	if spell != "":
@@ -309,14 +398,19 @@ func _ability_option(unit, id: String, cell: Vector2i) -> Dictionary:
 	var target = battle.state.unit_at(cell)
 	match ability["kind"]:
 		"attack":
-			var detail: String = battle.marks_ctl._preview_text(unit, id, target)
+			var hit: Dictionary = battle.state.preview_attack(unit, id, target)
+			var option := {"detail": battle.marks_ctl._preview_text(unit, id, target), "tone": "damage", "damage": hit["amount"], "flank": hit["flank"], "lethal": hit["amount"] >= target.hp}
 			var effect := Data.effect_text(ability)
-			return {"detail": detail, "tone": "damage", "note": effect, "note_icon": "star"} if effect != "" else {"detail": detail, "tone": "damage"}
+			if effect != "":
+				option["note"] = effect
+				option["note_icon"] = "star"
+			return option
 		"buff":
 			return {"detail": Data.effect_text(ability), "tone": "heal"}
 		"heal":
-			var detail := "+%d" % mini(ability["heal"], target.max_hp - target.hp)
-			return {"detail": detail + " e vizinhos" if ability.has("radius") else detail, "tone": "heal"}
+			var amount: int = mini(ability["heal"], target.max_hp - target.hp)
+			var detail := "+%d" % amount
+			return {"detail": detail + " e vizinhos" if ability.has("radius") else detail, "tone": "heal", "heal": amount}
 		"guard":
 			return {"detail": "atrai inimigos" if ability.has("taunt") else "reduz o dano"}
 		_:
@@ -369,8 +463,11 @@ func _on_option_pressed(index: int) -> void:
 	if option["kind"] == "approach":
 		cell = option["cell"]
 		option = {"kind": "step"}
-	if battle.online_session.playing and option["kind"] != "cancel" and option["kind"] != "travel":
+	if battle.online_session.playing and option["kind"] != "cancel" and option["kind"] != "travel" and option["kind"] != "jump_mode":
 		battle.net_bridge._submit_online(option["kind"], cell, option.get("id", ""))
+		return
+	if option["kind"] == "jump_mode":
+		_set_jump_mode(true)
 		return
 	match option["kind"]:
 		"ability":
@@ -402,7 +499,11 @@ func _select_next() -> void:
 
 
 func _on_party_pick(unit) -> void:
-	if battle._free_roam() and unit.alive() and battle.online_session.can_control(unit):
+	var can_open: bool = battle._free_roam() and not battle.online_session.playing and Skills.has_tree(unit.type_id)
+	if can_open and (unit == battle.selected or HeroProgress.available(unit.type_id) > 0 or not unit.alive()):
+		battle.sound_manager.play_ui(&"switch3")
+		battle._open_tree(unit)
+	elif battle._free_roam() and unit.alive() and battle.online_session.can_control(unit):
 		battle.sound_manager.play_ui(&"switch3")
 		_select(unit)
 	else:

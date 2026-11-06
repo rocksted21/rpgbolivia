@@ -209,9 +209,17 @@ func _roam_tick(delta: float) -> void:
 		battle.step_wait[hero] -= delta
 	if battle.walk_paths.is_empty() or battle.busy:
 		return
-	if not battle._free_roam():
+	if not battle.exploring:
 		_clear_walks()
 		return
+	if battle.state.in_combat():
+		# Quem está na luta para de andar; quem está longe dela continua.
+		for hero in battle.walk_paths.keys():
+			if battle.state.is_fighting(hero):
+				_end_walk(hero)
+				battle.file_next.erase(hero)
+		if battle.walk_paths.is_empty():
+			return
 	for hero in battle.walk_paths.keys():
 		if battle.walk_paths.has(hero) and battle.step_wait.get(hero, 0.0) <= 0.0:
 			_roam_step(hero)
@@ -274,7 +282,13 @@ func _roam_step(hero) -> void:
 	events.append_array(battle.state.tick())
 	var fight := events.any(func(e): return e["type"] == "combat_start")
 	if fight:
-		_clear_walks()
+		if battle.state.split_fights:
+			for walker in battle.walk_paths.keys():
+				if battle.state.is_fighting(walker):
+					_end_walk(walker)
+					battle.file_next.erase(walker)
+		else:
+			_clear_walks()
 		battle.busy = true
 		battle.input_ctl._close_menu()
 		battle.hud.set_hint("")

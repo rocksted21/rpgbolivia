@@ -10,7 +10,6 @@ const CARD_WIDTH := 620.0
 const CARD_WIDTH_WIDE := 1000.0
 const CARD_PORTRAIT_SIZE := Vector2(130, 150)
 const STAT_FILL := Color(0.95, 0.9, 0.77)
-const HP_ENEMY := Color(0.89, 0.29, 0.23)
 const SPELL_INK := Color(0.35, 0.14, 0.66)
 const CARD_FPS := 14.0
 const SPELL_COLOR := Color(0.72, 0.3, 1.0)
@@ -129,7 +128,7 @@ func _hp_bar(hp: int, max_hp: int, team: int) -> Control:
 	var fill := Panel.new()
 	fill.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fill.anchor_right = float(hp) / max_hp
-	fill.add_theme_stylebox_override("panel", hud._box(hud.PLAYER_COLOR if team == Data.Team.PLAYER else HP_ENEMY, hud.MENU_INK, 2, 15, 0))
+	fill.add_theme_stylebox_override("panel", hud._box(hud.PLAYER_COLOR if team == Data.Team.PLAYER else hud.HP_ENEMY, hud.MENU_INK, 2, 15, 0))
 	bar.add_child(fill)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -225,7 +224,7 @@ func _spell_block(spell: Dictionary) -> Control:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 10)
 	text.add_child(header)
-	var tag := hud._label("PREPARANDO", 15, SPELL_INK)
+	var tag := hud._label("PREPARANDO", 17, SPELL_INK)
 	tag.size_flags_vertical = Control.SIZE_SHRINK_END
 	header.add_child(tag)
 	header.add_child(hud._title(spell["name"], 30, SPELL_INK))

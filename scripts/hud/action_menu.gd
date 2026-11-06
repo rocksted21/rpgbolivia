@@ -24,17 +24,26 @@ func menu_open() -> bool:
 
 ## Abre o menu ao lado de `anchor` (centro da casa, em coordenadas de tela).
 ## Cada opção é {label, detail, tone}; tone escolhe a cor do detalhe.
-func show_menu(anchor: Vector2, title: String, title_team: int, info: String, options: Array) -> void:
+## status (quando há alguém na casa): {hp, max_hp, order, unaware}. A vida vira barra e a vez
+## vira um selo; o dano do golpe em foco aparece piscando na barra antes de confirmar.
+func show_menu(anchor: Vector2, title: String, title_team: int, info: String, options: Array, status := {}) -> void:
 	hide_menu()
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 8)
 	hud.menu.add_child(column)
 
 	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
 	column.add_child(header)
-	var name_label := hud._label(title, 26, hud.MENU_INK if title_team < 0 else (hud.PLAYER_INK if title_team == Data.Team.PLAYER else hud.DAMAGE_INK))
+	var name_label := hud._title(title, 28, hud.MENU_INK if title_team < 0 else (hud.PLAYER_INK if title_team == Data.Team.PLAYER else hud.DAMAGE_INK))
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_label)
+	var bar: BattleHud.HpBar = null
+	if not status.is_empty():
+		header.add_child(hud._turn_badge(status))
+		bar = BattleHud.HpBar.new()
+		bar.setup(status["hp"], status["max_hp"], hud.HP_ENEMY if title_team == Data.Team.ENEMY else hud.PLAYER_COLOR, hud.title_font)
+		column.add_child(bar)
 	if info != "":
 		var info_label := hud._label(info, 18, hud.MENU_INK)
 		column.add_child(info_label)
@@ -51,7 +60,13 @@ func show_menu(anchor: Vector2, title: String, title_team: int, info: String, op
 		list.add_theme_constant_override("separation", 8)
 		scroll.add_child(list)
 	for i in options.size():
-		hud.menu_buttons.append(_add_option(list, options[i], i))
+		var button := _add_option(list, options[i], i)
+		hud.menu_buttons.append(button)
+		if bar != null and (options[i].has("damage") or options[i].has("heal")):
+			var change: int = options[i].get("damage", -options[i].get("heal", 0))
+			button.mouse_entered.connect(func(): bar.preview = change)
+			if bar.preview == 0: # no celular não há "passar o mouse": vale o primeiro golpe
+				bar.preview = change
 	if list != column: # sem rolagem lateral: a lista define a largura, mais a barra
 		list.get_parent().custom_minimum_size.x = list.get_combined_minimum_size().x + 16
 	var footer := hud._label("Toque fora para fechar", 16, hud.MENU_INK)
@@ -128,10 +143,15 @@ func _add_option(column: VBoxContainer, option: Dictionary, index: int) -> Butto
 	else:
 		row.add_child(name_label)
 	var tone: String = option.get("tone", "")
-	var detail := hud._label(option["detail"], 26 if tone != "" else 18, hud.DAMAGE_INK if tone == "damage" else (hud.HEAL_INK if tone == "heal" else ink))
-	detail.size_flags_vertical = Control.SIZE_FILL
-	detail.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(detail)
+	if option.has("damage") and not button.disabled:
+		row.add_child(hud._hit_badge(option))
+	elif option.has("heal") and not button.disabled:
+		row.add_child(hud._badge("heart", "+%d" % option["heal"], Color(0.18, 0.55, 0.28), Color.WHITE))
+	else:
+		var detail := hud._label(option["detail"], 26 if tone != "" else 18, hud.DAMAGE_INK if tone == "damage" else (hud.HEAL_INK if tone == "heal" else ink))
+		detail.size_flags_vertical = Control.SIZE_FILL
+		detail.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(detail)
 	# A linha fica sobreposta ao botão (não é contêiner): a largura mínima vem dela.
 	button.custom_minimum_size.x = row.get_combined_minimum_size().x + 32 + row.get_theme_constant("separation")
 	return button

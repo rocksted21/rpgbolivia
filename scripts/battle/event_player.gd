@@ -17,6 +17,8 @@ const STATUS_COLOR := {
 	"burn": Color(1.0, 0.55, 0.2), "poison": Color(0.6, 1.0, 0.35), "slow": Color(0.6, 0.85, 1.0),
 	"mark": Color(1.0, 0.85, 0.3), "might": Color(1.0, 0.7, 0.45),
 }
+const STEP_JUMP := 0.55 # pulo por cima de alguém (duas casas)
+const JUMP_ARC := 150.0
 const CAST_INK := Color(1.0, 0.62, 0.15)
 const PROJECTILE_SCALE := 2.0
 const FX_FPS := 16.0
@@ -86,6 +88,9 @@ func _play(events: Array, roam := false) -> void:
 				await _play_combat_start(event)
 			"combat_join":
 				_mark_alerted(event["units"])
+				if not battle.my_fight and not battle._free_roam(): # meu herói chegou perto e entrou na luta
+					battle.my_fight = true
+					battle.hud.show_banner("Combate!", Color(1.0, 0.42, 0.3))
 			"combat_end":
 				await _play_combat_end(event)
 			"despawn":
@@ -175,6 +180,11 @@ func _mark_alerted(units: Array) -> void:
 
 ## Foi visto: aviso, e a câmera mostra quem apareceu antes de voltar para a party.
 func _play_combat_start(event: Dictionary) -> void:
+	battle.my_fight = not battle._free_roam()
+	if not battle.my_fight: # a luta é de outro jogador, longe daqui: só um aviso
+		battle.hud.show_banner("Aliado em combate", Color(1.0, 0.7, 0.4))
+		battle.hud.refresh(battle.state)
+		return
 	battle.sound_manager.play_sfx(&"charge")
 	battle.hud.show_banner("Combate!" , Color(1.0, 0.42, 0.3))
 	_mark_alerted(event["units"])
@@ -187,11 +197,18 @@ func _play_combat_start(event: Dictionary) -> void:
 
 
 func _play_combat_end(event: Dictionary) -> void:
+	if battle.state.split_fights and not battle.my_fight:
+		battle.hud.show_banner("Combate do aliado acabou", Color(0.6, 1.0, 0.6))
+		battle.hud.refresh(battle.state)
+		battle.marks_ctl._refresh_turn_markers()
+		return
+	battle.my_fight = false
 	battle.sound_manager.play_sfx(&"victory")
 	battle.hud.show_banner("Você escapou" if event["fled"] else "Combate vencido", Color(0.6, 1.0, 0.6))
 	battle.hud.refresh(battle.state)
 	battle.marks_ctl._refresh_turn_markers()
 	await battle.get_tree().create_timer(0.4).timeout
+	await battle._reward_fight()
 
 
 func _is_quiet(unit) -> bool:
@@ -287,9 +304,10 @@ func _play_move(event: Dictionary) -> void:
 	if not event.get("silent", false):
 		battle.sound_manager.play_sfx(&"step")
 	var height_delta: int = battle.state.elevation_at(event["to"]) - battle.state.elevation_at(event["from"])
-	var duration: float = event.get("duration", STEP_FLAT if height_delta == 0 else STEP_CLIMB)
+	var leap: bool = event.get("jump", false)
+	var duration: float = event.get("duration", STEP_JUMP if leap else (STEP_FLAT if height_delta == 0 else STEP_CLIMB))
 	var tween := battle.create_tween()
-	tween.tween_method(_move_frame.bind(view, event["from"], event["to"], battle._cell_elevation(event["from"]), battle._cell_elevation(event["to"]), height_delta), 0.0, 1.0, duration)
+	tween.tween_method(_move_frame.bind(view, event["from"], event["to"], battle._cell_elevation(event["from"]), battle._cell_elevation(event["to"]), height_delta, leap), 0.0, 1.0, duration)
 	await tween.finished
 	battle.moving[unit] -= 1
 	if battle.moving[unit] <= 0:
@@ -305,13 +323,15 @@ func _play_move(event: Dictionary) -> void:
 
 
 ## As casas, e não pontos prontos: girar a câmera no meio do passo não deixa o herói fora do lugar.
-func _move_frame(progress: float, view, from: Vector2i, to: Vector2i, from_height: float, to_height: float, height_delta: int) -> void:
+func _move_frame(progress: float, view, from: Vector2i, to: Vector2i, from_height: float, to_height: float, height_delta: int, leap := false) -> void:
 	if not is_instance_valid(view):
 		return
 	view.position = battle.feet_of(from).lerp(battle.feet_of(to), progress)
 	battle.battle_camera.set_elevation(lerpf(from_height, to_height, progress), view)
 	var jump := 0.0
-	if height_delta != 0:
+	if leap: # pulo por cima de alguém: arco alto
+		jump = sin(progress * PI) * JUMP_ARC
+	elif height_delta != 0:
 		jump = sin(progress * PI) * (110.0 if height_delta > 0 else 65.0)
 	view.set_jump_height(jump)
 
@@ -475,6 +495,10 @@ func _play_heal(event: Dictionary) -> void:
 
 # O kit não tem animação de morte: a unidade tomba e some.
 func _play_death(event: Dictionary) -> void:
+	if event["target"].team == Data.Team.ENEMY:
+		battle.fight_kills += 1
+		if battle.expedition and battle.state.is_boss(event["target"]):
+			battle.fight_boss = true
 	if not battle.hit_ctx.is_empty() or HeroJuice.is_hero(event["target"].type_id):
 		await battle.hero_fx._play_hero_death(event)
 		return

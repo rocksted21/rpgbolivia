@@ -7,10 +7,15 @@ const Data = preload("res://scripts/game_data.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const TownContent = preload("res://scripts/town_content.gd")
+const BattleCamera = preload("res://scripts/battle_camera.gd")
 const Skills = preload("res://scripts/skill_data.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
 
 const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
+const DANGER_HOT := Color(1.0, 0.42, 0.32)
+const CAMP_ICONS := {"camp": "tent", "garden": "ruin", "shrine": "candle", "crossing": "house"}
+const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest"}
+const DANGER_CALM := Color(0.62, 0.9, 0.55)
 
 var battle: BattleView # a tela dona deste módulo
 
@@ -23,10 +28,23 @@ func _update_journey() -> void:
 	if battle.town:
 		battle.town_mode._update_town()
 		return
-	battle.hud.set_journey(battle.state.alive_party().size(), battle.state.party.size(), battle.state.farthest, battle.state.kills, battle.state.danger(), Data.BIOMES[battle.state.biome_at(battle.camera_cell)]["name"])
-	if battle.expedition:
-		battle.hud.set_objective(_objective_text())
-		battle.hud.set_tracker(_quest_tracker())
+	battle.hud.show_overview(not battle.state.in_combat())
+	var danger: int = battle.state.danger()
+	var heat := clampf((danger - 1) / 5.0, 0.0, 1.0)
+	var stats := [
+		{"icon": "heart", "value": "%d/%d" % [battle.state.alive_party().size(), battle.state.party.size()], "label": "Heróis", "color": Color(1.0, 0.45, 0.45)},
+		{"icon": "steps", "value": battle.state.farthest, "label": "Distância", "color": Color(0.8, 0.72, 0.58)},
+		{"icon": "skull", "value": battle.state.kills, "label": "Abates", "color": Color(0.9, 0.9, 0.86)},
+		{"icon": "warning", "value": danger, "label": "Perigo", "color": DANGER_CALM.lerp(DANGER_HOT, heat), "ink": DANGER_CALM.lerp(DANGER_HOT, heat)},
+	]
+	var title: String = Data.BIOMES[battle.state.biome_at(battle.camera_cell)]["name"]
+	if not battle.expedition:
+		battle.hud.set_overview(title, stats)
+		return
+	stats.append({"icon": "flame", "value": battle.state.brasas, "label": "Brasas", "color": Color(1.0, 0.68, 0.3)})
+	stats.append({"icon": "star", "value": battle.state.level, "label": "Nível", "color": Color(1.0, 0.85, 0.35)})
+	battle.hud.set_overview(title, stats, _level_info(), _compass_chips())
+	battle.hud.set_tracker(_quest_tracker())
 	battle.hud.update_party(battle.selected if battle._free_roam() else battle.state.active_unit())
 
 
@@ -50,33 +68,53 @@ func _show_result(result: int) -> void:
 				battle.board_art._rebuild_cell(battle.state.beacon_cell) # o farol acende
 		var types := []
 		for unit in battle.state.units:
-			if unit.team == Data.Team.PLAYER and (not battle.online_session.playing or battle.online_session.can_control(unit)):
+			if unit.team == Data.Team.PLAYER and (not battle.online_session.playing or battle.online_session.relay.is_master): # online: o save do dono
 				types.append(unit.type_id)
-		var before := 0
-		for type_id in types:
-			before += HeroProgress.earned(type_id)
-		var count := HeroProgress.award(types, gain)
-		if count == 1: # perto do teto, o herói pode ganhar menos que o previsto
-			var after := 0
-			for type_id in types:
-				after += HeroProgress.earned(type_id)
-			gain = after - before
-		if count > 0:
-			note = "+%d %s de skill%s" % [gain, "pontos" if gain > 1 else "ponto", " para %d heróis" % count if count > 1 else ""]
+		battle._reward_fight() # abates da última luta (na arena, a luta toda)
+		var xp_gain: int = gain * Skills.END_XP_PER_POINT
+		var raised := HeroProgress.add_xp(types.filter(func(type_id): return Skills.has_tree(type_id)), xp_gain)
+		if xp_gain > 0 and not types.is_empty():
+			note = "+%d XP para cada herói" % xp_gain
+		if not raised.is_empty():
+			note += "\nLevel up: %s" % ", ".join(raised.map(func(type_id): return Data.UNIT_TYPES[type_id]["name"]))
+		battle._update_party_progress()
 	for id in battle.quests_finished:
 		note += "%sMissão cumprida: %s" % ["\n" if note != "" else "", TownContent.QUESTS[id]["title"]]
 	battle.quests_finished = []
 	battle.hud.show_end(_end_text() if battle.exploring else ("Vitória!" if won else "Derrota"), note)
 
 
-## Nível, brasas e para onde ir, com a seta já girada conforme a câmera.
-func _objective_text() -> String:
-	var growth := "máx." if battle.state.xp_to_next() < 0 else "%d XP" % battle.state.xp_to_next()
-	var text := "Nível %d (%s)   ·   Brasas %d   ·   Farol %s" % [battle.state.level, growth, battle.state.brasas, _direction_to(battle.state.beacon_cell)]
+## Nível da expedição e quanto falta: a barra enche entre um nível e o próximo.
+func _level_info() -> Dictionary:
+	var left: int = battle.state.xp_to_next()
+	if left < 0:
+		return {"level": battle.state.level, "fraction": 1.0, "note": "máx."}
+	var floor_xp: int = Exp.LEVEL_XP[battle.state.level - 1]
+	var span: int = maxi(1, Exp.LEVEL_XP[battle.state.level] - floor_xp)
+	return {"level": battle.state.level, "fraction": float(battle.state.xp - floor_xp) / span, "note": "faltam %d XP" % left}
+
+
+## Farol e o local aberto mais perto, no radar: só o ícone e a direção, já girada com a câmera.
+func _compass_chips() -> Array:
+	var chips := [_compass("Farol", battle.state.beacon_cell, "lighthouse", battle.BEACON_COLOR)]
 	var open: Array = battle.state.open_landmarks(battle.camera_cell)
 	if not open.is_empty() and (battle.state.far_compass or Hex.distance(open[0], battle.camera_cell) <= Exp.COMPASS_RADIUS):
-		text += "   ·   %s %s" % [battle.state.landmark_label(open[0]), _direction_to(open[0])]
-	return text
+		var cell: Vector2i = open[0]
+		var icon := "tent"
+		var color := Color(0.85, 0.7, 0.5)
+		if battle.state.camps.centers.has(cell):
+			icon = CAMP_ICONS.get(battle.state.camps.sites.get(cell, ""), "tent")
+		elif battle.state.landmarks.has(cell):
+			var kind: String = battle.state.landmarks[cell]["kind"]
+			icon = LANDMARK_ICONS.get(kind, "star")
+			color = Exp.LANDMARKS[kind]["color"]
+		chips.append(_compass(battle.state.landmark_label(cell), cell, icon, color))
+	return chips
+
+
+func _compass(label: String, cell: Vector2i, icon: String, color: Color) -> Dictionary:
+	var away: Vector2 = (battle.board_art._flat_point(cell) - battle.board_art._flat_point(battle.camera_cell)).rotated(battle.view_angle)
+	return {"label": label, "icon": icon, "color": color, "angle": Vector2(away.x, away.y * BattleCamera.GROUND_TILT).angle()}
 
 
 ## A primeira missão aceita, somando o que a expedição já fez por ela.

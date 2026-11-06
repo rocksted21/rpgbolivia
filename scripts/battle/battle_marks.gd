@@ -8,11 +8,21 @@ const Data = preload("res://scripts/game_data.gd")
 
 const TREE_SEE_THROUGH := 0.45
 const STEP_COLOR := Color(0.27, 0.67, 1.0, 0.35)
-const PATH_COLOR := Color(0.27, 0.67, 1.0, 0.7)
+# Casas de movimento no estilo FFT: cada uma é um hex menor e separado, borda clara e miolo
+# mais escuro, pulsando de leve. Assim dá para contar as casas em vez de ver uma mancha.
+const MOVE_INSET := 0.84
+const MOVE_RIM := Color(0.38, 0.82, 1.0, 0.78)
+const MOVE_CORE := Color(0.08, 0.42, 1.0, 0.3)
+const MOVE_EDGE := Color(0.72, 0.95, 1.0, 1.0)
+const PATH_RIM := Color(0.8, 0.97, 1.0, 0.92)
+const PATH_CORE := Color(0.42, 0.82, 1.0, 0.62)
+const MOVE_PULSE_SPEED := 3.2
+const JUMP_COLOR := Color(0.55, 1.0, 0.35, 0.35) # casas onde dá para pular (verde)
+const JUMP_HOVER := Color(0.55, 1.0, 0.35, 0.75)
 const REACH_FILL := Color(1.0, 0.55, 0.1, 0.3)
 const TARGET_COLOR := Color(0.92, 0.24, 0.24, 0.55)
 const NEXT_ENEMY_ARROW := Color(0.95, 0.3, 0.25)
-const ROAM_HINT := "Clique para andar  ·  Segure Q/E para girar  ·  Tab troca de herói  ·  G alterna fila e separados"
+const ROAM_HINT := "Clique para andar  ·  Q/E ou dois dedos giram  ·  Z aproxima  ·  Tab troca de herói  ·  G alterna fila"
 const SIGHT_COLOR := Color(0.95, 0.25, 0.2, 0.28)
 const DEFAULT_HINT := "Toque numa casa azul para andar ou num personagem para agir. Segure para ver detalhes."
 const END_TURN_KEY_HINT := "Espaço encerra o turno."
@@ -102,6 +112,10 @@ func _refresh_overlays() -> void:
 	for cell in battle.overlays:
 		battle.overlays[cell].visible = false
 		battle.reach_lines[cell].visible = false
+	for cell in battle.move_shown:
+		for node in battle.move_tiles[cell]:
+			node.visible = false
+	battle.move_shown.clear()
 	battle.inspect_outline.visible = false
 	if not battle.busy:
 		_mark_free_look()
@@ -143,12 +157,22 @@ func _mark_free_look() -> void:
 	if shown != null and shown != unit:
 		_mark_reach(shown)
 		return
+	var jumps: Dictionary = battle.state.jump_cells(unit)
+	if battle.jump_mode:
+		for cell in jumps:
+			_mark(cell, JUMP_HOVER if cell == battle.hover else JUMP_COLOR)
+		_mark_aim(unit)
+		return
 	var reach: Dictionary = battle.state.move_cells(unit)
-	for cell in reach:
-		_mark(cell, STEP_COLOR)
+	var path := []
 	if reach.has(battle.hover):
-		for cell in battle.state.straight_path(battle.state.search(unit, battle.state.move_left(unit)), unit.pos, battle.hover):
-			_mark(cell, PATH_COLOR)
+		path = battle.state.straight_path(battle.state.search(unit, battle.state.move_left(unit)), unit.pos, battle.hover)
+	for cell in reach:
+		if battle.state.unit_at(cell) == null:
+			_mark_move(cell, path.has(cell))
+	for cell in jumps: # só pulando chega lá: aparece em verde
+		if not reach.has(cell):
+			_mark(cell, JUMP_HOVER if cell == battle.hover else JUMP_COLOR)
 	_mark_aim(unit)
 
 
@@ -192,7 +216,8 @@ func _mark_aim(unit) -> void:
 
 
 func _mark_reach_cell(cell: Vector2i) -> void:
-	if not battle.reach_lines.has(cell):
+	# Onde dá para andar o azul manda: o laranja por cima só embaralhava.
+	if not battle.reach_lines.has(cell) or battle.move_shown.has(cell):
 		return
 	battle.reach_lines[cell].visible = true
 	if not battle.overlays[cell].visible:
@@ -207,6 +232,59 @@ func _covers_a_unit(cell: Vector2i) -> bool:
 		if unit.alive() and battle._row(cell) > battle._row(unit.pos) and Hex.distance(cell, unit.pos) <= 2:
 			return true
 	return false
+
+
+func _mark_move(cell: Vector2i, on_path: bool) -> void:
+	if not battle.overlays.has(cell):
+		return
+	if not battle.move_tiles.has(cell):
+		battle.move_tiles[cell] = _new_move_tile(cell)
+	var fill: Polygon2D = battle.move_tiles[cell][0]
+	var rim := PATH_RIM if on_path else MOVE_RIM
+	var core := PATH_CORE if on_path else MOVE_CORE
+	fill.vertex_colors = PackedColorArray([rim, rim, rim, rim, rim, rim, core])
+	battle.move_tiles[cell][1].default_color = Color.WHITE if on_path else MOVE_EDGE
+	for node in battle.move_tiles[cell]:
+		node.visible = true
+	battle.move_shown.append(cell)
+	_pulse_moves(0.0)
+
+
+## Hex encolhido rumo ao centro, com um vértice no meio: a borda acende e o miolo escurece.
+func _new_move_tile(cell: Vector2i) -> Array:
+	var inset := PackedVector2Array()
+	for point in battle.hex_poly:
+		inset.append(battle.HEX_MIDDLE + (point - battle.HEX_MIDDLE) * MOVE_INSET)
+	var fill := Polygon2D.new()
+	fill.polygon = inset + PackedVector2Array([battle.HEX_MIDDLE])
+	var triangles := []
+	for i in 6:
+		triangles.append(PackedInt32Array([i, (i + 1) % 6, 6]))
+	fill.polygons = triangles
+	battle._place_ground_marker(fill, cell)
+	fill.z_index = battle._z(battle.cell_rows[cell]) + 1
+	battle.board.add_child(fill)
+	var edge := Line2D.new()
+	edge.width = 4.0
+	edge.closed = true
+	edge.joint_mode = Line2D.LINE_JOINT_ROUND
+	edge.points = inset
+	battle._place_ground_marker(edge, cell)
+	edge.z_index = battle._z(battle.cell_rows[cell]) + 2
+	battle.board.add_child(edge)
+	battle.cell_nodes[cell].append(fill)
+	battle.cell_nodes[cell].append(edge)
+	return [fill, edge]
+
+
+func _pulse_moves(delta: float) -> void:
+	if battle.move_shown.is_empty():
+		return
+	battle.move_pulse = fmod(battle.move_pulse + delta * MOVE_PULSE_SPEED, TAU)
+	var glow := 0.78 + 0.22 * sin(battle.move_pulse)
+	for cell in battle.move_shown:
+		battle.move_tiles[cell][0].modulate.a = glow
+		battle.move_tiles[cell][1].modulate.a = 0.7 + 0.3 * sin(battle.move_pulse)
 
 
 func _mark(cell: Vector2i, color: Color) -> void:
@@ -256,7 +334,14 @@ func _update_hint() -> void:
 func _turn_hint(unit) -> String:
 	var steps: int = battle.state.steps_left(unit)
 	var walk: String = "%d %s" % [steps, "casa" if steps == 1 else "casas"] if steps > 0 else "sem passos"
+	if battle.jump_mode:
+		return "Pulo: clique numa casa verde · a ação depois fica %s× mais lenta" % _penalty_text(unit)
 	return "%s · Atacar encerra o turno · %s" % [walk, END_TURN_KEY_HINT]
+
+
+func _penalty_text(unit) -> String:
+	var mult: float = Data.JUMP_PENALTY.get(unit.type_id, Data.JUMP_PENALTY_DEFAULT)
+	return ("%.2f" % mult).rstrip("0").rstrip(".").replace(".", ",")
 
 
 func _refresh_hover() -> void:

@@ -17,7 +17,7 @@ echo Importando arte e scripts novos...
 "%GODOT%" --headless --path . --import --log-file "%OUT%\import.txt"
 echo import !errorlevel!>> "%OUT%\resumo.txt"
 set SKIP_SIM=1
-for %%T in (test_town test_expedition test_save test_battle test_world test_battle_camera test_audio test_music) do (
+for %%T in (test_town test_expedition test_save test_battle test_world test_battle_camera test_audio test_music test_ruin_scenes) do (
   echo Rodando %%T...
   "%GODOT%" --headless --path . --script tests\%%T.gd --log-file "%OUT%\%%T.txt"
   echo %%T !errorlevel!>> "%OUT%\resumo.txt"

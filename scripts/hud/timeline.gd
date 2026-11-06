@@ -147,7 +147,7 @@ func _timeline_box(unit, first: bool, seen: Dictionary, beyond: int) -> PanelCon
 		var charging := Label.new()
 		charging.text = "MAGIA"
 		charging.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		charging.add_theme_font_size_override("font_size", 15)
+		charging.add_theme_font_size_override("font_size", 17)
 		charging.add_theme_color_override("font_color", CAST_COLOR)
 		charging.add_theme_color_override("font_outline_color", Color.BLACK)
 		charging.add_theme_constant_override("outline_size", 6)

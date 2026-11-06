@@ -27,8 +27,9 @@ func _network_command(sender: int, command: Dictionary) -> void:
 	var cell: Variant = command.get("cell", battle.NO_CELL)
 	if not cell is Vector2i: return
 	var kind := str(command.get("kind", ""))
-	if battle._free_roam():
-		var hero = battle.state.unit_by_uid(int(command.get("hero", 0))) if command.get("hero") is int else null
+	var hero = battle.state.unit_by_uid(int(command.get("hero", 0))) if command.get("hero") is int else null
+	# Herói fora da luta (ou sem luta nenhuma) anda livre, mesmo com outra luta acontecendo.
+	if battle.exploring and (not battle.state.in_combat() or (hero != null and battle.state.is_hero(hero) and not battle.state.is_fighting(hero))):
 		if hero == null or not battle.state.is_hero(hero) or not hero.alive() or battle.online_session.owner_of(hero) != sender: return
 		match kind:
 			"travel":
@@ -52,6 +53,8 @@ func _network_command(sender: int, command: Dictionary) -> void:
 		"wait": battle._perform(battle.state.do_wait(unit))
 		"step":
 			if battle.state.unit_at(cell) == null and battle.state.move_cells(unit).has(cell): battle._perform(battle.state.do_move(unit, cell))
+		"jump":
+			if battle.state.jump_cells(unit).has(cell): battle._perform(battle.state.do_jump(unit, cell))
 		"ability":
 			var id: String = str(command.get("ability", ""))
 			if id in unit.abilities and cell in battle.state.valid_targets(unit, id):
@@ -93,7 +96,7 @@ func _network_packet(_packet: Dictionary) -> void:
 		if battle.state.winner() < 0:
 			battle._place_ground_marker(battle.active_outline, battle.state.active_unit().pos)
 			battle.active_outline.visible = not battle._free_roam()
-			if battle.state.in_combat():
+			if battle.state.in_combat() and not battle._free_roam():
 				battle._focus_turn(battle.state.active_unit())
 			elif battle.camera_unit != battle.selected:
 				battle.input_ctl._select(battle._actor())
@@ -108,8 +111,15 @@ func _network_packet(_packet: Dictionary) -> void:
 
 
 func _room_status() -> void:
-	if battle.room_label == null: return
-	battle.room_label.text = "SALA DE %s · %d/4  " % [battle.online_session.players.get(battle.online_session.original_host, "Jogador"), battle.online_session.players.size()]
+	if not battle.online_session.playing or battle.hud == null:
+		return
+	battle.hud.set_party_owners(battle._owner_names())
+	if battle.selected != null and not battle.online_session.can_control(battle.selected) and battle._free_roam():
+		battle.input_ctl._select(battle._first_mine())
+	if battle.hud.group_open():
+		battle._open_group()
+	battle.input_ctl._refresh_end_turn()
+	battle.marks_ctl._refresh_turn_markers()
 	battle.marks_ctl._update_hint()
 
 

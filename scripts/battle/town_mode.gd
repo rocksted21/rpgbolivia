@@ -2,12 +2,11 @@ extends RefCounted
 
 ## Cidade-Farol: monta a cidade, os nomes e marcas dos moradores e a partida.
 
+const ExpeditionState = preload("res://scripts/expedition_state.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
 const TownPanels = preload("res://scripts/town_panels.gd")
 const TownLife = preload("res://scripts/town_life.gd")
 const TownData = preload("res://scripts/town_data.gd")
-
-const TOWN_PANELS_LAYER := 50
 
 var battle: BattleView # a tela dona deste módulo
 
@@ -24,7 +23,7 @@ func _set_return_to_town() -> void:
 
 func _setup_town() -> void:
 	battle.town_panels = TownPanels.new()
-	battle.town_panels.z_index = TOWN_PANELS_LAYER # por cima das linhas do topo, criadas depois
+	battle.town_panels.z_index = battle.TOWN_PANELS_LAYER # por cima das linhas do topo, criadas depois
 	battle.hud.add_child(battle.town_panels)
 	battle.town_panels.setup(_party_types())
 	battle.town_panels.depart.connect(_depart)
@@ -48,6 +47,12 @@ func _party_types() -> Array:
 
 
 func _depart(party_types: Array) -> void:
+	if battle.online_session.playing: # online: a party é a da sala; só o dono decide a partida
+		if battle.online_session.relay.is_master:
+			battle.online_session.relocate(ExpeditionState.new(_party_types(), randi(), battle.online_session.match_builds(), TownProgress.expedition_setup()))
+		else:
+			battle.hud.show_banner("Só o dono da sala pode partir.", battle.LEVEL_INK)
+		return
 	var root := battle.get_tree().root
 	root.set_meta("world_hero", party_types)
 	root.set_meta(battle.TOWN_META, false)
@@ -60,8 +65,12 @@ func _update_town() -> void:
 	var saved: Array = TownProgress.rescued()
 	var people: int = TownData.BASE_PEOPLE + saved.size() * TownData.PEOPLE_PER_RESCUE + TownProgress.beacons() * TownData.PEOPLE_PER_BEACON
 	var city_level: int = 1 + saved.size() + TownProgress.beacons()
-	battle.hud.set_status("Cidade-Farol   ·   Heróis %d/%d   ·   Habitantes %d" % [battle.state.alive_party().size(), battle.state.party.size(), people])
-	battle.hud.set_objective("Nível da Cidade %d   ·   Brasas %d   ·   Faróis acesos %d" % [city_level, TownProgress.brasas(), TownProgress.beacons()])
+	battle.hud.set_overview("Cidade-Farol", [
+		{"icon": "heart", "value": "%d/%d" % [battle.state.alive_party().size(), battle.state.party.size()], "label": "Heróis", "color": Color(1.0, 0.45, 0.45)},
+		{"icon": "people", "value": people, "label": "Habitantes", "color": Color(0.7, 0.82, 1.0)},
+		{"icon": "flame", "value": TownProgress.brasas(), "label": "Brasas", "color": Color(1.0, 0.68, 0.3)},
+		{"icon": "star", "value": TownProgress.beacons(), "label": "Faróis", "color": Color(1.0, 0.85, 0.35)},
+	], {"level": city_level, "fraction": -1.0, "name": "Cidade"})
 	battle.hud.update_party(battle.selected)
 
 

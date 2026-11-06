@@ -7,7 +7,6 @@ const SaveGame = preload("res://scripts/save_game.gd")
 
 const OPTIONS_PANEL_WIDTH := 400
 const OPTIONS_CONFIRM_WIDTH := 460
-const OPTIONS_Y := 74
 
 var hud: BattleHud # a tela dona deste módulo
 
@@ -19,7 +18,8 @@ func _init(host: Node) -> void:
 ## Botão "Opções", no canto: abre por cima de tudo o volume, salvar, carregar e sair.
 func _build_options() -> void:
 	GameSettings.apply()
-	hud.options_button = hud.party_ui._corner_button("Opções", Vector2(hud.SCREEN.x - hud.OPTIONS_WIDTH - hud.MARGIN, OPTIONS_Y), hud.OPTIONS_WIDTH)
+	hud.options_button = hud._icon_button("gear")
+	hud.options_button.tooltip_text = "Opções"
 	hud.options_button.pressed.connect(open_options)
 	var layer := CanvasLayer.new()
 	layer.layer = hud.layer + 10 # acima de tudo que o HUD cria depois (party, cidade, cartão)
