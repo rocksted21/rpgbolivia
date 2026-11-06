@@ -152,6 +152,9 @@ func _add_service_choice(choices: Control, person: Dictionary) -> void:
 			_choice(choices, "Treinar (árvores de skills)").pressed.connect(func(): skills_requested.emit())
 		"beacon":
 			_choice(choices, "Como está a cidade?").pressed.connect(func(): _open_beacon(person))
+	# Quem tem outro serviço também pode vender (o Ferreiro forja, a Padeira assa...).
+	if person["service"] != "shop" and Content.ITEM_ORDER.any(func(id): return Content.ITEMS[id]["seller"] == person["id"]):
+		_choice(choices, "Ver o que tem à venda").pressed.connect(func(): open_shop(person))
 
 
 func _offer(person: Dictionary, id: String) -> void:

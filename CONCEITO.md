@@ -24,9 +24,20 @@ Ao vencer, a party leva todas as brasas. Na derrota, leva metade. Quem foi resga
 
 ## Primeira versão
 
-Já existe no modo solo: a Cidade-Farol, por onde a party anda e conversa com os moradores, 2 moradores para resgatar (Curandeira e Ferreiro), 1 região, 6 tipos de local e 1 chefe.
+Já existe no modo solo: a Cidade-Farol, por onde a party anda e conversa com os moradores, 6 moradores para resgatar, 4 chefes de bioma e 6 tipos de local.
 
-Na cidade também há conversas com escolhas, 10 missões com recompensa, loja (Mercadora e Sacerdotisa), mochila, melhorias na forja e na enfermaria, mural de missões e moradores que andam e falam pelas ruas.
+| Morador | Prédio que reabre | Serviço | Vende |
+| --- | --- | --- | --- |
+| Curandeira | Tenda | Enfermaria (vida) e frascos de poção | — |
+| Ferreiro | Forja | Forja (ataque) e armaduras (defesa) | Lâmina de Brasa, Escudo de Ferro Velho |
+| Padeira | Forno | Padaria (vida a cada passo fora de combate) e forno a lenha (vida) | Pão de Mel, Torta de Viagem |
+| Cartógrafa | Torre de madeira | Torre de Mapas (bússola sem limite; depois, baús escondidos) | Luneta da Torre |
+| Arquivista | Mansão | Arquivo (experiência a mais) e diários de guerra (ataque) | Tomo das Batalhas |
+| Alquimista | Abrigo das docas | Laboratório (poções mais fortes) e destilaria (brasas a mais) | Elixir Concentrado, Poção Dupla |
+
+Duas vilas por expedição guardam moradores, na ordem da tabela: três expedições salvam todos.
+
+Na cidade também há conversas com escolhas, 20 missões com recompensa (as novas abrem com os resgates ou depois de outra missão), lojas (Mercadora, Sacerdotisa e os moradores resgatados), mochila, melhorias de cada ofício, mural de missões e moradores que andam e falam pelas ruas. A arte dos 4 moradores novos foi recolorida da dos moradores que já existiam.
 
 Os números e textos da expedição ficam em `scripts/expedition_data.gd`, e a planta da cidade, em `scripts/town_data.gd`. Itens, missões e conversas ficam em `scripts/town_content.gd`. As regras estão em `scripts/expedition_state.gd` e `scripts/town_state.gd`, e o save da cidade, em `scripts/town_progress.gd`.
 

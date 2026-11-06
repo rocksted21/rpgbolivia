@@ -32,6 +32,7 @@ func _initialize() -> void:
 	test_levels()
 	test_boss()
 	test_town()
+	test_services()
 	print("regras: %d verificações, %d falhas" % [checks, failures])
 	if not OS.has_environment("SKIP_SIM"):
 		test_simulation()
@@ -366,6 +367,46 @@ func test_town() -> void:
 
 
 ## Partidas guiadas pela IA, indo de local em local até o farol. Mede a dificuldade.
+## Serviços dos moradores resgatados: padaria, torre de mapas, arquivo e laboratório.
+func test_services() -> void:
+	var plain = _new(21)
+	var fed = _new(21, {"rest_heal": 2})
+	var hurt = plain.party[0]
+	var hurt_fed = fed.party[0]
+	hurt.hp = 5
+	hurt_fed.hp = 5
+	plain._rest(hurt, [])
+	fed._rest(hurt_fed, [])
+	check(hurt_fed.hp - 5 == (hurt.hp - 5) + 2, "a padaria cura mais a cada passo")
+
+	var scholar = _new(22, {"xp_pct": 50})
+	scholar._gain_xp(10, [])
+	check(scholar.xp == 15, "o arquivo dá experiência a mais (%d)" % scholar.xp)
+
+	var brewed = _new(23, {"potion_pct": 20, "potions": 1})
+	for member in brewed.party:
+		member.hp = 1
+	brewed.use_potion()
+	var member = brewed.party[0]
+	check(member.hp == 1 + roundi(member.max_hp * 0.6), "o laboratório fortalece a poção (40% + 20%)")
+
+	var mapped = _new(24, {"maps": 1})
+	check(mapped.far_compass and not mapped.reveal_hidden, "mapa 1: bússola alcança tudo")
+	var charted = _new(24, {"maps": 2})
+	var hidden: Array = charted.landmarks.keys().filter(func(cell): return charted.landmarks[cell].get("hidden", false))
+	check(not hidden.is_empty(), "o mapa tem baús escondidos")
+	check(hidden.all(func(cell): return cell in charted.open_landmarks(charted.start_cell)), "mapa 2: a bússola mostra os baús escondidos")
+	check(hidden.all(func(cell): return cell not in mapped.open_landmarks(mapped.start_cell)), "sem o mapa 2 eles continuam escondidos")
+
+	var rich = _new(25, {"brasa_pct": 50})
+	rich.brasas = 10
+	rich.defeated_boss = true
+	check(rich.result()["brasas"] == 15, "a destilaria rende brasas a mais")
+
+	for id in Exp.RESIDENT_ORDER:
+		check(Exp.RESIDENTS[id].has("rescued"), "%s tem aviso de resgate" % id)
+
+
 func test_simulation() -> void:
 	var rows := []
 	for town in [{}, {"hp": 6, "atk": 1}, {"hp": 18, "atk": 3}]:

@@ -73,12 +73,12 @@ const BUILDINGS := [
 	{"art": "tenda", "cell": Vector2i(10, 19), "radius": 0, "needs": "curandeira", "face": Vector2i(13, 20)},
 	{"art": "horta", "cell": Vector2i(7, 20), "radius": 0},
 	{"art": "taverna", "cell": Vector2i(25, 17), "radius": 1, "face": Vector2i(22, 15)},
-	{"art": "mansao", "cell": Vector2i(27, 10), "radius": 1, "face": Vector2i(27, 13)},
+	{"art": "mansao", "cell": Vector2i(27, 10), "radius": 1, "needs": "arquivista", "face": Vector2i(27, 13)},
 	{"art": "capela", "cell": Vector2i(11, 9), "radius": 1, "face": Vector2i(13, 13)},
 	{"art": "acampamento", "cell": Vector2i(6, 17), "radius": 0},
-	{"art": "forno", "cell": Vector2i(5, 13), "radius": 0, "face": Vector2i(7, 14)},
-	{"art": "abrigo", "cell": Vector2i(15, 24), "radius": 0, "face": Vector2i(17, 23)},
-	{"art": "torre_madeira", "cell": Vector2i(25, 25), "radius": 0},
+	{"art": "forno", "cell": Vector2i(5, 13), "radius": 0, "needs": "padeira", "face": Vector2i(7, 14)},
+	{"art": "abrigo", "cell": Vector2i(15, 24), "radius": 0, "needs": "alquimista", "face": Vector2i(17, 23)},
+	{"art": "torre_madeira", "cell": Vector2i(25, 25), "radius": 0, "needs": "cartografa"},
 	{"art": "fonte", "cell": Vector2i(17, 14), "radius": 0},
 	# Casas dos moradores: viradas para a rua (face).
 	{"art": "casa_a", "cell": Vector2i(8, 22), "radius": 0, "face": Vector2i(9, 22)},
@@ -141,6 +141,11 @@ const PEOPLE := [
 	{"id": "viajante", "name": "Viajante", "art": "morador_c", "cell": Vector2i(8, 18), "service": "talk"},
 	{"id": "mercadora", "name": "Mercadora", "art": "morador_d", "cell": Vector2i(15, 18), "service": "shop"},
 	{"id": "sacerdotisa", "name": "Sacerdotisa", "art": "morador_e", "cell": Vector2i(13, 11), "service": "shop"},
+	# Resgatados nas vilas: cada um traz de volta o prédio do seu ofício.
+	{"id": "padeira", "name": "Padeira", "art": "morador_padeira", "cell": Vector2i(6, 13), "service": "resident", "needs": "padeira"},
+	{"id": "cartografa", "name": "Cartógrafa", "art": "morador_cartografa", "cell": Vector2i(24, 25), "service": "resident", "needs": "cartografa"},
+	{"id": "arquivista", "name": "Arquivista", "art": "morador_arquivista", "cell": Vector2i(27, 12), "service": "resident", "needs": "arquivista"},
+	{"id": "alquimista", "name": "Alquimista", "art": "morador_alquimista", "cell": Vector2i(15, 23), "service": "resident", "needs": "alquimista"},
 	{"id": "mural", "name": "Mural de Missões", "art": "mural", "cell": Vector2i(19, 12), "service": "board"},
 ]
 

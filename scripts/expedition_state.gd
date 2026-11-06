@@ -27,6 +27,11 @@ var free_potions := 0 # as primeiras poções usadas são as de graça: não sae
 var potions_used := 0
 var far_compass := false
 var brasa_bonus := false
+var rest_bonus := 0 # Padaria: vida a mais por passo fora de combate
+var reveal_hidden := false # Torre de Mapas nível 2: a bússola mostra os baús escondidos
+var xp_pct := 0 # Arquivo: experiência a mais, em %
+var potion_pct := 0 # Laboratório: cura a mais das poções, em %
+var brasa_pct := 0 # Destilaria do Laboratório: brasas a mais, em %
 var items := []
 var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0, "chests": 0}
 var town_setup := {} # o que a cidade deu à party; o save refaz a expedição com ele
@@ -45,8 +50,13 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 		member.def += town.get("def", 0)
 	potions = town.get("potions", 0)
 	free_potions = town.get("free_potions", 0)
-	far_compass = town.get("far_compass", 0) > 0
+	far_compass = town.get("far_compass", 0) > 0 or town.get("maps", 0) >= 1
 	brasa_bonus = town.get("brasa_bonus", 0) > 0
+	rest_bonus = town.get("rest_heal", 0)
+	reveal_hidden = town.get("maps", 0) >= 2
+	xp_pct = town.get("xp_pct", 0)
+	potion_pct = town.get("potion_pct", 0)
+	brasa_pct = town.get("brasa_pct", 0)
 	items = town.get("items", [])
 	layout = Layout.new(gen, start_cell, _route_radius())
 	_place_landmarks()
@@ -175,7 +185,7 @@ func _shuffle(list: Array) -> void:
 
 ## Locais que ainda valem uma visita, do mais perto para o mais longe de `from`.
 func open_landmarks(from: Vector2i) -> Array:
-	var open: Array = landmarks.keys().filter(func(cell): return cell != beacon_cell and landmarks[cell]["state"] != "done" and not landmarks[cell].get("hidden", false))
+	var open: Array = landmarks.keys().filter(func(cell): return cell != beacon_cell and landmarks[cell]["state"] != "done" and (reveal_hidden or not landmarks[cell].get("hidden", false)))
 	open.sort_custom(func(a, b): return Hex.distance(a, from) < Hex.distance(b, from))
 	return open
 
@@ -199,7 +209,7 @@ func winner() -> int:
 func _rest(unit, events: Array) -> void:
 	if unit.hp >= unit.max_hp:
 		return
-	var healed: int = mini(Exp.REST_HEAL, unit.max_hp - unit.hp)
+	var healed: int = mini(Exp.REST_HEAL + rest_bonus, unit.max_hp - unit.hp)
 	unit.hp += healed
 	events.append({"type": "regen", "unit": unit, "amount": healed, "hp": unit.hp, "quiet": true})
 
@@ -208,8 +218,10 @@ func _rest(unit, events: Array) -> void:
 func result() -> Dictionary:
 	var won := winner() == Data.Team.PLAYER
 	var kept: int = brasas if won else floori(brasas * Exp.DEFEAT_BRASAS)
+	var bonus := brasa_pct / 100.0
 	if brasa_bonus:
-		kept += floori(kept * Content.BRASA_BONUS)
+		bonus += Content.BRASA_BONUS
+	kept += floori(kept * bonus)
 	var counted := tally.duplicate()
 	counted["kills"] = kills
 	counted["beacons"] = 1 if won else 0
@@ -232,7 +244,7 @@ func use_potion() -> Array:
 		return events
 	potions -= 1
 	potions_used += 1
-	_heal_party(Content.POTION_HEAL, events)
+	_heal_party(Content.POTION_HEAL + potion_pct / 100.0, events)
 	return events
 
 
@@ -253,7 +265,7 @@ func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void
 
 
 func _gain_xp(amount: int, events: Array) -> void:
-	xp += amount
+	xp += amount + floori(amount * xp_pct / 100.0)
 	while level < Exp.LEVEL_XP.size() and xp >= Exp.LEVEL_XP[level]:
 		level += 1
 		for member in party:
@@ -384,9 +396,7 @@ func _complete(cell: Vector2i, events: Array) -> void:
 			var resident: String = entry.get("resident", "")
 			if resident != "":
 				rescued.append(resident)
-				title = "%s resgatado!" % Exp.RESIDENTS[resident]["name"]
-				if resident == "curandeira":
-					title = "Curandeira resgatada!"
+				title = Exp.RESIDENTS[resident]["rescued"]
 				detail = "Abre: %s na Cidade-Farol." % Exp.RESIDENTS[resident]["service"]
 			else:
 				title = "Vila salva"

@@ -13,3 +13,6 @@ update/runtime.cfg
 # Copias de repositorios criadas dentro da pasta do projeto
 /rpg bolivia/
 /rpgbolivia/
+
+# Resultado de tools/rodar_testes.bat
+/tools/saida_testes/
