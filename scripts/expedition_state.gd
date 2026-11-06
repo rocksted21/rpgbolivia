@@ -225,6 +225,43 @@ func _carve_trails() -> void:
 		var free := blocked.duplicate()
 		free.erase(cell)
 		gen.carve(gen.route(cell, gen.carved, start_cell, _route_radius(), free), false)
+	_link_islands(blocked)
+
+
+## Terra cercada de água ou de serra, grande o bastante para valer a visita, ganha uma trilha
+## até a rede (atravessando a água por ponte). Ilhas pequenas ficam como paisagem.
+func _link_islands(blocked: Dictionary) -> void:
+	var radius := _route_radius() - Exp.EDGE_MARGIN
+	var reach := _reachable_cells(radius)
+	var cells: Array = area_of(start_cell, radius)
+	cells.sort()
+	var seen := {}
+	for cell in cells:
+		if reach.has(cell) or seen.has(cell) or not gen.walkable(cell):
+			continue
+		var island := [cell]
+		seen[cell] = true
+		var i := 0
+		while i < island.size():
+			var current: Vector2i = island[i]
+			i += 1
+			for next in Hex.neighbors(current):
+				if seen.has(next) or reach.has(next) or Hex.distance(next, start_cell) > radius or not gen.walkable(next):
+					continue
+				if absi(elevation_at(next) - elevation_at(current)) > 1:
+					continue
+				seen[next] = true
+				island.append(next)
+		if island.size() < Exp.ISLAND_MIN:
+			continue
+		island.sort_custom(func(a, b):
+			var gap_a: int = Hex.distance(a, start_cell)
+			var gap_b: int = Hex.distance(b, start_cell)
+			return gap_a < gap_b or (gap_a == gap_b and a < b))
+		var way: Array = gen.route(island[0], gen.carved, start_cell, _route_radius(), blocked)
+		var wet: int = way.filter(func(cell): return gen.sample(cell)["terrain"] == gen.WATER).size()
+		if wet <= Exp.ISLAND_BRIDGE_MAX:
+			gen.carve(way, false)
 
 
 ## Casas a pé a partir do início, até `radius`, com o mesmo critério de degrau do movimento.
