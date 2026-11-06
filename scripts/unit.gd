@@ -42,10 +42,19 @@ func _init(p_type_id: String, p_team: int, p_pos: Vector2i, build: Array = []) -
 	def = data["def"]
 	speed = data["speed"]
 	abilities = data["abilities"].duplicate()
-	for node_id in build:
+	# Por nível: um nó mais alto pode trocar a regra de um anterior (Fogo Eterno troca as Brasas).
+	# Id antigo (save de partida de antes de uma revisão) vira o atual; cada nó entra uma vez.
+	var nodes := []
+	var seen := {}
+	for raw_id in build:
+		var node_id: String = Skills.RENAMED.get(str(raw_id), str(raw_id))
 		var found: Dictionary = Skills.locate(p_type_id, node_id)
-		if not found.is_empty():
-			_apply_node(found["node"])
+		if not found.is_empty() and not seen.has(node_id):
+			seen[node_id] = true
+			nodes.append(found)
+	nodes.sort_custom(func(a, b): return a["tier"] < b["tier"])
+	for found in nodes:
+		_apply_node(found["node"])
 
 
 func _apply_node(node: Dictionary) -> void:

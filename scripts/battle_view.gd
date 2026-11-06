@@ -550,6 +550,7 @@ func _start_battle() -> void:
 			online_session.assign(unit, id)
 			_open_group())
 		hud.party_pressed.connect(input_ctl._on_party_pick)
+		hud.level_up_pressed.connect(input_ctl._on_level_up_pick)
 		hud.rotate_held.connect(func(direction): turn_hold = direction)
 		hud.together_toggled.connect(func(on): together = on)
 	if online_session.playing:
@@ -946,7 +947,7 @@ func _update_party_progress() -> void:
 			hud.set_party_progress(unit, HeroProgress.level_info(unit.type_id), HeroProgress.available(unit.type_id))
 		elif online_session.hero_progress.has(unit.type_id):
 			var entry: Dictionary = online_session.hero_progress[unit.type_id]
-			hud.set_party_progress(unit, entry, entry["points"])
+			hud.set_party_progress(unit, entry, entry["points"], false)
 
 
 ## Online: conta para a sala o nível dos meus heróis. `raised`: quem acabou de subir.

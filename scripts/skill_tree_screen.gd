@@ -18,6 +18,16 @@ const LOCKED := Color("6b7385")
 const LINE_OFF := Color("3a4358")
 const STAT_ICONS := {"hp": ["heart", Color("ef6b5b")], "atk": ["sword", Color("e2a35a")], "def": ["shield", Color("5aa6ff")], "speed": ["bolt", GOLD]}
 const KIND_ICONS := {"attack": "sword", "charge": "flame", "heal": "heart", "guard": "shield", "buff": "star"}
+# Tipo de cada nó (campo "tag" em skill_data): nome curto, ícone e cor.
+const TAGS := {
+	"ativa": ["Ativa", "star", GOLD],
+	"ataque": ["Ataque", "sword", Color("e2a35a")],
+	"defesa": ["Defesa", "shield", Color("5aa6ff")],
+	"movimento": ["Movimento", "steps", Color("7bd88f")],
+	"suporte": ["Suporte", "people", Color("f29ac4")],
+	"reacao": ["Reação", "bolt", Color("ef6b5b")],
+	"controle": ["Controle", "hourglass", Color("b59cff")],
+}
 
 signal bought(type_id: String, node_id: String)
 signal closed
@@ -94,8 +104,9 @@ func _heroes() -> Array:
 	return only_heroes.filter(func(type_id): return type_id in all)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
+## ESC fecha a árvore. Em _input, antes de qualquer botão ou do jogo embaixo pegar a tecla.
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") and not event.is_echo():
 		get_viewport().set_input_as_handled()
 		_back()
 
@@ -271,7 +282,10 @@ func _node_button(parent: Control, node: Dictionary, at: Vector2, tier: int, unl
 	var name_label := _label(inner, node["name"], 16, ink)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var tag: Array = TAGS.get(node.get("tag", ""), ["", "", GOLD])
 	var status := "comprado" if owned else ("%d pt" % Skills.TIER_COST[tier])
+	if tag[0] != "":
+		status = "%s · %s" % [tag[0], status]
 	var cost := _label(inner, status, 13, INK if owned else (GOLD if can_buy else LOCKED))
 	cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
@@ -283,8 +297,13 @@ func _node_icon(node: Dictionary) -> Array:
 			return ["arrow", TEXT]
 		var kind: String = KIND_ICONS.get(ability["kind"], "star")
 		return [kind, GOLD]
-	for stat in node.get("stats", {}):
-		return STAT_ICONS[stat]
+	# Só atributo (vida, defesa...): o ícone do atributo diz mais que o do tipo.
+	if not node.has("passive") and not node.has("mods"):
+		for stat in node.get("stats", {}):
+			return STAT_ICONS[stat]
+	if TAGS.has(node.get("tag", "")):
+		var tag: Array = TAGS[node["tag"]]
+		return [tag[1], tag[2]]
 	return ["star", GOLD]
 
 
@@ -334,6 +353,9 @@ func _render_selected(unlocked: Array, preview) -> void:
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var description := _label(detail_column, node["desc"], 16, TEXT)
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var kind := "Ativa: entra no menu de ações." if node.has("unlock") else "Passiva: vale sempre, sem gastar ação."
+	var tag: Array = TAGS.get(node.get("tag", ""), ["", "", DIM])
+	_label(detail_column, kind, 15, tag[2] if node.has("unlock") else DIM)
 	if node.has("unlock"):
 		var summary := _label(detail_column, _ability_summary(preview, node["unlock"]), 15, DIM)
 		summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

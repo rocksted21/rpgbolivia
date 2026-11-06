@@ -30,6 +30,9 @@ func _build_options() -> void:
 	hud.options_overlay.size = hud.SCREEN
 	hud.options_overlay.visible = false
 	layer.add_child(hud.options_overlay)
+	var escape := EscapeCatcher.new()
+	escape.on_escape = _on_escape
+	layer.add_child(escape)
 	hud.options_panel = _options_box(OPTIONS_PANEL_WIDTH)
 	hud.options_overlay.add_child(hud.options_panel)
 	var column: VBoxContainer = hud.options_panel.get_child(0)
@@ -150,6 +153,29 @@ func close_options() -> void:
 
 func options_open() -> bool:
 	return hud.options_overlay.visible
+
+
+## ESC: na confirmação de sair, volta para as opções; nas opções, fecha o menu.
+## Devolve se usou a tecla (com o menu fechado, ela segue para o jogo).
+func _on_escape() -> bool:
+	if not options_open():
+		return false
+	if hud.quit_panel.visible:
+		hud.quit_panel.visible = false
+		hud.options_panel.visible = true
+		_center(hud.options_panel)
+	else:
+		close_options()
+	return true
+
+
+## Pega o ESC antes do jogo. Fica na camada do menu, que roda mesmo com o jogo pausado.
+class EscapeCatcher extends Node:
+	var on_escape: Callable
+
+	func _input(event: InputEvent) -> void:
+		if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE and on_escape.call():
+			get_viewport().set_input_as_handled()
 
 
 func show_options_note(text: String) -> void:

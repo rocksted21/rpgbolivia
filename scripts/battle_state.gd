@@ -245,6 +245,7 @@ func move_points(unit) -> int:
 	var tiles: int = Data.UNIT_TYPES.get(unit.type_id, {}).get("move", 0)
 	# Classe com movimento próprio (ex.: magos andam 2); senão, depende da velocidade.
 	var points: int = tiles * Data.STEP_TIME if tiles > 0 else Data.MOVE_BASE + unit.speed * Data.MOVE_PER_SPEED
+	points += int(unit.passive("move_bonus", 0)) * Data.STEP_TIME
 	if unit.has_status("slow"):
 		points -= Data.SLOW_MOVE
 	return maxi(0, points)
@@ -467,6 +468,10 @@ func do_wait(unit) -> Array:
 	unit.moved = 0
 	unit.jumped = false
 	var events := [{"type": "wait", "unit": unit}]
+	# Postura: quem encerra o turno sem agir fica em Guarda.
+	if unit.passive("wait_guard", false) and turn_based(unit):
+		unit.guarding = true
+		events.append({"type": "guard", "unit": unit, "ability": "guarda"})
 	_end_turn(unit, events)
 	return events
 
@@ -575,23 +580,37 @@ func preview_attack(attacker, ability_id: String, target) -> Dictionary:
 	return {"amount": amount, "flank": flank, "height": height, "guard": target.guarding, "cover": tile_at(target.pos)["damage"] < 1.0}
 
 
-## Redução de dano por Guarda própria e por aliado vizinho com Proteção.
+## Redução de dano por Guarda própria, por aliado vizinho com Proteção (em Guarda)
+## e por aliado vizinho com Névoa (sempre).
 func _protection_mult(target) -> float:
 	var mult := 1.0
 	if target.guarding:
 		mult *= target.passive("guard_mult", Data.GUARD_MULT)
-	for ally in allies_of(target):
-		if ally != target and ally.guarding and ally.passives.has("guard_aura") and Hex.distance(ally.pos, target.pos) == 1:
-			mult *= ally.passives["guard_aura"]
-			break
+	mult *= _neighbor_passive(target, "guard_aura", true)
+	mult *= _neighbor_passive(target, "ward")
 	return mult
 
 
-## Fortalecido bate mais; Marcado apanha mais.
+## Multiplicador de um aliado vizinho de `unit` que tem a passiva `key` (o primeiro que achar).
+func _neighbor_passive(unit, key: String, needs_guard := false) -> float:
+	for ally in allies_of(unit):
+		if ally != unit and ally.passives.has(key) and (ally.guarding or not needs_guard) and Hex.distance(ally.pos, unit.pos) == 1:
+			return ally.passives[key]
+	return 1.0
+
+
+## Fortalecido bate mais (e quem está ao lado do Estandarte); Marcado apanha mais
+## (e quem está colado em inimigo com Distração).
 func _status_mult(attacker, target) -> float:
 	var mult := 1.0
-	if attacker != null and attacker.has_status("might"):
-		mult *= Data.MIGHT_MULT
+	if attacker != null:
+		if attacker.has_status("might"):
+			mult *= Data.MIGHT_MULT
+		mult *= _neighbor_passive(attacker, "inspire")
+	for foe in enemies_of(target):
+		if foe.passives.has("expose") and Hex.distance(foe.pos, target.pos) == 1:
+			mult *= foe.passives["expose"]
+			break
 	if target.has_status("mark"):
 		mult *= Data.MARK_MULT
 	return mult
@@ -627,14 +646,17 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			unit.clock += action_time(ability["time"], unit)
 			events.append({"type": "attack", "unit": unit, "target": target, "ability": ability_id, "label": ability["name"]})
 			_apply_damage(target, result["amount"], events, result)
-			if ability.has("lifesteal") and unit.alive():
-				var back := roundi(result["amount"] * ability["lifesteal"])
+			var steal: float = ability.get("lifesteal", 0.0) + unit.passive("lifesteal", 0.0)
+			if steal > 0.0 and unit.alive():
+				var back := roundi(result["amount"] * steal)
 				if back > 0 and unit.hp < unit.max_hp:
 					_heal(unit, unit, back, events)
 			if target.alive():
 				target.clock += ability.get("delay", 0)
 				if ability.has("status"):
 					_add_status(target, ability["status"], events)
+				if unit.passives.has("hit_status"):
+					_add_status(target, unit.passives["hit_status"], events)
 				_counter(unit, target, ability, events)
 				if ability.has("push") and unit.alive():
 					_push(unit, target, ability["push"], events)
@@ -649,6 +671,8 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			if ability.has("haste") and target != unit:
 				# Adianta, mas nunca para antes de agora: ninguém volta no tempo.
 				target.clock = maxi(now, target.clock - ability["haste"])
+			if ability.get("heal", 0) > 0 and target.hp < target.max_hp:
+				_heal(unit, target, ability["heal"], events)
 			if ability.has("status"):
 				# Em si mesmo o fim deste turno já contaria um: soma um para durar o mesmo.
 				_add_status(target, ability["status"], events, 1 if target == unit else 0)
@@ -657,9 +681,12 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			var total := 0
 			for target in units:
 				if target.alive() and target.team == unit.team and Hex.distance(target.pos, cell) <= ability.get("radius", 0):
-					total += _heal(unit, target, ability["heal"], events)
+					var healed := _heal(unit, target, ability["heal"], events)
+					total += healed
 					if unit.passive("heal_guard", false):
 						target.guarding = true
+					if healed > 0 and target != unit and unit.passives.has("heal_haste"):
+						target.clock = maxi(now, target.clock - int(unit.passives["heal_haste"]))
 			if unit.passives.has("heal_self") and total > 0:
 				_heal(unit, unit, roundi(total * unit.passives["heal_self"]), events)
 		"guard":
@@ -675,16 +702,31 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			unit.clock += cast_time_for(unit, ability_id)
 			unit.pending = {"ability": ability_id, "tile": cell}
 			events.append({"type": "cast_start", "unit": unit, "ability": ability_id, "tile": cell})
+	_rush_on_kill(unit, events, now)
 	unit.moved = 0 # qualquer ação encerra o turno
 	unit.jumped = false
 	_end_turn(unit, events)
 	return events
 
 
-## Fim do turno de `unit`: veneno e queimadura doem, e os efeitos contam um turno a menos.
-## Fora de combate (exploração) o tempo dos efeitos não corre.
+## Frenesi: derrubar um inimigo nesta ação adianta a próxima vez, sem voltar antes de `floor_clock`.
+func _rush_on_kill(unit, events: Array, floor_clock: int) -> void:
+	if not unit.alive() or not unit.passives.has("kill_haste"):
+		return
+	if events.any(func(e): return e["type"] == "death" and e["target"].team != unit.team):
+		unit.clock = maxi(floor_clock, unit.clock - int(unit.passives["kill_haste"]))
+
+
+## Fim do turno de `unit`: quem regenera recupera vida, veneno e queimadura doem, e os
+## efeitos contam um turno a menos. Fora de combate (exploração) o tempo dos efeitos não corre.
 func _end_turn(unit, events: Array) -> void:
-	if not unit.alive() or unit.statuses.is_empty() or not in_combat():
+	if not unit.alive() or not in_combat():
+		return
+	if unit.passives.has("regen") and unit.hp < unit.max_hp and turn_based(unit):
+		var healed := mini(int(unit.passives["regen"]), unit.max_hp - unit.hp)
+		unit.hp += healed
+		events.append({"type": "regen", "unit": unit, "amount": healed, "hp": unit.hp})
+	if unit.statuses.is_empty():
 		return
 	for id in unit.statuses.keys():
 		var status: Dictionary = unit.statuses[id]
@@ -748,17 +790,25 @@ func resolve_pending(unit) -> Array:
 	var ability: Dictionary = unit.ability(ability_id)
 	var tile: Vector2i = unit.pending["tile"]
 	unit.pending = {}
+	var impact: int = unit.clock
 	unit.clock += recovery_time_for(unit, ability_id)
 	var events := [{"type": "cast_resolve", "unit": unit, "ability": ability, "id": ability_id, "tile": tile, "cells": area_of(tile, ability["radius"])}]
+	var spare_allies: bool = unit.passive("aoe_safe", false) # Chama Controlada
 	for target in units.duplicate():
 		if target.alive() and Hex.distance(target.pos, tile) <= ability["radius"]:
+			if spare_allies and target.team == unit.team:
+				continue
 			var mult: float = tile_at(target.pos)["damage"] * _protection_mult(target) * _status_mult(unit, target)
 			var amount := maxi(1, roundi(unit.atk * ability["power"] * mult) - target.def)
 			_apply_damage(target, amount, events, {})
 			if not target.alive() and target.team != unit.team:
 				_on_kill(unit, events)
-			elif target.alive() and ability.has("status"):
-				_add_status(target, ability["status"], events)
+			elif target.alive():
+				if ability.has("status"):
+					_add_status(target, ability["status"], events)
+				if unit.passives.has("hit_status"):
+					_add_status(target, unit.passives["hit_status"], events)
+	_rush_on_kill(unit, events, impact)
 	return events
 
 
@@ -784,12 +834,21 @@ func _on_kill(unit, events: Array) -> void:
 		_heal(unit, unit, unit.passives["kill_heal"], events)
 
 
-## Contragolpe de quem está em Guarda ao apanhar corpo a corpo.
+## Revide ao apanhar corpo a corpo: Contragolpe só em Guarda, Riposta sempre.
 func _counter(attacker, target, ability: Dictionary, events: Array) -> void:
-	if not target.guarding or not target.passives.has("counter") or ability["range"] != 1:
+	if ability["range"] != 1:
 		return
-	var amount := maxi(1, roundi(target.atk * target.passives["counter"]) - attacker.def)
-	events.append({"type": "attack", "unit": target, "target": attacker, "label": "contragolpe"})
+	var power := 0.0
+	var label := "contragolpe"
+	if target.guarding and target.passives.has("counter"):
+		power = target.passives["counter"]
+	elif target.passives.has("riposte"):
+		power = target.passives["riposte"]
+		label = "riposta"
+	if power <= 0.0:
+		return
+	var amount := maxi(1, roundi(target.atk * power) - attacker.def)
+	events.append({"type": "attack", "unit": target, "target": attacker, "label": label})
 	_apply_damage(attacker, amount, events, {"opportunity": true})
 
 

@@ -4,6 +4,9 @@ extends RefCounted
 
 
 const XP_COLOR := Color(0.55, 0.9, 1.0)
+const LEVEL_UP_FILL := Color(1.0, 0.82, 0.2)
+const LEVEL_UP_SIZE := Vector2(150, 36)
+const CARD_GAP := 10 # separação entre as cartas da party
 
 var hud: BattleHud # a tela dona deste módulo
 
@@ -16,11 +19,12 @@ func _init(host: Node) -> void:
 ## do jogador de cada herói no online.
 func setup_party(heroes: Array, owners: Dictionary) -> void:
 	hud.party_row = HBoxContainer.new()
-	hud.party_row.add_theme_constant_override("separation", 10)
-	var row_width := heroes.size() * hud.PARTY_CARD.x + (heroes.size() - 1) * 10
+	hud.party_row.add_theme_constant_override("separation", CARD_GAP)
+	var row_width := heroes.size() * hud.PARTY_CARD.x + (heroes.size() - 1) * CARD_GAP
 	hud.party_row.position = Vector2((hud.SCREEN.x - row_width) / 2, hud.SCREEN.y - hud.MARGIN - hud.PARTY_CARD.y)
 	hud.add_child(hud.party_row)
-	for unit in heroes:
+	for index in heroes.size():
+		var unit = heroes[index]
 		var panel := PanelContainer.new()
 		panel.custom_minimum_size = hud.PARTY_CARD
 		panel.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -84,7 +88,7 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		var status := hud._title("", 17, Color(0.85, 0.87, 0.92))
 		status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		middle.add_child(status)
-		# Pontos para gastar: selo dourado piscando. Tocar na carta abre a árvore.
+		# Pontos para gastar: selo dourado piscando. A árvore abre pelo LEVEL UP em cima da carta.
 		var points := hud._title("", 17, hud.MENU_INK)
 		var points_box := PanelContainer.new()
 		var points_style := hud._box(Color(1.0, 0.8, 0.25), Color.WHITE, 2, 8, 0)
@@ -109,7 +113,8 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		xp_fill.size = Vector2(0, 6)
 		xp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		xp_back.add_child(xp_fill)
-		hud.party_cards[unit] = {"panel": panel, "fill": fill, "status": status, "level": level, "xp": xp_fill, "points": points, "name": name_label}
+		var level_up := _level_up_badge(unit, index)
+		hud.party_cards[unit] = {"panel": panel, "fill": fill, "status": status, "level": level, "xp": xp_fill, "points": points, "name": name_label, "level_up": level_up}
 	# Coluna da direita: girar, aproximar, girar, fila. No celular, dois dedos também giram
 	# (torcendo) e aproximam (abrindo); no teclado, Q/E, Z e G.
 	var rotate_left := hud._icon_button("turn_left")
@@ -130,6 +135,36 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 	hud.dock.move_child(rotate_left, 0)
 	hud.dock.move_child(rotate_right, 2)
 	hud.dock.move_child(hud.together_button, 3)
+
+
+## Selo amarelo "LEVEL UP" em cima da carta do herói: aparece com pontos para gastar e
+## é o único jeito de abrir a árvore pela party (tocar na carta só seleciona o herói).
+func _level_up_badge(unit, index: int) -> Button:
+	var badge := Button.new()
+	badge.text = "LEVEL UP"
+	badge.focus_mode = Control.FOCUS_NONE
+	badge.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	badge.tooltip_text = "Abrir a árvore de talentos"
+	badge.add_theme_font_size_override("font_size", 18)
+	for color in ["font_color", "font_hover_color", "font_pressed_color"]:
+		badge.add_theme_color_override(color, hud.MENU_INK)
+	badge.add_theme_stylebox_override("normal", hud._box(LEVEL_UP_FILL, Color.WHITE, 2, 10, 4))
+	badge.add_theme_stylebox_override("hover", hud._box(LEVEL_UP_FILL.lightened(0.25), Color.WHITE, 2, 10, 4))
+	badge.add_theme_stylebox_override("pressed", hud._box(LEVEL_UP_FILL.darkened(0.15), Color.WHITE, 2, 10, 4))
+	badge.custom_minimum_size = LEVEL_UP_SIZE
+	badge.size = LEVEL_UP_SIZE
+	# As cartas têm tamanho fixo: o selo fica centrado em cima da carta `index`.
+	var x: float = index * (hud.PARTY_CARD.x + CARD_GAP) + (hud.PARTY_CARD.x - LEVEL_UP_SIZE.x) / 2
+	var top: Vector2 = hud.party_row.position + Vector2(x, -LEVEL_UP_SIZE.y - 6)
+	badge.position = top
+	badge.visible = false
+	badge.pressed.connect(func(): hud.level_up_pressed.emit(unit))
+	hud.add_child(badge)
+	# Pula de leve para chamar atenção.
+	var bounce := badge.create_tween().set_loops()
+	bounce.tween_property(badge, "position:y", top.y - 5, 0.4).set_trans(Tween.TRANS_SINE)
+	bounce.tween_property(badge, "position:y", top.y, 0.4).set_trans(Tween.TRANS_SINE)
+	return badge
 
 
 func show_end_turn(on: bool) -> void:

@@ -22,6 +22,8 @@ signal menu_pressed
 @warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal party_pressed(unit)
 @warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
+signal level_up_pressed(unit) # selo LEVEL UP em cima da carta: abrir a árvore
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal rotate_held(direction: int) # -1 ou 1 enquanto o botão está apertado; 0 ao soltar
 @warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal together_toggled(on: bool)
@@ -143,7 +145,7 @@ var volume_mute: Button
 var detail: Label
 var end_menu_button: Button
 var party_row: HBoxContainer
-var party_cards := {} # herói -> {panel, fill, status, level, xp, points}
+var party_cards := {} # herói -> {panel, fill, status, level, xp, points, level_up}
 var together_button: Button
 var end_turn_button: Button
 var jump_button: Button
@@ -537,8 +539,9 @@ func _group_row(hero: Dictionary, players: Dictionary, is_host: bool) -> Control
 	return row
 
 
-## Nível, barra de experiência e pontos livres (só nas cartas dos heróis deste jogador).
-func set_party_progress(unit, info: Dictionary, points: int) -> void:
+## Nível, barra de experiência e pontos livres. O selo LEVEL UP (que abre a árvore) só
+## aparece nos heróis deste jogador (`mine`).
+func set_party_progress(unit, info: Dictionary, points: int, mine := true) -> void:
 	if not party_cards.has(unit):
 		return
 	var card: Dictionary = party_cards[unit]
@@ -548,6 +551,7 @@ func set_party_progress(unit, info: Dictionary, points: int) -> void:
 	card.xp.size.x = 150.0 * clampf(info["fraction"], 0.0, 1.0)
 	card.points.text = "+%d" % points
 	card.points.get_parent().visible = points > 0
+	card.level_up.visible = mine and points > 0
 
 
 ## Painel do topo, simétrico no meio da tela: duas asas de números e, entre elas, o radar

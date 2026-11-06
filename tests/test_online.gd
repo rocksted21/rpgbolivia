@@ -30,7 +30,7 @@ func _run() -> void:
 	# Cada lado com o próprio save: o Mago vai para o amigo e leva a build dele.
 	HeroProgress.path = "user://test_progress_host.cfg"
 	DirAccess.remove_absolute(HeroProgress.path)
-	HeroProgress.unlock("mago", "fog_labareda")
+	HeroProgress.unlock("mago", "fog_rajada")
 	HeroProgress.unlock("druida", "dru_vigor")
 	# Mago (3) vai para o amigo e Druida (5) fica com o dono.
 	host = root.get_node("OnlineSession")
@@ -78,7 +78,7 @@ func _run() -> void:
 	var host_mage = host.state.party[0]
 	var guest_mage = guest.state.party[0]
 	_check(host_mage.passives.has("cast_mult") and guest_mage.passives.has("cast_mult"), "herói usa a build de quem o controla")
-	_check(not "labareda" in host_mage.abilities, "build do dono não entra no herói do amigo")
+	_check(not "rajada_calor" in host_mage.abilities, "build do dono não entra no herói do amigo")
 	_check(host.state.party[1].max_hp == 32 and guest.state.party[1].max_hp == 32, "build do dono chega ao amigo")
 	view = load("res://main.tscn").instantiate()
 	root.add_child(view)

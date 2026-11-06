@@ -6,7 +6,6 @@ extends RefCounted
 const Hex = preload("res://scripts/hex.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Skills = preload("res://scripts/skill_data.gd")
-const HeroProgress = preload("res://scripts/hero_progress.gd")
 
 const DRAG_START := 14.0 # pixels antes de o toque virar arrasto da câmera
 const TWIST_START := 0.08 # radianos de torção com dois dedos antes de girar
@@ -498,16 +497,24 @@ func _select_next() -> void:
 		_select(mine[(mine.find(battle.selected) + 1) % mine.size()])
 
 
+## Carta da party: só seleciona o herói (a árvore abre pelo selo LEVEL UP em cima dela).
 func _on_party_pick(unit) -> void:
-	var can_open: bool = battle._free_roam() and battle.online_session.can_control(unit) and Skills.has_tree(unit.type_id)
-	if can_open and (unit == battle.selected or HeroProgress.available(unit.type_id) > 0 or not unit.alive()):
-		battle.sound_manager.play_ui(&"switch3")
-		battle._open_tree(unit)
-	elif battle._free_roam() and unit.alive() and battle.online_session.can_control(unit):
+	if battle._free_roam() and unit.alive() and battle.online_session.can_control(unit):
 		battle.sound_manager.play_ui(&"switch3")
 		_select(unit)
 	else:
 		_on_timeline_pick(unit)
+
+
+## Selo LEVEL UP em cima da carta: abre a árvore de talentos. Em combate, só depois dele.
+func _on_level_up_pick(unit) -> void:
+	if not battle.online_session.can_control(unit) or not Skills.has_tree(unit.type_id):
+		return
+	if not battle._free_roam():
+		battle.hud.show_banner("Termine o combate para upar", battle.LEVEL_INK)
+		return
+	battle.sound_manager.play_ui(&"switch3")
+	battle._open_tree(unit)
 
 
 # Toda habilidade que serviria nesse alvo aparece; as que não dá para usar agora

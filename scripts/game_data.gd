@@ -216,6 +216,10 @@ static func effect_text(ability: Dictionary) -> String:
 		parts.append("aliado em Guarda")
 	if ability.has("haste"):
 		parts.append("aliado age %d antes" % ability["haste"])
+	if ability["kind"] == "buff" and ability.get("heal", 0) > 0:
+		parts.append("cura %d" % ability["heal"])
+	if ability.get("pierce", false):
+		parts.append("ignora defesa")
 	if ability.has("status"):
 		var status: Dictionary = ability["status"]
 		var turns: int = status["turns"]

@@ -2,22 +2,39 @@ extends RefCounted
 ## Árvores de skills dos heróis. Balancear mexendo só aqui (e nas habilidades em game_data).
 ##
 ## Cada herói tem 3 ramos com 4 níveis; um nó exige o anterior do mesmo ramo.
+## Poucas ativas por herói (o menu de ações fica curto); o resto são passivas que melhoram
+## o que ele já tem, com movimento, suporte, defesa e reações (como FFT e Battle Brothers).
+##
 ## Efeitos de um nó (todos opcionais):
-##   unlock: habilidade liberada
+##   tag: tipo, só para a tela: ativa, ataque, defesa, movimento, suporte, reacao, controle
+##   unlock: habilidade liberada (ativa: entra no menu de ações)
 ##   stats: soma em atributos {"hp", "atk", "def", "speed"}
 ##   mods: soma em campos de uma habilidade {"tiro": {"time": -20}}
 ##   passive: regra especial, lida em battle_state:
 ##     guard_mult     multiplicador da própria Guarda
 ##     guard_aura     multiplicador do dano em aliados vizinhos enquanto em Guarda
+##     ward           multiplicador do dano em aliados vizinhos, sempre
+##     inspire        multiplicador do dano causado por aliados vizinhos
+##     expose         multiplicador do dano recebido por inimigos vizinhos (de qualquer atacante)
 ##     counter        força do contragolpe corpo a corpo enquanto em Guarda
+##     riposte        força do revide corpo a corpo, sempre
+##     wait_guard     encerrar o turno sem agir põe em Guarda
+##     regen          vida recuperada no fim de cada turno próprio
+##     move_bonus     casas a mais de movimento por turno
+##     kill_haste     derrubar um inimigo adianta a próxima vez nesse tanto
 ##     opportunity_mult  multiplica o ataque de oportunidade que a unidade causa
 ##     opportunity_immune  não sofre ataques de oportunidade
 ##     flank_mult     multiplicador de flanqueio
 ##     execute        multiplicador contra alvo com metade da vida ou menos
+##     lifesteal      fração do dano de todo golpe que volta em vida
+##     hit_status     efeito de STATUS que todo ataque e magia deixa no alvo
+##     aoe_safe       magias de área não ferem aliados
 ##     kill_heal      vida recuperada ao derrotar um inimigo
 ##     cast_mult      multiplica a conjuração das magias carregadas (o custo total não muda)
 ##     heal_self      fração da cura que também volta para quem curou
 ##     heal_guard     quem recebe cura entra em Guarda
+##     heal_haste     quem recebe cura age esse tanto antes
+## Os nós entram por nível: um nó mais alto pode trocar a regra de um anterior (Fogo Eterno).
 ## Efeitos das habilidades novas (empurrar, investida, efeitos com duração, aliados)
 ## ficam nos campos delas em game_data.ABILITIES.
 
@@ -31,12 +48,21 @@ const JOURNEY_DISTANCE_PER_POINT := 20
 const TIER_COST := [1, 1, 2, 3]
 # Nós que mudaram de id: o save antigo continua valendo na mesma posição da árvore.
 const RENAMED := {
-	"gua_placas": "gua_interpor", "gua_forca": "gua_escudada", "gua_baluarte": "gua_carga",
-	"due_afiar": "due_marcar", "due_frenesi": "due_investida", "due_casca": "due_sangria",
-	"bes_mira": "bes_marcador", "bes_recuo": "bes_chute", "bes_gibao": "bes_perna",
-	"fog_alma": "fog_incinerar", "fog_brasa": "fog_rajada",
-	"agu_inverno": "agu_toque", "agu_fluxo": "agu_corrente",
+	"gua_placas": "gua_postura", "gua_forca": "gua_escudada", "gua_baluarte": "gua_estandarte",
+	"due_afiar": "due_marcar", "due_frenesi": "due_investida", "due_casca": "due_sedenta",
+	"bes_mira": "bes_alcance", "bes_recuo": "bes_chute", "bes_gibao": "bes_perna",
+	"fog_alma": "fog_eterno", "fog_brasa": "fog_rajada",
+	"agu_inverno": "agu_frio", "agu_fluxo": "agu_corrente",
 	"dru_ira": "dru_venenoso", "dru_agil": "dru_bencao",
+	# Revisão das árvores (06/11/2026): cada ativa que saiu vira o nó novo da mesma casa.
+	"gua_interpor": "gua_postura", "gua_pesado": "gua_couraca", "gua_carga": "gua_estandarte",
+	"due_estocada": "due_flanco", "due_aparar": "due_riposta", "due_sangria": "due_sedenta", "due_executor": "due_distracao",
+	"bes_marcador": "bes_alcance", "bes_longo": "bes_olho", "bes_rapido": "bes_cacador", "bes_adaga": "bes_couro",
+	"fog_labareda": "fog_bola", "fog_pilar": "fog_faminto", "fog_solar": "fog_brasas", "fog_incinerar": "fog_eterno",
+	"fog_chuva": "fog_controle", "fog_fenix": "fog_flor", "fog_poca": "fog_rajada", "fog_geiser": "fog_passo", "fog_furacao": "fog_escudo",
+	"agu_estaca": "agu_gota", "agu_cristal": "agu_nevasca", "agu_toque": "agu_frio", "agu_vital": "agu_correnteza", "agu_geiser": "agu_nevoa",
+	"agu_chicote": "agu_fonte", "agu_onda": "agu_deslizar", "agu_redemoinho": "agu_manto", "agu_kraken": "agu_nascente",
+	"dru_espinho": "dru_elfico", "dru_casca": "dru_ligeira",
 }
 
 # Experiência dos heróis (salva): cada nível novo dá 1 ponto. Do 1 ao 11 são os 10 pontos
@@ -49,122 +75,122 @@ const END_XP_PER_POINT := 15 # o prêmio do fim (vitória, jornada) vira experi�
 const TREES := {
 	"guardiao": [
 		{"name": "Baluarte", "nodes": [
-			{"id": "gua_ferro", "name": "Pele de Ferro", "desc": "+6 de vida.", "stats": {"hp": 6}},
-			{"id": "gua_interpor", "name": "Interpor", "desc": "Põe um aliado a até 2 casas em Guarda.", "unlock": "interpor"},
-			{"id": "gua_protecao", "name": "Proteção", "desc": "Em Guarda, aliados vizinhos recebem 25% menos dano.", "passive": {"guard_aura": 0.75}},
-			{"id": "gua_muralha", "name": "Muralha Viva", "desc": "A Guarda reduz o dano em 65%, em vez de 50%.", "passive": {"guard_mult": 0.35}},
+			{"id": "gua_ferro", "tag": "defesa", "name": "Pele de Ferro", "desc": "+6 de vida.", "stats": {"hp": 6}},
+			{"id": "gua_postura", "tag": "defesa", "name": "Postura Firme", "desc": "Encerrar o turno sem agir também põe em Guarda.", "passive": {"wait_guard": true}},
+			{"id": "gua_protecao", "tag": "suporte", "name": "Proteção", "desc": "Em Guarda, aliados vizinhos recebem 25% menos dano.", "passive": {"guard_aura": 0.75}},
+			{"id": "gua_muralha", "tag": "defesa", "name": "Muralha Viva", "desc": "A Guarda reduz o dano em 65%, em vez de 50%.", "passive": {"guard_mult": 0.35}},
 		]},
 		{"name": "Represália", "nodes": [
-			{"id": "gua_escudada", "name": "Escudada", "desc": "Golpe leve com o escudo que empurra o inimigo 1 casa.", "unlock": "escudada"},
-			{"id": "gua_pesado", "name": "Golpe Pesado", "desc": "Golpe lento e muito forte.", "unlock": "golpe_pesado"},
-			{"id": "gua_contra", "name": "Contragolpe", "desc": "Em Guarda, revida ataques corpo a corpo com 60% de força.", "passive": {"counter": 0.6}},
-			{"id": "gua_furia", "name": "Fúria do Escudo", "desc": "+3 de ataque.", "stats": {"atk": 3}},
+			{"id": "gua_escudada", "tag": "ativa", "name": "Escudada", "desc": "Golpe leve com o escudo que empurra o inimigo 1 casa.", "unlock": "escudada"},
+			{"id": "gua_couraca", "tag": "defesa", "name": "Couraça", "desc": "+1 de defesa.", "stats": {"def": 1}},
+			{"id": "gua_contra", "tag": "reacao", "name": "Contragolpe", "desc": "Em Guarda, revida ataques corpo a corpo com 60% de força.", "passive": {"counter": 0.6}},
+			{"id": "gua_furia", "tag": "ataque", "name": "Fúria do Escudo", "desc": "+3 de ataque.", "stats": {"atk": 3}},
 		]},
 		{"name": "Sentinela", "nodes": [
-			{"id": "gua_passo", "name": "Passo Firme", "desc": "+1 de velocidade.", "stats": {"speed": 1}},
-			{"id": "gua_vigia", "name": "Vigilância", "desc": "Ataques de oportunidade dobram de força.", "passive": {"opportunity_mult": 2.0}},
-			{"id": "gua_provocar", "name": "Provocar", "desc": "Assume Guarda e obriga inimigos a até 2 casas a persegui-lo.", "unlock": "provocar"},
-			{"id": "gua_carga", "name": "Carga do Escudo", "desc": "Salta até um inimigo a 2-3 casas, bate e empurra 1 casa.", "unlock": "carga"},
+			{"id": "gua_passo", "tag": "movimento", "name": "Passo Firme", "desc": "Anda 1 casa a mais por turno.", "passive": {"move_bonus": 1}},
+			{"id": "gua_provocar", "tag": "ativa", "name": "Provocar", "desc": "Assume Guarda e obriga inimigos a até 2 casas a persegui-lo.", "unlock": "provocar"},
+			{"id": "gua_vigia", "tag": "reacao", "name": "Vigilância", "desc": "Ataques de oportunidade dobram de força.", "passive": {"opportunity_mult": 2.0}},
+			{"id": "gua_estandarte", "tag": "suporte", "name": "Estandarte", "desc": "Aliados vizinhos causam 20% mais dano.", "passive": {"inspire": 1.2}},
 		]},
 	],
 	"duelista": [
 		{"name": "Lâmina", "nodes": [
-			{"id": "due_marcar", "name": "Golpe Marcante", "desc": "Golpe leve que marca o alvo: ele recebe 25% mais dano por 2 turnos.", "unlock": "marcar"},
-			{"id": "due_estocada", "name": "Estocada", "desc": "Golpe forte, mais lento que o normal.", "unlock": "estocada"},
-			{"id": "due_flanco", "name": "Pelas Costas", "desc": "Flanqueio causa o dobro, em vez de 1,5×.", "passive": {"flank_mult": 2.0}},
-			{"id": "due_executor", "name": "Executor", "desc": "+40% de dano em quem tem metade da vida ou menos.", "passive": {"execute": 1.4}},
+			{"id": "due_marcar", "tag": "ativa", "name": "Golpe Marcante", "desc": "Golpe leve que marca o alvo: ele recebe 25% mais dano por 2 turnos.", "unlock": "marcar"},
+			{"id": "due_flanco", "tag": "ataque", "name": "Pelas Costas", "desc": "Flanqueio causa o dobro, em vez de 1,5×.", "passive": {"flank_mult": 2.0}},
+			{"id": "due_distracao", "tag": "suporte", "name": "Distração", "desc": "Inimigos colados nele recebem 15% mais dano de todos.", "passive": {"expose": 1.15}},
+			{"id": "due_embalo", "tag": "movimento", "name": "Frenesi", "desc": "Derrubar um inimigo adianta a sua próxima vez em 60.", "passive": {"kill_haste": 60}},
 		]},
 		{"name": "Vento", "nodes": [
-			{"id": "due_leve", "name": "Pés Leves", "desc": "+1 de velocidade.", "stats": {"speed": 1}},
-			{"id": "due_escape", "name": "Escapada", "desc": "Não sofre ataques de oportunidade.", "passive": {"opportunity_immune": true}},
-			{"id": "due_relampago", "name": "Relâmpago", "desc": "Golpe rápido fica 20 mais rápido.", "mods": {"rapido": {"time": -20}}},
-			{"id": "due_investida", "name": "Investida", "desc": "Salta até um inimigo a 2-4 casas e ataca, sem sofrer oportunidade.", "unlock": "investida"},
+			{"id": "due_leve", "tag": "movimento", "name": "Pés Leves", "desc": "Anda 1 casa a mais por turno.", "passive": {"move_bonus": 1}},
+			{"id": "due_escape", "tag": "movimento", "name": "Escapada", "desc": "Não sofre ataques de oportunidade.", "passive": {"opportunity_immune": true}},
+			{"id": "due_relampago", "tag": "ataque", "name": "Relâmpago", "desc": "Golpe rápido fica 20 mais rápido.", "mods": {"rapido": {"time": -20}}},
+			{"id": "due_investida", "tag": "ativa", "name": "Investida", "desc": "Salta até um inimigo a 2-4 casas e ataca, sem sofrer oportunidade.", "unlock": "investida"},
 		]},
 		{"name": "Sobrevivente", "nodes": [
-			{"id": "due_couro", "name": "Couro Curtido", "desc": "+5 de vida.", "stats": {"hp": 5}},
-			{"id": "due_aparar", "name": "Aparar", "desc": "Guarda rápida com a lâmina.", "unlock": "aparar"},
-			{"id": "due_sangria", "name": "Lâmina Sedenta", "desc": "Golpe que devolve metade do dano em vida.", "unlock": "sangria"},
-			{"id": "due_sede", "name": "Sede de Sangue", "desc": "Recupera 8 de vida ao derrotar um inimigo.", "passive": {"kill_heal": 8}},
+			{"id": "due_couro", "tag": "defesa", "name": "Couro Curtido", "desc": "+5 de vida.", "stats": {"hp": 5}},
+			{"id": "due_riposta", "tag": "reacao", "name": "Riposta", "desc": "Revida todo ataque corpo a corpo com 40% de força.", "passive": {"riposte": 0.4}},
+			{"id": "due_sedenta", "tag": "defesa", "name": "Lâmina Sedenta", "desc": "Todo golpe devolve 25% do dano em vida.", "passive": {"lifesteal": 0.25}},
+			{"id": "due_sede", "tag": "defesa", "name": "Sede de Sangue", "desc": "Recupera 8 de vida ao derrotar um inimigo.", "passive": {"kill_heal": 8}},
 		]},
 	],
 	"besteiro": [
 		{"name": "Pontaria", "nodes": [
-			{"id": "bes_marcador", "name": "Virote Marcador", "desc": "Tiro fraco até 5 casas que marca o alvo: +25% de dano nele por 2 turnos.", "unlock": "virote_marcador"},
-			{"id": "bes_longo", "name": "Tiro Longo", "desc": "Alcance 3-6, com menos força.", "unlock": "tiro_longo"},
-			{"id": "bes_certeiro", "name": "Olho de Falcão", "desc": "+40% de dano em quem tem metade da vida ou menos.", "passive": {"execute": 1.4}},
-			{"id": "bes_perfurante", "name": "Virote Perfurante", "desc": "Tiro lento que ignora a defesa do alvo.", "unlock": "perfurante"},
+			{"id": "bes_alcance", "tag": "ataque", "name": "Mira Longa", "desc": "Tiro e Virote Pesado alcançam 1 casa a mais.", "mods": {"tiro": {"range": 1}, "virote_pesado": {"range": 1}}},
+			{"id": "bes_certeiro", "tag": "ataque", "name": "Olho de Falcão", "desc": "+40% de dano em quem tem metade da vida ou menos.", "passive": {"execute": 1.4}},
+			{"id": "bes_perfurante", "tag": "ataque", "name": "Ponta de Aço", "desc": "Virote Pesado ignora a defesa do alvo.", "mods": {"virote_pesado": {"pierce": 1}}},
+			{"id": "bes_olho", "tag": "suporte", "name": "Olho Marcador", "desc": "Todo ataque dele marca o alvo por 1 turno: +25% de dano nele para todos.", "passive": {"hit_status": {"id": "mark", "turns": 1}}},
 		]},
 		{"name": "Barragem", "nodes": [
-			{"id": "bes_rapido", "name": "Tiro Rápido", "desc": "Tiro curto e fraco, mas ligeiro.", "unlock": "tiro_rapido"},
-			{"id": "bes_aljava", "name": "Aljava à Mão", "desc": "Tiro fica 20 mais rápido.", "mods": {"tiro": {"time": -20}}},
-			{"id": "bes_saraivada", "name": "Saraivada", "desc": "Virotes em área; atinge aliados também.", "unlock": "saraivada"},
-			{"id": "bes_chuva", "name": "Chuva de Virotes", "desc": "Área maior, com preparo longo.", "unlock": "chuva_virotes"},
+			{"id": "bes_aljava", "tag": "ataque", "name": "Aljava à Mão", "desc": "Tiro fica 20 mais rápido.", "mods": {"tiro": {"time": -20}}},
+			{"id": "bes_saraivada", "tag": "ativa", "name": "Saraivada", "desc": "Virotes em área; atinge aliados também.", "unlock": "saraivada"},
+			{"id": "bes_cacador", "tag": "movimento", "name": "Caçador", "desc": "Derrubar um inimigo adianta a sua próxima vez em 40.", "passive": {"kill_haste": 40}},
+			{"id": "bes_chuva", "tag": "ataque", "name": "Chuva de Virotes", "desc": "Saraivada cobre 1 casa a mais de raio, com preparo um pouco maior.", "mods": {"saraivada": {"radius": 1, "cast_time": 30, "time": 30}}},
 		]},
 		{"name": "Batedor", "nodes": [
-			{"id": "bes_chute", "name": "Chute", "desc": "Empurra o inimigo colado 2 casas para abrir espaço.", "unlock": "chute"},
-			{"id": "bes_adaga", "name": "Adaga", "desc": "Ataque corpo a corpo; também permite ataques de oportunidade.", "unlock": "adaga"},
-			{"id": "bes_perna", "name": "Tiro na Perna", "desc": "Deixa o alvo lento (anda 1 casa a menos) por 2 turnos.", "unlock": "tiro_perna"},
-			{"id": "bes_sombra", "name": "Sombra", "desc": "Não sofre ataques de oportunidade.", "passive": {"opportunity_immune": true}},
+			{"id": "bes_chute", "tag": "ativa", "name": "Chute", "desc": "Empurra o inimigo colado 2 casas para abrir espaço.", "unlock": "chute"},
+			{"id": "bes_sombra", "tag": "movimento", "name": "Sombra", "desc": "Não sofre ataques de oportunidade.", "passive": {"opportunity_immune": true}},
+			{"id": "bes_couro", "tag": "defesa", "name": "Gibão Acolchoado", "desc": "+1 de defesa e +4 de vida.", "stats": {"def": 1, "hp": 4}},
+			{"id": "bes_perna", "tag": "ativa", "name": "Tiro na Perna", "desc": "Deixa o alvo lento (anda 1 casa a menos) por 2 turnos.", "unlock": "tiro_perna"},
 		]},
 	],
 	"mago": [
 		{"name": "Chama", "nodes": [
-			{"id": "fog_labareda", "name": "Labareda", "desc": "Fogo direto a curta distância.", "unlock": "labareda"},
-			{"id": "fog_pilar", "name": "Pilar de Fogo", "desc": "Coluna de fogo sobre um alvo.", "unlock": "pilar_fogo"},
-			{"id": "fog_solar", "name": "Golpe Solar", "desc": "Alto dano a grande distância.", "unlock": "golpe_solar"},
-			{"id": "fog_incinerar", "name": "Incinerar", "desc": "Fogo que gruda: o alvo queima 4 por turno durante 3 turnos.", "unlock": "incinerar"},
+			{"id": "fog_bola", "tag": "ataque", "name": "Bola Ardente", "desc": "Bola de Fogo alcança 1 casa a mais e causa 25% mais dano.", "mods": {"bola_fogo": {"range": 1, "power": 0.2}}},
+			{"id": "fog_faminto", "tag": "ataque", "name": "Fogo Faminto", "desc": "+40% de dano em quem tem metade da vida ou menos.", "passive": {"execute": 1.4}},
+			{"id": "fog_brasas", "tag": "ataque", "name": "Brasas", "desc": "Todo ataque e magia dele deixa o alvo queimando: 2 por turno durante 2 turnos.", "passive": {"hit_status": {"id": "burn", "turns": 2, "amount": 2}}},
+			{"id": "fog_eterno", "tag": "ataque", "name": "Fogo Eterno", "desc": "As Brasas queimam 4 por turno durante 3 turnos.", "passive": {"hit_status": {"id": "burn", "turns": 3, "amount": 4}}},
 		]},
 		{"name": "Incêndio", "nodes": [
-			{"id": "fog_pavio", "name": "Pavio Curto", "desc": "Magias carregadas saem 15% antes.", "passive": {"cast_mult": 0.85}},
-			{"id": "fog_explosao", "name": "Explosão", "desc": "Grande dano em área.", "unlock": "explosao"},
-			{"id": "fog_chuva", "name": "Chuva de Lava", "desc": "Área a grande distância.", "unlock": "chuva_lava"},
-			{"id": "fog_fenix", "name": "Fênix", "desc": "A maior área do fogo, com preparo longo.", "unlock": "fenix"},
+			{"id": "fog_pavio", "tag": "ataque", "name": "Pavio Curto", "desc": "Magias carregadas saem 15% antes.", "passive": {"cast_mult": 0.85}},
+			{"id": "fog_controle", "tag": "suporte", "name": "Chama Controlada", "desc": "Suas magias de área não ferem aliados.", "passive": {"aoe_safe": true}},
+			{"id": "fog_flor", "tag": "ataque", "name": "Flor Intensa", "desc": "Flor de Fogo causa um terço a mais de dano.", "mods": {"flor_fogo": {"power": 0.3}}},
+			{"id": "fog_explosao", "tag": "ativa", "name": "Explosão", "desc": "Grande dano em área.", "unlock": "explosao"},
 		]},
 		{"name": "Magma", "nodes": [
-			{"id": "fog_poca", "name": "Poça de Lava", "desc": "Área perto do mago.", "unlock": "poca_lava"},
-			{"id": "fog_geiser", "name": "Gêiser de Magma", "desc": "Dano enorme em uma única casa.", "unlock": "geiser_magma"},
-			{"id": "fog_furacao", "name": "Furacão de Fogo", "desc": "Área forte, com preparo mais longo.", "unlock": "furacao_fogo"},
-			{"id": "fog_rajada", "name": "Rajada de Calor", "desc": "Empurra o inimigo colado 2 casas. +4 de vida.", "unlock": "rajada_calor", "stats": {"hp": 4}},
+			{"id": "fog_rajada", "tag": "ativa", "name": "Rajada de Calor", "desc": "Empurra o inimigo colado 2 casas.", "unlock": "rajada_calor"},
+			{"id": "fog_passo", "tag": "movimento", "name": "Passo Ígneo", "desc": "Anda 1 casa a mais por turno.", "passive": {"move_bonus": 1}},
+			{"id": "fog_escudo", "tag": "reacao", "name": "Escudo Ardente", "desc": "Com o Escudo de Fogo, revida ataques corpo a corpo com 60% de força.", "passive": {"counter": 0.6}},
+			{"id": "fog_magma", "tag": "defesa", "name": "Coração de Magma", "desc": "+6 de vida e recupera 2 no fim de cada turno dele.", "stats": {"hp": 6}, "passive": {"regen": 2}},
 		]},
 	],
 	"mago_agua": [
 		{"name": "Gelo", "nodes": [
-			{"id": "agu_estaca", "name": "Estaca de Gelo", "desc": "Golpe gelado à distância.", "unlock": "estaca_gelo"},
-			{"id": "agu_estilhaco", "name": "Estilhaço de Gelo", "desc": "Grande dano em área.", "unlock": "estilhaco_gelo"},
-			{"id": "agu_cristal", "name": "Cristal de Gelo", "desc": "Alto dano a grande distância.", "unlock": "cristal_gelo"},
-			{"id": "agu_toque", "name": "Toque Gélido", "desc": "Atrasa o alvo e o deixa lento por 2 turnos.", "unlock": "toque_gelido"},
+			{"id": "agu_gota", "tag": "controle", "name": "Gota Gelada", "desc": "Gota d'Água atrasa o alvo em 25.", "mods": {"gota": {"delay": 25}}},
+			{"id": "agu_frio", "tag": "controle", "name": "Frio Cortante", "desc": "Todo ataque e magia dele deixa o alvo lento (anda 1 casa a menos) por 1 turno.", "passive": {"hit_status": {"id": "slow", "turns": 1}}},
+			{"id": "agu_nevasca", "tag": "ataque", "name": "Nevasca", "desc": "Floco de Neve cobre 1 casa a mais de raio.", "mods": {"floco_neve": {"radius": 1}}},
+			{"id": "agu_estilhaco", "tag": "ativa", "name": "Estilhaço de Gelo", "desc": "Grande dano em área.", "unlock": "estilhaco_gelo"},
 		]},
 		{"name": "Maré", "nodes": [
-			{"id": "agu_chicote", "name": "Chicote d'Água", "desc": "Água direta a curta distância.", "unlock": "chicote_agua"},
-			{"id": "agu_onda", "name": "Onda", "desc": "Área perto do mago.", "unlock": "onda"},
-			{"id": "agu_redemoinho", "name": "Redemoinho", "desc": "Área forte, com preparo mais longo.", "unlock": "redemoinho"},
-			{"id": "agu_kraken", "name": "Kraken", "desc": "A maior área da água, com preparo longo.", "unlock": "kraken"},
+			{"id": "agu_corrente", "tag": "ativa", "name": "Corrente", "desc": "Adianta a próxima vez de um aliado em 60.", "unlock": "corrente"},
+			{"id": "agu_correnteza", "tag": "suporte", "name": "Correnteza", "desc": "Corrente alcança 1 casa a mais e adianta mais 30.", "mods": {"corrente": {"range": 1, "haste": 30}}},
+			{"id": "agu_nevoa", "tag": "suporte", "name": "Névoa Protetora", "desc": "Aliados vizinhos recebem 15% menos dano.", "passive": {"ward": 0.85}},
+			{"id": "agu_mare", "tag": "suporte", "name": "Maré Viva", "desc": "Corrente também cura 8 de vida do aliado.", "mods": {"corrente": {"heal": 8}}},
 		]},
 		{"name": "Fonte", "nodes": [
-			{"id": "agu_corrente", "name": "Corrente", "desc": "Adianta a próxima vez de um aliado em 60.", "unlock": "corrente"},
-			{"id": "agu_vital", "name": "Água Vital", "desc": "Cura leve em um aliado.", "unlock": "agua_vital"},
-			{"id": "agu_geiser", "name": "Gêiser", "desc": "Dano enorme em uma única casa.", "unlock": "geiser"},
-			{"id": "agu_manto", "name": "Manto d'Água", "desc": "Guarda de água e +6 de vida.", "unlock": "manto_agua", "stats": {"hp": 6}},
+			{"id": "agu_fonte", "tag": "defesa", "name": "Fonte Interior", "desc": "+6 de vida.", "stats": {"hp": 6}},
+			{"id": "agu_deslizar", "tag": "movimento", "name": "Deslizar", "desc": "Anda 1 casa a mais por turno.", "passive": {"move_bonus": 1}},
+			{"id": "agu_manto", "tag": "defesa", "name": "Manto d'Água", "desc": "Encerrar o turno sem agir põe em Guarda.", "passive": {"wait_guard": true}},
+			{"id": "agu_nascente", "tag": "defesa", "name": "Nascente", "desc": "Recupera 3 de vida no fim de cada turno dele.", "passive": {"regen": 3}},
 		]},
 	],
 	"druida": [
 		{"name": "Bosque", "nodes": [
-			{"id": "dru_seiva", "name": "Seiva Forte", "desc": "Cura restaura +4.", "mods": {"cura": {"heal": 4}}},
-			{"id": "dru_alcance", "name": "Vento Curador", "desc": "Cura alcança +1 casa.", "mods": {"cura": {"range": 1}}},
-			{"id": "dru_clareira", "name": "Clareira", "desc": "Cura o aliado escolhido e os vizinhos dele.", "unlock": "clareira"},
-			{"id": "dru_comunhao", "name": "Comunhão", "desc": "Metade do que cura também volta para ela.", "passive": {"heal_self": 0.5}},
+			{"id": "dru_seiva", "tag": "suporte", "name": "Seiva Forte", "desc": "Cura restaura +4.", "mods": {"cura": {"heal": 4}}},
+			{"id": "dru_alcance", "tag": "suporte", "name": "Vento Curador", "desc": "Cura alcança +1 casa.", "mods": {"cura": {"range": 1}}},
+			{"id": "dru_clareira", "tag": "suporte", "name": "Clareira", "desc": "A Cura também atinge os vizinhos do aliado, mas demora um pouco mais.", "mods": {"cura": {"radius": 1, "time": 30}}},
+			{"id": "dru_comunhao", "tag": "defesa", "name": "Comunhão", "desc": "Metade do que cura também volta para ela.", "passive": {"heal_self": 0.5}},
 		]},
 		{"name": "Espinhos", "nodes": [
-			{"id": "dru_espinho", "name": "Espinho", "desc": "Ataque à distância.", "unlock": "espinho"},
-			{"id": "dru_raizes", "name": "Raízes", "desc": "Prende o alvo e atrasa a próxima ação dele em 40.", "unlock": "raizes"},
-			{"id": "dru_venenoso", "name": "Espinhos Venenosos", "desc": "Envenena: 3 de dano por turno durante 3 turnos.", "unlock": "espinhos_venenosos"},
-			{"id": "dru_cipos", "name": "Cipós", "desc": "Raízes atrasam mais 40.", "mods": {"raizes": {"delay": 40}}},
+			{"id": "dru_elfico", "tag": "movimento", "name": "Passos Élficos", "desc": "Anda 1 casa a mais por turno.", "passive": {"move_bonus": 1}},
+			{"id": "dru_raizes", "tag": "ativa", "name": "Raízes", "desc": "Prende o alvo e atrasa a próxima ação dele em 40.", "unlock": "raizes"},
+			{"id": "dru_venenoso", "tag": "controle", "name": "Vinhas Venenosas", "desc": "Todo ataque dela envenena: 3 por turno durante 2 turnos.", "passive": {"hit_status": {"id": "poison", "turns": 2, "amount": 3}}},
+			{"id": "dru_cipos", "tag": "controle", "name": "Cipós", "desc": "Raízes atrasam mais 40.", "mods": {"raizes": {"delay": 40}}},
 		]},
 		{"name": "Casca", "nodes": [
-			{"id": "dru_vigor", "name": "Vigor Élfico", "desc": "+6 de vida.", "stats": {"hp": 6}},
-			{"id": "dru_casca", "name": "Pele de Casca", "desc": "Guarda natural.", "unlock": "casca"},
-			{"id": "dru_bencao", "name": "Bênção da Mata", "desc": "Fortalece um aliado (ou ela mesma): +25% de dano por 2 turnos.", "unlock": "bencao"},
-			{"id": "dru_abrigo", "name": "Abrigo", "desc": "Quem recebe a cura entra em Guarda.", "passive": {"heal_guard": true}},
+			{"id": "dru_vigor", "tag": "defesa", "name": "Vigor Élfico", "desc": "+6 de vida.", "stats": {"hp": 6}},
+			{"id": "dru_bencao", "tag": "ativa", "name": "Bênção da Mata", "desc": "Fortalece um aliado (ou ela mesma): +25% de dano por 2 turnos.", "unlock": "bencao"},
+			{"id": "dru_ligeira", "tag": "suporte", "name": "Seiva Ligeira", "desc": "Quem recebe a cura dela age 30 antes.", "passive": {"heal_haste": 30}},
+			{"id": "dru_abrigo", "tag": "defesa", "name": "Abrigo", "desc": "Quem recebe a cura entra em Guarda.", "passive": {"heal_guard": true}},
 		]},
 	],
 }
