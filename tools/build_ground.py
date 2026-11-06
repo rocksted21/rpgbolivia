@@ -8,7 +8,7 @@ Rodar na raiz do projeto: python tools/build_ground.py (precisa de pillow e nump
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path("assets/biomes")
 BIOMES = ["floresta", "selva", "neve", "deserto"]
@@ -70,8 +70,99 @@ def build(biome, name, pieces, blob, stretch, grain, contrast, seed):
     value = rank(wide + 0.5 * fine + grain * speck)
     index = np.minimum((value * TONES).astype(int), TONES - 1)
     image = tones[index].round().astype(np.uint8)
-    out = Image.fromarray(image, "RGB").resize((ART_SIZE * SCALE,) * 2, Image.NEAREST)
+    if name != "agua_solo":
+        image = detailed_ground(biome, name, rng)
+    out = Image.fromarray(image, "RGB").resize((ART_SIZE * SCALE,) * 2, Image.Resampling.NEAREST)
     out.save(ROOT / biome / f"{name}.png", optimize=True)
+
+
+# Materiais em pixels de arte, na mesma escala dos sprites. Os detalhes são
+# desenhados com cópias nas bordas para a repetição não criar costuras.
+GROUND_PALETTES = {
+    "floresta": {"base": (78, 83, 65), "moss": (98, 102, 73), "earth": (88, 74, 63), "stone": (112, 111, 106)},
+    "selva": {"base": (53, 74, 65), "moss": (69, 93, 72), "earth": (72, 66, 57), "stone": (94, 103, 104)},
+    "neve": {"base": (166, 179, 192), "moss": (184, 197, 204), "earth": (104, 106, 117), "stone": (131, 143, 157)},
+    "deserto": {"base": (169, 132, 85), "moss": (184, 147, 94), "earth": (139, 104, 74), "stone": (160, 142, 112)},
+}
+
+
+def detailed_ground(biome, name, rng):
+    colors = GROUND_PALETTES[biome]
+    base = np.array(colors['base'], float)
+    earth = np.array(colors['earth'], float)
+    shadow = name == 'sombra_solo'
+    path = name in ('trilha_solo', 'estrada_solo')
+    if path:
+        base = earth
+    elif shadow:
+        base *= 0.77
+    # Grandes massas em degraus de cor; sem o ruído de um pixel por toda parte.
+    broad = periodic_noise(ART_SIZE, 48, 1, rng)
+    fine = periodic_noise(ART_SIZE, 9, 1, rng)
+    steps = np.clip(np.round((broad + fine * 0.24) * 1.3), -3, 3)
+    pixels = base + steps[..., None] * np.array((3, 3, 2.5))
+    if not path:
+        patches = periodic_noise(ART_SIZE, 25, 1, rng)
+        moss = np.array(colors['moss'], float) * (0.77 if shadow else 1)
+        bare = earth * (0.77 if shadow else 0.94)
+        pixels = np.where((patches > 0.8)[..., None], pixels * 0.5 + moss * 0.5, pixels)
+        pixels = np.where((patches < -1.0)[..., None], pixels * 0.55 + bare * 0.45, pixels)
+    canvas = Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8))
+    draw = ImageDraw.Draw(canvas)
+
+    def polygon(points, fill):
+        for dx in (-ART_SIZE, 0, ART_SIZE):
+            for dy in (-ART_SIZE, 0, ART_SIZE):
+                draw.polygon([(int(x + dx), int(y + dy)) for x, y in points], fill=fill)
+
+    def line(points, fill):
+        for dx in (-ART_SIZE, 0, ART_SIZE):
+            for dy in (-ART_SIZE, 0, ART_SIZE):
+                draw.line([(int(x + dx), int(y + dy)) for x, y in points], fill=fill, width=1)
+
+    def rgb(color):
+        return tuple(np.clip(color, 0, 255).astype(int))
+
+    # Lajes antigas quebradas: espaço de terra entre pedras, sem grade regular.
+    if name == 'estrada_solo':
+        stone = np.array(colors['stone'], float)
+        for row in range(ART_SIZE // 13 + 1):
+            for col in range(ART_SIZE // 18 + 1):
+                if rng.random() < 0.22:
+                    continue
+                x = col * 18 + (row % 2) * 9 + rng.integers(-2, 3)
+                y = row * 13 + rng.integers(-2, 3)
+                w, h = rng.integers(10, 17), rng.integers(7, 12)
+                tone = stone * 0.87 + rng.integers(-9, 10)
+                polygon([(x + 2, y), (x + w - 2, y), (x + w, y + 3),
+                         (x + w - 1, y + h), (x + 1, y + h - 1), (x, y + 3)], rgb(tone))
+                line([(x + 2, y), (x + w - 3, y)], rgb(tone + 10))
+                line([(x + 2, y + h - 1), (x + w - 2, y + h)], rgb(tone - 13))
+    # Pedrinhas com sombra de contato curta. Não têm brilho de item interativo.
+    for _ in range(170 if path else 105):
+        x, y = rng.integers(0, ART_SIZE, 2)
+        w, h = rng.integers(2, 6), rng.integers(1, 4)
+        tone = np.array(colors['stone'], float) * (0.76 if shadow else 0.88) + rng.integers(-9, 7)
+        polygon([(x, y + 1), (x + w, y + 1), (x + w - 1, y + h + 1), (x, y + h)], rgb(base * 0.62))
+        polygon([(x + 1, y), (x + w - 1, y), (x + w, y + h - 1), (x, y + h)], rgb(tone))
+        line([(x + 1, y), (x + max(w - 2, 1), y)], rgb(tone + 9))
+    if not path:
+        for _ in range(380):
+            x, y = rng.integers(0, ART_SIZE, 2)
+            if biome == 'neve':
+                tone = base - (18, 17, 14)
+                line([(x, y), (x + 3, y)], rgb(tone))
+                continue
+            tone = np.array(colors['moss'], float) * (0.8 if shadow else 1) + rng.integers(-9, 8)
+            line([(x - 2, y), (x, y + 2), (x - 1, y - 2)], rgb(tone - 13))
+            line([(x, y + 2), (x + 2, y - 2)], rgb(tone + 7))
+            if rng.random() < 0.22:
+                polygon([(x + 6, y), (x + 8, y - 1), (x + 10, y + 1), (x + 7, y + 2)], rgb(earth + (9, 3, -3)))
+    else:
+        for _ in range(230):
+            x, y = rng.integers(0, ART_SIZE, 2)
+            line([(x, y), (x + rng.integers(2, 7), y)], rgb(base + rng.choice([-9, 8])))
+    return np.asarray(canvas)
 
 
 def build_cobbles():

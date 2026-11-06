@@ -94,12 +94,30 @@ const QUIET_DISTANCE := 11 # inimigo mais longe que isso age sem animação nem 
 
 const STEP_COLOR := Color(0.27, 0.67, 1.0, 0.35)
 const PATH_COLOR := Color(0.27, 0.67, 1.0, 0.7)
+# Casas de movimento no estilo FFT: cada uma é um hex menor e separado, borda clara e miolo
+# mais escuro, pulsando de leve. Assim dá para contar as casas em vez de ver uma mancha.
+const MOVE_INSET := 0.84
+const MOVE_RIM := Color(0.38, 0.82, 1.0, 0.78)
+const MOVE_CORE := Color(0.08, 0.42, 1.0, 0.3)
+const MOVE_EDGE := Color(0.72, 0.95, 1.0, 1.0)
+const PATH_RIM := Color(0.8, 0.97, 1.0, 0.92)
+const PATH_CORE := Color(0.42, 0.82, 1.0, 0.62)
+const MOVE_PULSE_SPEED := 3.2
+const JUMP_COLOR := Color(0.55, 1.0, 0.35, 0.35) # casas onde dá para pular (verde)
+const JUMP_HOVER := Color(0.55, 1.0, 0.35, 0.75)
 const REACH_FILL := Color(1.0, 0.55, 0.1, 0.3)
 const REACH_LINE := Color(1.0, 0.6, 0.15, 0.95)
 const TARGET_COLOR := Color(0.92, 0.24, 0.24, 0.55)
 const INSPECT_COLOR := Color(1.0, 1.0, 1.0, 0.95)
 const NEXT_ENEMY_ARROW := Color(0.95, 0.3, 0.25)
-const ROAM_HINT := "Clique para andar  ·  Segure Q/E para girar  ·  Tab troca de herói  ·  G alterna fila e separados"
+const ROAM_HINT := "Clique para andar  ·  Q/E ou dois dedos giram  ·  Z aproxima  ·  Tab troca de herói  ·  G alterna fila"
+const ZOOM_IN := 1.5 # botão de zoom: aproximado; solto, volta ao padrão (1.0 na arena)
+const DRAG_START := 14.0 # pixels antes de o toque virar arrasto da câmera
+const PAN_LIMIT := 380.0 # quanto a câmera solta pode se afastar do foco
+const TWIST_START := 0.08 # radianos de torção com dois dedos antes de girar
+const PINCH_IN := 1.3 # abrir os dedos nessa proporção aproxima; fechar o inverso afasta
+const DANGER_HOT := Color(1.0, 0.42, 0.32)
+const DANGER_CALM := Color(0.62, 0.9, 0.55)
 const TURN_SPEED := 1.9 # radianos por segundo com a tecla apertada
 const TURN_EASE := 9.0 # quão rápido o giro acelera e freia
 const TURN_DRAG := 0.007 # radianos por pixel ao arrastar com o botão do meio
@@ -108,6 +126,8 @@ const DEPLOY_TIME := 0.45
 const CAMERA_SPEED := 7.0
 const STEP_FLAT := 0.22
 const STEP_CLIMB := 0.48
+const STEP_JUMP := 0.55 # pulo por cima de alguém (duas casas)
+const JUMP_ARC := 150.0
 const WALK_STEP := 0.3 # tempo por casa na jornada, igual em chão plano e em degrau
 const WALK_SMOOTH := 8.0 # arredonda as curvas: o desenho persegue o caminho, sem quinas
 const MAX_WALK_FRAME := 0.05
@@ -230,6 +250,9 @@ var fx_meta := {}
 var views := {}
 var overlays := {}
 var reach_lines := {}
+var move_tiles := {} # casa -> [preenchimento, borda], criados só quando aparecem
+var move_shown: Array[Vector2i] = []
+var move_pulse := 0.0
 var forests := {}
 var trees := {} # árvores soltas do mapa: ficam transparentes quando escondem alguém
 var active_outline: Line2D
@@ -237,6 +260,7 @@ var inspect_outline: Line2D
 var busy := true
 var hover := NO_CELL
 var menu_cell := NO_CELL # casa com o menu aberto
+var jump_mode := false # J (ou "Pular" no menu do herói): o próximo clique numa casa verde pula
 var menu_options := []
 var show_order := false
 var pressing := false
@@ -262,6 +286,7 @@ var person_labels := {}
 var quests_finished := []
 var landmark_nodes := {} # casa: marcas no mapa de um local especial
 var selected # o herói que recebe os cliques fora de combate
+var my_fight := false # online: algum herói meu está na luta atual (as lutas dos outros não me prendem)
 var together := true # fora de combate, os heróis do jogador andam em fila atrás do selecionado
 var file_next := {} # herói -> quem anda logo atrás dele
 var file_blocked := {} # seguidor -> tempo esperando alguém sair da frente
@@ -293,6 +318,13 @@ var wall_meshes := {}
 var wall_groups := [] # paredes por lado do hexágono: as de costas para a câmera ficam escondidas
 var juice # tremor, hitstop e clarões dos heróis (battle_juice.gd)
 var hit_ctx := {} # peso do golpe de herói em andamento: os eventos de dano seguintes usam
+var zoomed := false
+var pan := Vector2.ZERO # deslocamento da câmera arrastada, em coordenadas do tabuleiro
+var press_pos := Vector2.ZERO
+var drag_ok := false # o toque começou numa casa sem inimigo, com zoom
+var dragging := false
+var touches := {} # dedo -> posição na tela
+var gesture := {} # dois dedos: ângulo e distância de partida
 var hit_from := Vector2.ZERO # de onde veio o último golpe, para o tranco de quem apanha
 var healers_animated := {} # quem já fez o gesto de cura nesta ação (Clareira cura vários)
 
@@ -384,6 +416,11 @@ func _start_battle() -> void:
 	cells_to_build.clear()
 	cells_to_unload.clear()
 	camera_look = null
+	zoomed = false
+	pan = Vector2.ZERO
+	dragging = false
+	touches.clear()
+	gesture = {}
 	roam_from = NO_CELL
 	selected = _first_mine() if exploring else null
 	camera_unit = selected
@@ -392,6 +429,8 @@ func _start_battle() -> void:
 	z_origin = 0
 	overlays.clear()
 	reach_lines.clear()
+	move_tiles.clear()
+	move_shown.clear()
 	forests.clear()
 	trees.clear()
 	hover = NO_CELL
@@ -472,6 +511,7 @@ func _start_battle() -> void:
 	hud.save_pressed.connect(_save_game)
 	hud.load_pressed.connect(_load_game)
 	hud.quit_pressed.connect(_quit_to_title)
+	hud.zoom_toggled.connect(_set_zoomed)
 	if exploring:
 		hud.setup_exploration()
 		hud.menu_pressed.connect(_back_to_menu)
@@ -524,10 +564,21 @@ func _update_journey() -> void:
 	if town:
 		_update_town()
 		return
-	hud.set_journey(state.alive_party().size(), state.party.size(), state.farthest, state.kills, state.danger(), Data.BIOMES[state.biome_at(camera_cell)]["name"])
-	if expedition:
-		hud.set_objective(_objective_text())
-		hud.set_tracker(_quest_tracker())
+	var danger: int = state.danger()
+	var heat := clampf((danger - 1) / 5.0, 0.0, 1.0)
+	var stats := [
+		{"icon": "heart", "value": "%d/%d" % [state.alive_party().size(), state.party.size()], "label": "Heróis", "color": Color(1.0, 0.45, 0.45)},
+		{"icon": "steps", "value": state.farthest, "label": "Distância", "color": Color(0.8, 0.72, 0.58)},
+		{"icon": "skull", "value": state.kills, "label": "Abates", "color": Color(0.9, 0.9, 0.86)},
+		{"icon": "warning", "value": danger, "label": "Perigo", "color": DANGER_CALM.lerp(DANGER_HOT, heat), "ink": DANGER_CALM.lerp(DANGER_HOT, heat)},
+	]
+	var title: String = Data.BIOMES[state.biome_at(camera_cell)]["name"]
+	if not expedition:
+		hud.set_overview(title, stats)
+		return
+	stats.append({"icon": "flame", "value": state.brasas, "label": "Brasas", "color": Color(1.0, 0.68, 0.3)})
+	hud.set_overview(title, stats, _level_info(), _compass_chips())
+	hud.set_tracker(_quest_tracker())
 	hud.update_party(selected if _free_roam() else state.active_unit())
 
 
@@ -647,7 +698,7 @@ func _build_cell(cell: Vector2i) -> void:
 			for overlay_path in state.ground_overlays(cell):
 				_add_tile(overlay_path, cell_origin(cell), row, layers * SIDE_HEIGHT)
 		_add_biome_props(biome, terrain_id, cell)
-	elif SCENERY_BASE.has(terrain_id):
+	elif terrain_id in [2, 3, 6, 7, 10, 11, 16]:
 		_add_scenery(terrain_id, cell)
 	if expedition:
 		_add_landmark(cell, row)
@@ -945,7 +996,7 @@ func _work_on_map(budget: int) -> void:
 ## Quantas colunas para cada lado cabem na tela nessa linha: mais ao fundo, mais colunas.
 func _visible_columns(row_gap: int) -> int:
 	var depth := 1.0 / maxf(0.25, 1.0 - row_gap * ROW_STEP * BOARD_SCALE * BattleCamera.PERSPECTIVE)
-	var on_screen: float = 760.0 / (depth * battle_camera.zoom) / (TILE_WIDTH * BOARD_SCALE)
+	var on_screen: float = 760.0 / (depth * minf(battle_camera.zoom, _base_zoom())) / (TILE_WIDTH * BOARD_SCALE)
 	var row_distance := row_gap * ROW_STEP * BOARD_SCALE
 	var in_fog := sqrt(maxf(0.0, FOG_END * FOG_END - row_distance * row_distance)) / FOG_SIDE_SQUEEZE / (TILE_WIDTH * BOARD_SCALE)
 	return ceili(minf(on_screen, in_fog)) + 1
@@ -962,6 +1013,8 @@ func _unload_cell(cell: Vector2i) -> void:
 		world_light.forget_cell(cell)
 	overlays.erase(cell)
 	reach_lines.erase(cell)
+	move_tiles.erase(cell)
+	move_shown.erase(cell)
 	forests.erase(cell)
 	trees.erase(cell)
 
@@ -1042,6 +1095,8 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	var art: Array
 	if town:
 		art = state.art_at(cell)
+	elif expedition and state.camps.cells.has(cell):
+		art = state.camps.art_at(cell)
 	elif expedition and cell == state.beacon_cell:
 		art = [BiomeArt.beacon(biome, state.defeated_boss)]
 	else:
@@ -1109,7 +1164,7 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	# O ponto de apoio de cada arte é o centro da imagem.
 	var foot: Vector2 = sprite.texture.get_size() / 2.0
 	sprite.position = cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"]) - foot
-	if natural and not town and not _is_marked_place(cell):
+	if natural and not town and not _is_marked_place(cell) and not prop.get("fixed", false):
 		sprite.position += Vector2(fmod(detail * 53.0, 1.0) - 0.5, fmod(detail * 71.0, 1.0) - 0.5) * PROP_WOBBLE * (1.0 if prop["layer"] != "front" else 0.6)
 	sprite.flip_h = prop.get("flip", false) or (not prop.get("fixed", false) and fmod(detail * 13.0, 1.0) < 0.5)
 	sprite.z_index = _z(_row(cell)) + prop["depth"]
@@ -1125,12 +1180,12 @@ func _is_marked_place(cell: Vector2i) -> bool:
 
 
 func _add_scenery(id: int, cell: Vector2i) -> void:
-	if id == 3:
-		var back := _scenery_layer(id, cell, 3, FOREST_HEIGHT, 1)
-		var front := _scenery_layer(id, cell, 6, FOREST_HEIGHT, 2)
-		forests[cell] = {"back": back, "front": front}
-	else:
-		_scenery_layer(id, cell, 3)
+	# Batalha fixa e expedição usam os mesmos sprites, separados do piso hexagonal.
+	var made := {}
+	for prop in BiomeArt.props("floresta", id, 0.5):
+		made[prop["layer"]] = _biome_prop(prop, cell, 0.5)
+	if made.has("back") and made.has("front"):
+		forests[cell] = made
 
 
 func _scenery_layer(id: int, cell: Vector2i, depth: int, height := 1.0, slice := 0) -> Sprite2D:
@@ -1276,7 +1331,7 @@ func _advance() -> void:
 		_place_ground_marker(active_outline, unit.pos)
 		active_outline.visible = not _free_roam()
 		active_outline.z_index = _z(_row(unit.pos)) + 3
-		if exploring and state.in_combat():
+		if exploring and state.in_combat() and not _free_roam():
 			_focus_turn(unit)
 		_refresh_turn_markers()
 		hud.refresh(state)
@@ -1302,6 +1357,7 @@ func _advance() -> void:
 
 
 func _perform(events: Array) -> void:
+	jump_mode = false
 	busy = true
 	_refresh_end_turn()
 	_close_menu()
@@ -1354,9 +1410,23 @@ func _on_order_toggled(on: bool) -> void:
 # --- Input -------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_handle_touch(event)
+		return
 	# Arrastar com o botão do meio gira a câmera, inclusive na vez dos inimigos.
 	if exploring and event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
 		_set_view_angle(view_angle + event.relative.x * TURN_DRAG)
+		return
+	# Com zoom, arrastar a partir de uma casa sem inimigo move a câmera (mouse e um dedo).
+	if event is InputEventMouseMotion and pressing and drag_ok and gesture.is_empty():
+		if not dragging and event.position.distance_to(press_pos) > DRAG_START:
+			dragging = true
+			press_token += 1 # não abre o cartão de quem estava embaixo do dedo
+		if dragging:
+			_pan_by(event.relative)
+			return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_Z:
+		_set_zoomed(not zoomed)
 		return
 	if event is InputEventMouseButton:
 		_handle_button(event)
@@ -1375,7 +1445,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			_refresh_overlays()
 			_update_hint()
 	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE:
+		if event.keycode == KEY_ESCAPE and jump_mode:
+			_set_jump_mode(false)
+		elif event.keycode == KEY_J and not _free_roam():
+			_set_jump_mode(not jump_mode)
+		elif event.keycode == KEY_ESCAPE:
 			if menu_cell != NO_CELL or not _free_roam():
 				_close_menu()
 			else:
@@ -1388,6 +1462,69 @@ func _unhandled_input(event: InputEvent) -> void:
 			_end_turn()
 		elif event.keycode >= KEY_1 and event.keycode < KEY_1 + menu_options.size():
 			_on_option_pressed(event.keycode - KEY_1)
+
+
+func _base_zoom() -> float:
+	return EXPLORE_ZOOM if exploring else 1.0
+
+
+## Botão, Z, roda do mouse ou pinça: aproxima para 1.5 e libera o arrasto; soltar recentra.
+func _set_zoomed(on: bool) -> void:
+	if on == zoomed or battle_camera == null:
+		return
+	zoomed = on
+	battle_camera.set_zoom(ZOOM_IN if on else _base_zoom())
+	if not on:
+		_pan_by(Vector2.ZERO, true)
+	hud.set_zoomed(on)
+
+
+## Move a câmera pelo arrasto na tela. A tela é o chão girado e achatado: desfaz os dois.
+func _pan_by(screen_delta: Vector2, reset := false) -> void:
+	var before := pan
+	if reset:
+		pan = Vector2.ZERO
+	else:
+		var ground := Vector2(screen_delta.x, screen_delta.y / BattleCamera.GROUND_TILT) / battle_camera.zoom
+		pan = (pan + ground.rotated(-view_angle)).limit_length(PAN_LIMIT)
+	if not exploring:
+		board.position = BOARD_POS + pan
+	elif not reset:
+		board.position += pan - before # na hora, sem a suavização de seguir o herói
+
+
+## Dois dedos: torcer gira a câmera (fora da arena), abrir ou fechar muda o zoom.
+## Um dedo só chega também como mouse emulado e cai no arrasto normal.
+func _handle_touch(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			touches[event.index] = event.position
+		else:
+			touches.erase(event.index)
+		if touches.size() == 2:
+			pressing = false # o primeiro dedo não vale mais como toque
+			dragging = false
+			press_token += 1
+			var start: Array = touches.values()
+			gesture = {"angle": (start[1] - start[0]).angle(), "distance": maxf(1.0, start[0].distance_to(start[1])), "turning": false, "pinched": false}
+		elif touches.size() < 2:
+			gesture = {}
+		return
+	touches[event.index] = event.position
+	if touches.size() != 2 or gesture.is_empty():
+		return
+	var points: Array = touches.values()
+	var angle: float = (points[1] - points[0]).angle()
+	var twist := angle_difference(gesture["angle"], angle)
+	if exploring and (gesture["turning"] or absf(twist) > TWIST_START):
+		gesture["turning"] = true
+		gesture["angle"] = angle
+		_set_view_angle(view_angle + twist)
+	if not gesture["pinched"]:
+		var ratio: float = points[0].distance_to(points[1]) / gesture["distance"]
+		if ratio > PINCH_IN or ratio < 1.0 / PINCH_IN:
+			gesture["pinched"] = true
+			_set_zoomed(ratio > 1.0)
 
 
 func _end_turn() -> void:
@@ -1408,6 +1545,9 @@ func _refresh_end_turn() -> void:
 # O toque vira clique ao soltar, para dar tempo de saber se a pessoa está segurando.
 # Segurar num personagem (ou o botão direito) abre o cartão dele, até no turno inimigo.
 func _handle_button(event: InputEventMouseButton) -> void:
+	if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		_set_zoomed(event.button_index == MOUSE_BUTTON_WHEEL_UP)
+		return
 	var cell := _pick_cell(event.position)
 	if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 		if state.unit_at(cell) != null:
@@ -1419,12 +1559,18 @@ func _handle_button(event: InputEventMouseButton) -> void:
 		if event.pressed:
 			pressing = true
 			press_cell = cell
+			press_pos = event.position
+			dragging = false
+			var occupant = state.unit_at(cell)
+			drag_ok = zoomed and (occupant == null or occupant.team != Data.Team.ENEMY)
 			if state.unit_at(cell) != null:
 				var token := press_token
 				get_tree().create_timer(HOLD_TIME).timeout.connect(func(): _on_hold(token))
 		elif pressing:
 			pressing = false
-			if not busy:
+			if dragging:
+				dragging = false
+			elif not busy:
 				_click(press_cell)
 
 
@@ -1483,7 +1629,7 @@ func _spell_icon(id: String) -> String:
 ## Dados de uma habilidade para a ficha: alcance, efeito, tempo e quanto tiraria do herói da vez.
 func _card_ability(unit, id: String) -> Dictionary:
 	var ability: Dictionary = unit.ability(id)
-	var out := {"name": ability["name"], "icon": ABILITY_ICONS.get(id, _spell_icon(id)), "time": state.time_for(ability["time"], unit)}
+	var out := {"name": ability["name"], "icon": ABILITY_ICONS.get(id, _spell_icon(id)), "time": state.action_time(ability["time"], unit)}
 	if ability["kind"] == "charge":
 		out["time"] = "%d + %d" % [state.cast_time_for(unit, id), state.recovery_time_for(unit, id)]
 		out["time_hint"] = "Conjuração + recuperação após o impacto"
@@ -1534,6 +1680,12 @@ func _click(cell: Vector2i) -> void:
 			_open_menu(cell)
 		return
 	var unit = _actor()
+	# Casa verde pula na hora: no modo pulo, qualquer uma; fora dele, as que andando não dá.
+	if state.jump_cells(unit).has(cell) and (jump_mode or not _can_walk_to(unit, cell)):
+		_jump(unit, cell)
+		return
+	if jump_mode:
+		_set_jump_mode(false)
 	# Se alguma ação mira essa casa, o menu pergunta: assim dá para mirar no chão
 	# onde o inimigo ainda vai pisar sem o herói sair andando.
 	var aimable := _cell_options(cell).any(func(option): return option["kind"] == "ability")
@@ -1545,6 +1697,24 @@ func _click(cell: Vector2i) -> void:
 			_perform(state.do_move(unit, cell))
 		return
 	_open_menu(cell)
+
+
+func _jump(unit, cell: Vector2i) -> void:
+	if online_session.playing:
+		jump_mode = false
+		_submit_online("jump", cell)
+	else:
+		_perform(state.do_jump(unit, cell))
+
+
+func _set_jump_mode(on: bool) -> void:
+	if on and (busy or _free_roam() or state.jump_cells(_actor()).is_empty()):
+		hud.set_hint("Sem movimento para pular agora (o pulo gasta %d casas)." % (Data.JUMP_TIME / Data.STEP_TIME))
+		return
+	jump_mode = on
+	_close_menu()
+	_refresh_overlays()
+	_update_hint()
 
 
 func _can_walk_to(unit, cell: Vector2i) -> bool:
@@ -1619,6 +1789,8 @@ func _cell_options(cell: Vector2i) -> Array:
 			options.append({"kind": "travel", "label": "Ir até lá", "detail": "para ao ser visto"})
 		options.append({"kind": "cancel", "label": "Cancelar", "detail": ""})
 	elif cell == unit.pos:
+		if not state.jump_cells(unit).is_empty():
+			options.append({"kind": "jump_mode", "label": "Pular (J)", "detail": "ação fica %s× mais lenta" % _penalty_text(unit)})
 		options.append({"kind": "wait", "label": "Encerrar turno", "detail": "passa a vez"})
 	elif state.unit_at(cell) == null:
 		if _can_walk_to(unit, cell):
@@ -1689,8 +1861,11 @@ func _on_option_pressed(index: int) -> void:
 	if option["kind"] == "approach":
 		cell = option["cell"]
 		option = {"kind": "step"}
-	if online_session.playing and option["kind"] != "cancel" and option["kind"] != "travel":
+	if online_session.playing and option["kind"] != "cancel" and option["kind"] != "travel" and option["kind"] != "jump_mode":
 		_submit_online(option["kind"], cell, option.get("id", ""))
+		return
+	if option["kind"] == "jump_mode":
+		_set_jump_mode(true)
 		return
 	match option["kind"]:
 		"ability":
@@ -1720,6 +1895,10 @@ func _refresh_overlays() -> void:
 	for cell in overlays:
 		overlays[cell].visible = false
 		reach_lines[cell].visible = false
+	for cell in move_shown:
+		for node in move_tiles[cell]:
+			node.visible = false
+	move_shown.clear()
 	inspect_outline.visible = false
 	if not busy:
 		_mark_free_look()
@@ -1761,12 +1940,22 @@ func _mark_free_look() -> void:
 	if shown != null and shown != unit:
 		_mark_reach(shown)
 		return
+	var jumps: Dictionary = state.jump_cells(unit)
+	if jump_mode:
+		for cell in jumps:
+			_mark(cell, JUMP_HOVER if cell == hover else JUMP_COLOR)
+		_mark_aim(unit)
+		return
 	var reach: Dictionary = state.move_cells(unit)
-	for cell in reach:
-		_mark(cell, STEP_COLOR)
+	var path := []
 	if reach.has(hover):
-		for cell in state.straight_path(state.search(unit, state.move_left(unit)), unit.pos, hover):
-			_mark(cell, PATH_COLOR)
+		path = state.straight_path(state.search(unit, state.move_left(unit)), unit.pos, hover)
+	for cell in reach:
+		if state.unit_at(cell) == null:
+			_mark_move(cell, path.has(cell))
+	for cell in jumps: # só pulando chega lá: aparece em verde
+		if not reach.has(cell):
+			_mark(cell, JUMP_HOVER if cell == hover else JUMP_COLOR)
 	_mark_aim(unit)
 
 
@@ -1810,7 +1999,8 @@ func _mark_aim(unit) -> void:
 
 
 func _mark_reach_cell(cell: Vector2i) -> void:
-	if not reach_lines.has(cell):
+	# Onde dá para andar o azul manda: o laranja por cima só embaralhava.
+	if not reach_lines.has(cell) or move_shown.has(cell):
 		return
 	reach_lines[cell].visible = true
 	if not overlays[cell].visible:
@@ -1825,6 +2015,59 @@ func _covers_a_unit(cell: Vector2i) -> bool:
 		if unit.alive() and _row(cell) > _row(unit.pos) and Hex.distance(cell, unit.pos) <= 2:
 			return true
 	return false
+
+
+func _mark_move(cell: Vector2i, on_path: bool) -> void:
+	if not overlays.has(cell):
+		return
+	if not move_tiles.has(cell):
+		move_tiles[cell] = _new_move_tile(cell)
+	var fill: Polygon2D = move_tiles[cell][0]
+	var rim := PATH_RIM if on_path else MOVE_RIM
+	var core := PATH_CORE if on_path else MOVE_CORE
+	fill.vertex_colors = PackedColorArray([rim, rim, rim, rim, rim, rim, core])
+	move_tiles[cell][1].default_color = Color.WHITE if on_path else MOVE_EDGE
+	for node in move_tiles[cell]:
+		node.visible = true
+	move_shown.append(cell)
+	_pulse_moves(0.0)
+
+
+## Hex encolhido rumo ao centro, com um vértice no meio: a borda acende e o miolo escurece.
+func _new_move_tile(cell: Vector2i) -> Array:
+	var inset := PackedVector2Array()
+	for point in hex_poly:
+		inset.append(HEX_MIDDLE + (point - HEX_MIDDLE) * MOVE_INSET)
+	var fill := Polygon2D.new()
+	fill.polygon = inset + PackedVector2Array([HEX_MIDDLE])
+	var triangles := []
+	for i in 6:
+		triangles.append(PackedInt32Array([i, (i + 1) % 6, 6]))
+	fill.polygons = triangles
+	_place_ground_marker(fill, cell)
+	fill.z_index = _z(cell_rows[cell]) + 1
+	board.add_child(fill)
+	var edge := Line2D.new()
+	edge.width = 4.0
+	edge.closed = true
+	edge.joint_mode = Line2D.LINE_JOINT_ROUND
+	edge.points = inset
+	_place_ground_marker(edge, cell)
+	edge.z_index = _z(cell_rows[cell]) + 2
+	board.add_child(edge)
+	cell_nodes[cell].append(fill)
+	cell_nodes[cell].append(edge)
+	return [fill, edge]
+
+
+func _pulse_moves(delta: float) -> void:
+	if move_shown.is_empty():
+		return
+	move_pulse = fmod(move_pulse + delta * MOVE_PULSE_SPEED, TAU)
+	var glow := 0.78 + 0.22 * sin(move_pulse)
+	for cell in move_shown:
+		move_tiles[cell][0].modulate.a = glow
+		move_tiles[cell][1].modulate.a = 0.7 + 0.3 * sin(move_pulse)
 
 
 func _mark(cell: Vector2i, color: Color) -> void:
@@ -1874,7 +2117,15 @@ func _update_hint() -> void:
 func _turn_hint(unit) -> String:
 	var steps: int = state.steps_left(unit)
 	var walk: String = "%d %s" % [steps, "casa" if steps == 1 else "casas"] if steps > 0 else "sem passos"
-	return "%s · Atacar encerra o turno · %s" % [walk, END_TURN_KEY_HINT]
+	if jump_mode:
+		return "Pulo: clique numa casa verde · ação depois fica %s× mais lenta · Esc cancela" % _penalty_text(unit)
+	var jump := " · J pula" if not state.jump_cells(unit).is_empty() else ""
+	return "%s%s · Atacar encerra o turno · %s" % [walk, jump, END_TURN_KEY_HINT]
+
+
+func _penalty_text(unit) -> String:
+	var mult: float = Data.JUMP_PENALTY.get(unit.type_id, Data.JUMP_PENALTY_DEFAULT)
+	return ("%.2f" % mult).rstrip("0").rstrip(".").replace(".", ",")
 
 
 # --- Animação dos eventos ----------------------------------------------------
@@ -1924,6 +2175,9 @@ func _play(events: Array, roam := false) -> void:
 				await _play_combat_start(event)
 			"combat_join":
 				_mark_alerted(event["units"])
+				if not my_fight and not _free_roam(): # meu herói chegou perto e entrou na luta
+					my_fight = true
+					hud.show_banner("Combate!", Color(1.0, 0.42, 0.3))
 			"combat_end":
 				await _play_combat_end(event)
 			"despawn":
@@ -1960,8 +2214,9 @@ func _network_command(sender: int, command: Dictionary) -> void:
 	var cell: Variant = command.get("cell", NO_CELL)
 	if not cell is Vector2i: return
 	var kind := str(command.get("kind", ""))
-	if _free_roam():
-		var hero = state.unit_by_uid(int(command.get("hero", 0))) if command.get("hero") is int else null
+	var hero = state.unit_by_uid(int(command.get("hero", 0))) if command.get("hero") is int else null
+	# Herói fora da luta (ou sem luta nenhuma) anda livre, mesmo com outra luta acontecendo.
+	if exploring and (not state.in_combat() or (hero != null and state.is_hero(hero) and not state.is_fighting(hero))):
 		if hero == null or not state.is_hero(hero) or not hero.alive() or online_session.owner_of(hero) != sender: return
 		match kind:
 			"travel":
@@ -1985,6 +2240,8 @@ func _network_command(sender: int, command: Dictionary) -> void:
 		"wait": _perform(state.do_wait(unit))
 		"step":
 			if state.unit_at(cell) == null and state.move_cells(unit).has(cell): _perform(state.do_move(unit, cell))
+		"jump":
+			if state.jump_cells(unit).has(cell): _perform(state.do_jump(unit, cell))
 		"ability":
 			var id: String = str(command.get("ability", ""))
 			if id in unit.abilities and cell in state.valid_targets(unit, id):
@@ -2026,7 +2283,7 @@ func _network_packet(_packet: Dictionary) -> void:
 		if state.winner() < 0:
 			_place_ground_marker(active_outline, state.active_unit().pos)
 			active_outline.visible = not _free_roam()
-			if state.in_combat():
+			if state.in_combat() and not _free_roam():
 				_focus_turn(state.active_unit())
 			elif camera_unit != selected:
 				_select(_actor())
@@ -2071,7 +2328,12 @@ func _show_status(unit) -> void:
 
 ## Fora de combate: o herói anda livre, sem fila de turnos.
 func _free_roam() -> bool:
-	return exploring and not state.in_combat()
+	if not exploring or not state.in_combat():
+		return exploring
+	if not state.split_fights:
+		return false
+	# Online: só fico preso aos turnos se algum herói meu estiver nesta luta.
+	return not state.party.any(func(u): return online_session.can_control(u) and state.is_fighting(u))
 
 
 ## O herói que recebe as ordens agora: o selecionado fora de combate, o da vez em combate.
@@ -2118,13 +2380,14 @@ func _on_party_pick(unit) -> void:
 # --- Câmera --------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	_pulse_moves(delta)
 	if not exploring or board == null:
 		return
 	_update_turn(delta)
 	_update_walks(delta)
 	if town and selected != null:
 		town_panels.set_nearby(state.person_near(selected.pos))
-	var goal: Vector2 = camera_look if camera_look != null else BattleCamera.FOCUS - _camera_point() * BOARD_SCALE
+	var goal: Vector2 = camera_look if camera_look != null else BattleCamera.FOCUS - _camera_point() * BOARD_SCALE + pan
 	board.position = board.position.lerp(goal, 1.0 - exp(-delta * CAMERA_SPEED))
 	_work_on_map(BUILD_BUDGET_USEC)
 	_roam_tick(delta)
@@ -2236,6 +2499,7 @@ func _finish_walk(unit) -> void:
 
 func _follow(unit) -> void:
 	camera_unit = unit
+	pan = Vector2.ZERO
 	_set_camera(unit.pos)
 
 
@@ -2272,6 +2536,8 @@ func _set_view_angle(angle: float) -> void:
 	_show_facing_walls()
 	_refresh_depths()
 	_update_model_frames()
+	if expedition and hud != null:
+		_update_journey() # a bússola do painel gira junto
 	if map_refresh <= 0.0:
 		map_refresh = MAP_REFRESH
 		_sync_world(camera_cell, false)
@@ -2403,9 +2669,17 @@ func _roam_tick(delta: float) -> void:
 		step_wait[hero] -= delta
 	if walk_paths.is_empty() or busy:
 		return
-	if not _free_roam():
+	if not exploring:
 		_clear_walks()
 		return
+	if state.in_combat():
+		# Quem está na luta para de andar; quem está longe dela continua.
+		for hero in walk_paths.keys():
+			if state.is_fighting(hero):
+				_end_walk(hero)
+				file_next.erase(hero)
+		if walk_paths.is_empty():
+			return
 	for hero in walk_paths.keys():
 		if walk_paths.has(hero) and step_wait.get(hero, 0.0) <= 0.0:
 			_roam_step(hero)
@@ -2468,7 +2742,13 @@ func _roam_step(hero) -> void:
 	events.append_array(state.tick())
 	var fight := events.any(func(e): return e["type"] == "combat_start")
 	if fight:
-		_clear_walks()
+		if state.split_fights:
+			for walker in walk_paths.keys():
+				if state.is_fighting(walker):
+					_end_walk(walker)
+					file_next.erase(walker)
+		else:
+			_clear_walks()
 		busy = true
 		_close_menu()
 		hud.set_hint("")
@@ -2500,6 +2780,11 @@ func _mark_alerted(units: Array) -> void:
 
 ## Foi visto: aviso, e a câmera mostra quem apareceu antes de voltar para a party.
 func _play_combat_start(event: Dictionary) -> void:
+	my_fight = not _free_roam()
+	if not my_fight: # a luta é de outro jogador, longe daqui: só um aviso
+		hud.show_banner("Aliado em combate", Color(1.0, 0.7, 0.4))
+		hud.refresh(state)
+		return
 	sound_manager.play_sfx(&"charge")
 	hud.show_banner("Combate!" , Color(1.0, 0.42, 0.3))
 	_mark_alerted(event["units"])
@@ -2512,6 +2797,12 @@ func _play_combat_start(event: Dictionary) -> void:
 
 
 func _play_combat_end(event: Dictionary) -> void:
+	if state.split_fights and not my_fight:
+		hud.show_banner("Combate do aliado acabou", Color(0.6, 1.0, 0.6))
+		hud.refresh(state)
+		_refresh_turn_markers()
+		return
+	my_fight = false
 	sound_manager.play_sfx(&"victory")
 	hud.show_banner("Você escapou" if event["fled"] else "Combate vencido", Color(0.6, 1.0, 0.6))
 	hud.refresh(state)
@@ -2624,14 +2915,28 @@ func _play_level_up(event: Dictionary) -> void:
 			views[member].set_hp(member.hp)
 
 
-## Nível, brasas e para onde ir, com a seta já girada conforme a câmera.
-func _objective_text() -> String:
-	var growth := "máx." if state.xp_to_next() < 0 else "%d XP" % state.xp_to_next()
-	var text := "Nível %d (%s)   ·   Brasas %d   ·   Farol %s" % [state.level, growth, state.brasas, _direction_to(state.beacon_cell)]
+## Nível da expedição e quanto falta: a barra enche entre um nível e o próximo.
+func _level_info() -> Dictionary:
+	var left: int = state.xp_to_next()
+	if left < 0:
+		return {"level": state.level, "fraction": 1.0, "note": "máx."}
+	var floor_xp: int = Exp.LEVEL_XP[state.level - 1]
+	var span: int = maxi(1, Exp.LEVEL_XP[state.level] - floor_xp)
+	return {"level": state.level, "fraction": float(state.xp - floor_xp) / span, "note": "faltam %d XP" % left}
+
+
+## Farol e o local aberto mais perto, com a agulha já girada conforme a câmera.
+func _compass_chips() -> Array:
+	var chips := [_compass("Farol", state.beacon_cell)]
 	var open: Array = state.open_landmarks(camera_cell)
 	if not open.is_empty() and (state.far_compass or Hex.distance(open[0], camera_cell) <= Exp.COMPASS_RADIUS):
-		text += "   ·   %s %s" % [state.landmark_label(open[0]), _direction_to(open[0])]
-	return text
+		chips.append(_compass(state.landmark_label(open[0]), open[0]))
+	return chips
+
+
+func _compass(label: String, cell: Vector2i) -> Dictionary:
+	var away: Vector2 = (_flat_point(cell) - _flat_point(camera_cell)).rotated(view_angle)
+	return {"label": label, "angle": Vector2(away.x, away.y * BattleCamera.GROUND_TILT).angle(), "distance": Hex.distance(cell, camera_cell)}
 
 
 ## A primeira missão aceita, somando o que a expedição já fez por ela.
@@ -2757,8 +3062,12 @@ func _update_town() -> void:
 	var saved: Array = TownProgress.rescued()
 	var people: int = TownData.BASE_PEOPLE + saved.size() * TownData.PEOPLE_PER_RESCUE + TownProgress.beacons() * TownData.PEOPLE_PER_BEACON
 	var city_level: int = 1 + saved.size() + TownProgress.beacons()
-	hud.set_status("Cidade-Farol   ·   Heróis %d/%d   ·   Habitantes %d" % [state.alive_party().size(), state.party.size(), people])
-	hud.set_objective("Nível da Cidade %d   ·   Brasas %d   ·   Faróis acesos %d" % [city_level, TownProgress.brasas(), TownProgress.beacons()])
+	hud.set_overview("Cidade-Farol", [
+		{"icon": "heart", "value": "%d/%d" % [state.alive_party().size(), state.party.size()], "label": "Heróis", "color": Color(1.0, 0.45, 0.45)},
+		{"icon": "people", "value": people, "label": "Habitantes", "color": Color(0.7, 0.82, 1.0)},
+		{"icon": "flame", "value": TownProgress.brasas(), "label": "Brasas", "color": Color(1.0, 0.68, 0.3)},
+		{"icon": "star", "value": TownProgress.beacons(), "label": "Faróis acesos", "color": Color(1.0, 0.85, 0.35)},
+	], {"level": city_level, "fraction": -1.0, "name": "Nível da Cidade"})
 	hud.update_party(selected)
 
 
@@ -2823,9 +3132,10 @@ func _play_move(event: Dictionary) -> void:
 	if not event.get("silent", false):
 		sound_manager.play_sfx(&"step")
 	var height_delta: int = state.elevation_at(event["to"]) - state.elevation_at(event["from"])
-	var duration: float = event.get("duration", STEP_FLAT if height_delta == 0 else STEP_CLIMB)
+	var leap: bool = event.get("jump", false)
+	var duration: float = event.get("duration", STEP_JUMP if leap else (STEP_FLAT if height_delta == 0 else STEP_CLIMB))
 	var tween := create_tween()
-	tween.tween_method(_move_frame.bind(view, event["from"], event["to"], _cell_elevation(event["from"]), _cell_elevation(event["to"]), height_delta), 0.0, 1.0, duration)
+	tween.tween_method(_move_frame.bind(view, event["from"], event["to"], _cell_elevation(event["from"]), _cell_elevation(event["to"]), height_delta, leap), 0.0, 1.0, duration)
 	await tween.finished
 	moving[unit] -= 1
 	if moving[unit] <= 0:
@@ -2841,13 +3151,15 @@ func _play_move(event: Dictionary) -> void:
 
 
 ## As casas, e não pontos prontos: girar a câmera no meio do passo não deixa o herói fora do lugar.
-func _move_frame(progress: float, view, from: Vector2i, to: Vector2i, from_height: float, to_height: float, height_delta: int) -> void:
+func _move_frame(progress: float, view, from: Vector2i, to: Vector2i, from_height: float, to_height: float, height_delta: int, leap := false) -> void:
 	if not is_instance_valid(view):
 		return
 	view.position = feet_of(from).lerp(feet_of(to), progress)
 	battle_camera.set_elevation(lerpf(from_height, to_height, progress), view)
 	var jump := 0.0
-	if height_delta != 0:
+	if leap: # pulo por cima de alguém: arco alto
+		jump = sin(progress * PI) * JUMP_ARC
+	elif height_delta != 0:
 		jump = sin(progress * PI) * (110.0 if height_delta > 0 else 65.0)
 	view.set_jump_height(jump)
 

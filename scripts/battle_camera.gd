@@ -53,10 +53,15 @@ func set_view_angle(angle: float) -> void:
 		entry.material.set_shader_parameter("view_angle", angle)
 
 
-## Afasta a câmera. Chamar antes de criar o mapa: os materiais novos já nascem com o valor.
+## Aproxima ou afasta a câmera; vale também para o que já está desenhado.
 func set_zoom(value: float) -> void:
 	zoom = value
 	ground_material.set_shader_parameter("zoom", value)
+	for group in [surface_materials, tile_materials, ground_materials]:
+		for mat in group.values():
+			mat.set_shader_parameter("zoom", value)
+	for entry in billboards:
+		entry.material.set_shader_parameter("zoom", value)
 
 
 ## Escala de um ponto em pé sobre esse lugar do chão, já com o giro e o afastamento.

@@ -18,6 +18,10 @@ var heading := Vector2.ZERO # direção da caminhada: os grupos surgem preferind
 var last_walker # quem andou por último: os grupos surgem perto dele
 var engaged := {} # inimigos em combate com a party; os outros ainda não a viram
 var known := {} # toda unidade já vista, por uid: eventos podem citar quem já saiu do mapa
+## No online, só os heróis perto da luta entram nela; os outros seguem explorando.
+## Fora do online a party inteira luta junta.
+var split_fights := false
+var fighting := {} # heróis na fila de turnos agora (só vale com split_fights)
 
 
 ## `heroes`: tipos dos heróis, ou um só. `builds`: nós da árvore, por índice na party,
@@ -158,8 +162,48 @@ func in_combat() -> bool:
 	return not engaged.is_empty()
 
 
+## O herói está na luta? Fora do online, todos lutam quando há combate.
+func is_fighting(unit) -> bool:
+	if not in_combat():
+		return false
+	if not party.has(unit):
+		return engaged.has(unit)
+	return fighting.has(unit) if split_fights else true
+
+
+## Heróis na luta agora.
+func fighters() -> Array:
+	return party.filter(func(u): return is_fighting(u))
+
+
+## A unidade anda por turnos (gasta movimento) ou livre?
+func turn_based(unit) -> bool:
+	return is_fighting(unit) if party.has(unit) else in_combat()
+
+
 func takes_turns(unit) -> bool:
-	return unit.alive() and (party.has(unit) or engaged.has(unit))
+	return unit.alive() and (is_fighting(unit) or (party.has(unit) and not in_combat()))
+
+
+## Põe na luta os heróis vivos perto dos inimigos dela. Devolve quem entrou.
+func _enlist(near: Array, opener = null) -> Array:
+	var added := []
+	if not split_fights:
+		return added
+	for member in alive_party():
+		if fighting.has(member):
+			continue
+		if member == opener or near.any(func(foe): return Hex.distance(foe.pos, member.pos) <= Data.WORLD["fight_radius"]):
+			fighting[member] = true
+			added.append(member)
+	return added
+
+
+## Heróis vivos que estão (ou vão estar) na luta.
+func _fighting_alive() -> Array:
+	if not split_fights:
+		return alive_party()
+	return alive_party().filter(func(u): return fighting.has(u))
 
 
 ## Coloca inimigos em combate. Fora de combate cada herói andou no seu ritmo, então os
@@ -169,18 +213,27 @@ func takes_turns(unit) -> bool:
 func engage(foes_list: Array, surprised: bool, opener = null) -> Array:
 	var joining := foes_list.filter(func(u): return u.alive() and not engaged.has(u))
 	if joining.is_empty():
+		# Herói livre que ataca quem já está numa luta entra nela.
+		if opener != null and in_combat():
+			var current: int = active_unit().clock
+			for member in _enlist(foes_list, opener):
+				member.clock = current + time_for(Data.STEP_TIME, member)
 		return []
 	var starting := not in_combat()
 	var now: int = 0
 	var opening := []
 	if starting:
+		fighting.clear()
+		_enlist(joining, opener)
 		opening = _deploy(joining, opener)
-		for member in alive_party():
+		for member in _fighting_alive():
 			now = maxi(now, member.clock)
-		for member in alive_party():
+		for member in _fighting_alive():
 			member.clock = now if member == opener else now + time_for(Data.STEP_TIME, member)
 	else:
 		now = active_unit().clock
+		for member in _enlist(joining, opener):
+			member.clock = now + time_for(Data.STEP_TIME, member)
 	for unit in joining:
 		engaged[unit] = true
 		unit.clock = now + time_for(Data.STEP_TIME, unit)
@@ -192,9 +245,9 @@ func engage(foes_list: Array, surprised: bool, opener = null) -> Array:
 ## ataque não sai do lugar, porque já mirou.
 func _deploy(foes_list: Array, opener) -> Array:
 	var events := []
-	if party.size() < 2:
+	if _fighting_alive().size() < 2:
 		return events
-	for member in alive_party():
+	for member in _fighting_alive():
 		if member == opener:
 			continue
 		var best: Vector2i = member.pos
@@ -212,7 +265,7 @@ func _deploy(foes_list: Array, opener) -> Array:
 
 func _deploy_score(member, cell: Vector2i, foes_list: Array) -> float:
 	var ally_gap := 999
-	for other in alive_party():
+	for other in _fighting_alive():
 		if other != member:
 			ally_gap = mini(ally_gap, Hex.distance(other.pos, cell))
 	var foe_gap := 999
@@ -277,7 +330,7 @@ func sight_cells(unit) -> Array:
 func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 	var intro := []
 	var kind: String = unit.ability(ability_id)["kind"]
-	if party.has(unit) and not in_combat() and (kind == "attack" or kind == "charge"):
+	if party.has(unit) and not is_fighting(unit) and (kind == "attack" or kind == "charge"):
 		var radius: int = int(unit.ability(ability_id).get("radius", 0)) + Data.WORLD["group_radius"]
 		intro = engage(foes().filter(func(u): return Hex.distance(u.pos, cell) <= radius), false, unit)
 	return intro + super(unit, ability_id, cell)
@@ -290,7 +343,7 @@ func do_step(unit, to: Vector2i) -> Array:
 		farthest = maxi(farthest, Hex.distance(start_cell, to))
 		heading = _flat(to) - _flat(from)
 		last_walker = unit
-		if not in_combat():
+		if not is_fighting(unit):
 			steps_until_spawn -= 1.0 / alive_party().size() # conta passos da party, não de cada herói
 			_rest(unit, events)
 			var walkers := []
@@ -322,7 +375,7 @@ func _wander(events: Array) -> void:
 
 func _distance_to_any_hero(cell: Vector2i) -> int:
 	var best := 999999
-	for member in party:
+	for member in (fighters() if split_fights and in_combat() else party):
 		best = mini(best, Hex.distance(member.pos, cell))
 	return best
 
@@ -338,7 +391,7 @@ func _rest(unit, events: Array) -> void:
 ## O herói pode dar esse passo sem se afastar demais da party? Sempre pode voltar.
 func may_roam(unit, to: Vector2i) -> bool:
 	for member in alive_party():
-		if member == unit:
+		if member == unit or (split_fights and is_fighting(member)):
 			continue
 		var distance := Hex.distance(member.pos, to)
 		if distance > Data.WORLD["party_leash"] and distance >= Hex.distance(member.pos, unit.pos):
@@ -384,9 +437,21 @@ func tick() -> Array:
 			engaged.erase(unit)
 			units.erase(unit)
 			events.append({"type": "despawn", "unit": unit})
+	# No online, se todos os heróis da luta caíram, os inimigos voltam a vagar e os outros seguem.
+	if split_fights and in_combat() and winner() < 0 and fighters().all(func(u): return not u.alive()):
+		engaged.clear()
+		escaped = true
 	if was_fighting and not in_combat() and winner() < 0:
 		events.append({"type": "combat_end", "fled": escaped})
 		_after_combat(events)
+	# Quem chega perto de uma luta em andamento entra nela.
+	if split_fights and in_combat() and winner() < 0:
+		var now: int = active_unit().clock
+		var joined := _enlist(engaged.keys().filter(func(u): return u.alive()))
+		if not joined.is_empty():
+			for member in joined:
+				member.clock = now + time_for(Data.STEP_TIME, member)
+			events.append({"type": "combat_join", "units": joined, "surprised": false})
 	if not in_combat() and steps_until_spawn <= 0:
 		var spawn_steps: Array = Data.WORLD["spawn_steps"]
 		steps_until_spawn = float(rng.randi_range(spawn_steps[0], spawn_steps[1]))
@@ -398,8 +463,11 @@ func tick() -> Array:
 
 ## Fim do combate: ninguém fica com magia pela metade, e quem caiu volta ferido.
 func _after_combat(events: Array) -> void:
-	for member in party:
+	var in_fight: Array = party.filter(func(u): return fighting.has(u)) if split_fights else party
+	fighting.clear()
+	for member in in_fight:
 		member.moved = 0
+		member.jumped = false
 		member.guarding = false
 		member.pending = {}
 		if not member.alive():
@@ -487,7 +555,7 @@ func snapshot() -> Dictionary:
 	for unit in units:
 		rows.append({
 			uid = unit.uid, type = unit.type_id, pos = unit.pos, hp = unit.hp, max_hp = unit.max_hp, atk = unit.atk,
-			clock = unit.clock, moved = unit.moved, guarding = unit.guarding, pending = unit.pending.duplicate(true), engaged = engaged.has(unit),
+			clock = unit.clock, moved = unit.moved, guarding = unit.guarding, pending = unit.pending.duplicate(true), engaged = engaged.has(unit), fighting = fighting.has(unit),
 		})
 	return {units = rows, kills = kills, farthest = farthest}
 
@@ -495,6 +563,7 @@ func snapshot() -> Dictionary:
 func apply_snapshot(data: Dictionary) -> void:
 	var seen := {}
 	engaged.clear()
+	fighting.clear()
 	for row in data.units:
 		seen[row.uid] = true
 		var unit = known.get(row.uid)
@@ -515,6 +584,8 @@ func apply_snapshot(data: Dictionary) -> void:
 		unit.pending = row.pending.duplicate(true)
 		if row.engaged:
 			engaged[unit] = true
+		if row.get("fighting", false):
+			fighting[unit] = true
 	for unit in units.duplicate():
 		if not seen.has(unit.uid):
 			units.erase(unit)

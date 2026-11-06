@@ -114,7 +114,7 @@ static func _unit_row(unit, state) -> Dictionary:
 	return {
 		uid = unit.uid, type = unit.type_id, team = unit.team, pos = unit.pos, name = unit.display_name,
 		hp = unit.hp, max_hp = unit.max_hp, atk = unit.atk, def = unit.def, speed = unit.speed,
-		abilities = unit.abilities.duplicate(), clock = unit.clock, moved = unit.moved, guarding = unit.guarding,
+		abilities = unit.abilities.duplicate(), clock = unit.clock, moved = unit.moved, jumped = unit.jumped, guarding = unit.guarding,
 		pending = unit.pending.duplicate(true), taunt_actions = unit.taunt_actions,
 		taunted_by = unit.taunted_by.uid if unit.taunted_by != null else 0,
 		engaged = "engaged" in state and state.engaged.has(unit), gone = false,
@@ -204,6 +204,7 @@ static func _restore_units(state, data: Dictionary) -> Dictionary:
 		unit.abilities = row.abilities.duplicate()
 		unit.clock = row.clock
 		unit.moved = row.get("moved", 0)
+		unit.jumped = row.get("jumped", false)
 		unit.guarding = row.guarding
 		unit.pending = row.pending.duplicate(true)
 		unit.taunt_actions = row.taunt_actions

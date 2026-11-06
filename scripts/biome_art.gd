@@ -139,9 +139,11 @@ static func props(biome: String, terrain_id: int, detail: float) -> Array:
 			return [_prop(biome, "pedras_" + variant, MIDDLE_Y, BEHIND_UNIT)]
 		6:
 			# As serras são de pedra; um monumento aparece de vez em quando.
-			return [_prop(biome, "montanha_b" if detail < MOUNTAIN_LANDMARK else "montanha_a", MIDDLE_Y + 20, BEHIND_UNIT)]
+			var mountain := "montanha_natural" if biome in ["floresta", "selva"] else "montanha_a"
+			return [_prop(biome, "montanha_b" if detail < MOUNTAIN_LANDMARK else mountain, MIDDLE_Y + 20, BEHIND_UNIT)]
 		7:
-			return [_prop(biome, "colinas_" + variant, MIDDLE_Y, BEHIND_UNIT)]
+			var hills := "colinas_natural_" if biome in ["floresta", "selva"] else "colinas_"
+			return [_prop(biome, hills + variant, MIDDLE_Y, BEHIND_UNIT)]
 		10:
 			return [_prop(biome, "casa", MIDDLE_Y + 20, BEHIND_UNIT)]
 		11:

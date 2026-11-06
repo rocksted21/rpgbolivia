@@ -1,0 +1,27 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.10.1.261008 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 7600
+
+floresta em (-70, -136)
+ERROR: Tried to set Z index to an invalid value: 4465. Z index must be between -4096 and 4096.
+   at: set_z_index (scene/main/canvas_item.cpp:771)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/biome_shots.gd:54)
+       [1] _save (res://tests/biome_shots.gd:78)
+ERROR: Tried to set Z index to an invalid value: 4465. Z index must be between -4096 and 4096.
+   at: set_z_index (scene/main/canvas_item.cpp:771)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/biome_shots.gd:54)
+       [1] _save (res://tests/biome_shots.gd:78)
+ERROR: Tried to set Z index to an invalid value: 4465. Z index must be between -4096 and 4096.
+   at: set_z_index (scene/main/canvas_item.cpp:771)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/biome_shots.gd:54)
+       [1] _save (res://tests/biome_shots.gd:78)
+ERROR: Tried to set Z index to an invalid value: 4465. Z index must be between -4096 and 4096.
+   at: set_z_index (scene/main/canvas_item.cpp:771)
+   GDScript backtrace (most recent call first):
+       [0] _run (res://tests/biome_shots.gd:54)
+       [1] _save (res://tests/biome_shots.gd:78)
+selva em (77, 86)
+neve em (-121, 65)
+deserto em (62, -73)

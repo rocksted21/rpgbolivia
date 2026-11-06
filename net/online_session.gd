@@ -173,6 +173,7 @@ func start_match() -> void:
 	var builds := match_builds()
 	var world_seed := randi()
 	state = WorldState.new(party_types, world_seed, builds)
+	state.split_fights = true
 	revision = 0
 	playing = true
 	relay.set_props({locked = true, fase = "Jornada"})
@@ -275,6 +276,7 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 			owners = message.owners
 			party_types = types
 			state = WorldState.new(types, message.world_seed, clean_builds(message.get("builds", {}), types))
+			state.split_fights = true
 			revision = 0
 			match_started.emit()
 		"battle":

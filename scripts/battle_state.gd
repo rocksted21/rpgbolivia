@@ -104,9 +104,26 @@ func time_for(base: int, unit) -> int:
 	return maxi(1, roundi(base * 10.0 / unit.speed))
 
 
+## Tempo de uma ação: igual a time_for, mas mais lento se a unidade pulou neste turno.
+func action_time(base: int, unit) -> int:
+	return time_for(roundi(base * jump_penalty(unit)), unit)
+
+
+func jump_penalty(unit) -> float:
+	if not unit.jumped:
+		return 1.0
+	return Data.JUMP_PENALTY.get(unit.type_id, Data.JUMP_PENALTY_DEFAULT)
+
+
 ## Há fila de turnos agora? A batalha fixa está sempre em combate.
 func in_combat() -> bool:
 	return true
+
+
+## Esta unidade anda por turnos agora (gasta movimento)? Na exploração online, quem está
+## longe da luta continua andando livre.
+func turn_based(_unit) -> bool:
+	return in_combat()
 
 
 ## Quem entra na fila de turnos. Na exploração, só o herói e quem está em combate com ele.
@@ -153,12 +170,12 @@ func cast_wait(unit, ability_id: String) -> int:
 
 func cast_time_for(unit, ability_id: String) -> int:
 	var ability: Dictionary = unit.ability(ability_id)
-	return time_for(ability.get("cast_time", ability["time"]), unit)
+	return action_time(ability.get("cast_time", ability["time"]), unit)
 
 
 func recovery_time_for(unit, ability_id: String) -> int:
 	# Subtrair os tempos já arredondados conserva exatamente o custo total.
-	return maxi(0, time_for(unit.ability(ability_id)["time"], unit) - cast_time_for(unit, ability_id))
+	return maxi(0, action_time(unit.ability(ability_id)["time"], unit) -cast_time_for(unit, ability_id))
 
 
 ## Unidades vivas na ordem em que vão agir: a primeira é a ativa.
@@ -189,12 +206,45 @@ func can_enter(from: Vector2i, to: Vector2i) -> bool:
 
 
 func can_step(unit, to: Vector2i) -> bool:
+	if Hex.distance(unit.pos, to) == 2:
+		return jump_cells(unit).has(to)
 	if Hex.distance(unit.pos, to) != 1 or not can_enter(unit.pos, to):
 		return false
-	return not in_combat() or step_cost(unit.pos, to) <= move_left(unit)
+	return not turn_based(unit) or step_cost(unit.pos, to) <= move_left(unit)
+
+
+## Só heróis em combate pulam (a IA e a exploração andam como antes).
+func can_jump(unit) -> bool:
+	return unit.team == Data.Team.PLAYER and turn_based(unit)
+
+
+## Onde dá para pular agora: {casa: custo}. Qualquer casa livre a 2 de distância,
+## passando por cima do que houver no meio (gente, água, buraco).
+func jump_cells(unit) -> Dictionary:
+	var out := {}
+	if not can_jump(unit):
+		return out
+	for near in Hex.neighbors(unit.pos):
+		for cell in Hex.neighbors(near):
+			if out.has(cell) or Hex.distance(unit.pos, cell) != 2 or not can_enter(unit.pos, cell):
+				continue
+			var cost := jump_cost(unit.pos, cell)
+			if cost <= move_left(unit):
+				out[cell] = cost
+	return out
+
+
+func jump_cost(from: Vector2i, to: Vector2i) -> int:
+	var cost: int = Data.JUMP_TIME + tile_at(to)["cost"]
+	if elevation_at(to) > elevation_at(from):
+		cost += Data.CLIMB_TIME
+	return cost
 
 
 func move_points(unit) -> int:
+	var tiles: int = Data.UNIT_TYPES.get(unit.type_id, {}).get("move", 0)
+	if tiles > 0: # classe com movimento próprio (ex.: magos andam 2)
+		return tiles * Data.STEP_TIME
 	return Data.MOVE_BASE + unit.speed * Data.MOVE_PER_SPEED
 
 
@@ -231,6 +281,13 @@ func approach_cell(unit, target) -> Vector2i:
 				best_cost = reach[cell]
 				break
 	return best
+
+
+## Pula para uma casa a 2 de distância (ver jump_cells). Devolve [] se não der.
+func do_jump(unit, to: Vector2i) -> Array:
+	if not jump_cells(unit).has(to):
+		return []
+	return do_step(unit, to)
 
 
 ## Anda até uma casa do alcance, passo a passo. Quem sofre um golpe no caminho e cai para ali.
@@ -377,8 +434,12 @@ func _flat_spot(cell: Vector2i) -> Vector2:
 func do_step(unit, to: Vector2i) -> Array:
 	var events := []
 	var from: Vector2i = unit.pos
+	var jump := Hex.distance(from, to) == 2 # passos andando são sempre de 1 casa
 	unit.guarding = false
-	if in_combat():
+	if jump:
+		unit.moved += jump_cost(from, to)
+		unit.jumped = true
+	elif turn_based(unit):
 		unit.moved += step_cost(from, to)
 	else:
 		unit.clock += time_for(step_cost(from, to), unit)
@@ -393,7 +454,7 @@ func do_step(unit, to: Vector2i) -> Array:
 				return events
 
 	unit.pos = to
-	events.append({"type": "move", "unit": unit, "from": from, "to": to})
+	events.append({"type": "move", "unit": unit, "from": from, "to": to, "jump": jump})
 	return events
 
 
@@ -402,6 +463,7 @@ func do_wait(unit) -> Array:
 	unit.guarding = false
 	unit.clock += time_for(Data.MOVE_ONLY_TIME if unit.moved > 0 else Data.WAIT_TIME, unit)
 	unit.moved = 0
+	unit.jumped = false
 	return [{"type": "wait", "unit": unit}]
 
 
@@ -508,7 +570,7 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 		"attack":
 			var target = unit_at(cell)
 			var result := preview_attack(unit, ability_id, target)
-			unit.clock += time_for(ability["time"], unit)
+			unit.clock += action_time(ability["time"], unit)
 			events.append({"type": "attack", "unit": unit, "target": target, "ability": ability_id, "label": ability["name"]})
 			_apply_damage(target, result["amount"], events, result)
 			if target.alive():
@@ -517,7 +579,7 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			else:
 				_on_kill(unit, events)
 		"heal":
-			unit.clock += time_for(ability["time"], unit)
+			unit.clock += action_time(ability["time"], unit)
 			var total := 0
 			for target in units:
 				if target.alive() and target.team == unit.team and Hex.distance(target.pos, cell) <= ability.get("radius", 0):
@@ -527,7 +589,7 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			if unit.passives.has("heal_self") and total > 0:
 				_heal(unit, unit, roundi(total * unit.passives["heal_self"]), events)
 		"guard":
-			unit.clock += time_for(ability["time"], unit)
+			unit.clock += action_time(ability["time"], unit)
 			unit.guarding = true
 			if ability.has("taunt"):
 				for enemy in enemies_of(unit):
@@ -540,6 +602,7 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			unit.pending = {"ability": ability_id, "tile": cell}
 			events.append({"type": "cast_start", "unit": unit, "ability": ability_id, "tile": cell})
 	unit.moved = 0 # qualquer ação encerra o turno
+	unit.jumped = false
 	return events
 
 

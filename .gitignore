@@ -13,3 +13,6 @@ update/runtime.cfg
 # Copias de repositorios criadas dentro da pasta do projeto
 /rpg bolivia/
 /rpgbolivia/
+
+# Credenciais LootLocker locais (copie account/lootlocker.cfg.example)
+account/lootlocker.cfg

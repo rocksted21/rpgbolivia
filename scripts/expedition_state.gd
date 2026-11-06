@@ -6,10 +6,12 @@ extends "res://scripts/world_state.gd"
 const Exp = preload("res://scripts/expedition_data.gd")
 const Content = preload("res://scripts/town_content.gd")
 const Layout = preload("res://scripts/expedition_layout.gd")
+const AbandonedCamp = preload("res://scripts/abandoned_camp.gd")
 
 const SPOT_WALK := 1200 # pontos de movimento até onde os guardas podem nascer
 
 var layout # zonas, passagens e platôs do mapa
+var camps = AbandonedCamp.new()
 var landmarks := {} # casa: {kind, state ("idle", "fighting" ou "done"), guards, resident}
 var terrain_override := {}
 var beacon_cell: Vector2i
@@ -51,6 +53,31 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 	layout = Layout.new(gen, start_cell, _route_radius())
 	_place_landmarks()
 	layout.check_map(landmarks.keys())
+	for cell in landmarks:
+		if landmarks[cell]["kind"] == "emboscada":
+			camps.place(self, cell)
+	_place_ruin_scenes()
+
+
+## Ruínas continuam com seus prêmios; a travessia usa uma ponte real e alcançável.
+func _place_ruin_scenes() -> void:
+	var themes := ["garden", "shrine"]
+	for cell in landmarks:
+		if themes.is_empty():
+			break
+		if landmarks[cell]["kind"] == "ruina" and camps.place(self, cell, themes[0]):
+			themes.pop_front()
+	var reachable: Dictionary = layout.walk_area()
+	var bridges: Array = reachable.keys().filter(func(cell):
+		return (gen.sample(cell)["terrain"] == gen.BRIDGE and Hex.distance(cell, start_cell) >= 8
+			and landmarks.keys().all(func(other): return Hex.distance(cell, other) > 3)))
+	bridges.sort_custom(func(a, b):
+		var da := Hex.distance(a, start_cell)
+		var db := Hex.distance(b, start_cell)
+		return da < db or (da == db and a < b))
+	for cell in bridges:
+		if camps.place(self, cell, "crossing"):
+			break
 
 
 # --- Locais especiais ----------------------------------------------------------
@@ -59,7 +86,14 @@ func terrain_id_at(cell: Vector2i) -> int:
 	return terrain_override.get(cell, super(cell))
 
 
+func floor_id_at(cell: Vector2i) -> int:
+	return camps.cells[cell]["floor"] if camps.cells.has(cell) else super(cell)
+
+
 func tile_name_at(cell: Vector2i) -> String:
+	var scene_label: String = camps.label_at(cell)
+	if scene_label != "":
+		return scene_label
 	if cell == beacon_cell:
 		return "Farol"
 	if landmarks.has(cell):
@@ -181,6 +215,8 @@ func open_landmarks(from: Vector2i) -> Array:
 
 
 func landmark_label(cell: Vector2i) -> String:
+	if camps.centers.has(cell):
+		return camps.label_at(cell)
 	return "Farol" if cell == beacon_cell else Exp.LANDMARKS[landmarks[cell]["kind"]]["label"]
 
 

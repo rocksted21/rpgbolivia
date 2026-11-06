@@ -1,0 +1,89 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+OpenGL API 3.3.0 Core Profile Context 26.10.1.261008 - Compatibility - Using Device: ATI Technologies Inc. - AMD Radeon RX 7600
+
+ok: números começam escondidos
+ok: quem joga tem seta
+ok: o próximo inimigo tem seta
+ok: os outros inimigos não têm seta
+ok: o botão mostra o número de todos
+ok: o botão esconde os números de novo
+ok: passar o mouse mostra o alcance
+ok: casas do alcance ficam marcadas
+ok: passar o mouse mostra só o número dele
+ok: passar o mouse não abre menu
+ok: clicar no inimigo fixa a inspeção dele
+ok: inimigo longe mostra as habilidades apagadas
+ok: o menu aberto continua sem o mouse
+ok: clicar fora fecha a inspeção
+ok: tocar no inimigo mostra o alcance dele
+ok: toque não deixa hover preso
+ok: tocar mostra só o número dele
+ok: tocar de novo fecha e esconde o número
+ok: tocar numa casa com inspeção aberta só fecha, não anda (ativo duelista em (3, 1)->(3, 1), vizinho (3, 2), menu (-999999, -999999), cartão false, busy false)
+ok: tocar em outro personagem troca o menu
+ok: Esc fecha a inspeção
+ok: tocar no próprio herói oferece Esperar
+ok: um botão por opção
+ok: botão direito fecha o menu
+ok: tocar longe não anda nem abre menu
+ok: a ordem ligada continua depois do turno
+ok: desligar a ordem esconde os números
+ok: tocar na casa anda (direto ou pelo menu)
+ok: o menu da casa oferece Chicote de Vinhas
+ok: o menu cabe na tela
+ok: o menu mostra o dano
+ok: o menu da casa oferece Virote Pesado
+ok: o menu cabe na tela
+ok: o menu da casa oferece Floco de Neve
+ok: o menu cabe na tela
+ok: clicar em inimigo colado só abre o menu
+ok: o menu da casa oferece Corte Giratório
+ok: o menu cabe na tela
+ok: tocar na casa anda (direto ou pelo menu)
+ok: o menu da casa oferece Golpe
+ok: o menu cabe na tela
+ok: o menu da casa oferece Bola de Fogo
+ok: o menu cabe na tela
+ok: o menu da casa oferece Chicote de Vinhas
+ok: o menu cabe na tela
+ok: tocar na casa anda (direto ou pelo menu)
+ok: o menu da casa oferece Corte Giratório
+ok: o menu cabe na tela
+ok: o menu da casa oferece Floco de Neve
+ok: o menu cabe na tela
+ok: o menu da casa oferece Bola de Fogo
+ok: o menu cabe na tela
+ok: o menu da casa oferece Virote Pesado
+ok: o menu cabe na tela
+ok: o menu da casa oferece Cura
+ok: o menu cabe na tela
+ok: tocar na casa anda (direto ou pelo menu)
+ok: tocar na casa anda (direto ou pelo menu)
+ok: tocar na casa anda (direto ou pelo menu)
+ok: o menu da casa oferece Corte Giratório
+ok: o menu cabe na tela
+ok: tocar na casa anda (direto ou pelo menu)
+ok: o menu da casa oferece Bola d'Água
+ok: o menu cabe na tela
+ok: chegou a testar clique em inimigo colado
+ok: chegou a testar o atalho numérico
+turnos do jogador: 21, vencedor: jogador
+ok: todos voltam com vida cheia
+ok: lutar de novo reinicia a batalha
+ok: a casa colada no Besteiro fica sem laranja
+ok: Tiro aparece apagado com inimigo colado (besteiro (1, 1), diabrete (0, 1), ativo besteiro, menu (0, 1), opções ["approach:", "blocked:tiro", "blocked:virote_pesado"])
+ok: o Tiro apagado não atira
+ok: Cura longe aparece apagada
+ok: passar o mouse na floresta avisa da proteção
+ok: tocar na floresta anda direto
+ok: tocar numa casa vazia ao alcance oferece a magia
+ok: a magia fica mirada na casa vazia
+ok: a área da magia do herói fica marcada
+ok: o mago mostra a contagem até a magia sair
+ok: a área da magia inimiga fica escondida
+ok: segurar na Feiticeira mostra a magia dela
+ok: segurar não abre o menu de ações
+ok: soltar o dedo não fecha nem vira toque
+ok: tocar fecha o cartão
+ok: botão direito no personagem abre o cartão
+ok: a ficha do Esqueleto mostra o dano no herói da vez
