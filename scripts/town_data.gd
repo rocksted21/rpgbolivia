@@ -150,7 +150,7 @@ const PEOPLE := [
 ]
 
 # Quem anda pelas ruas. A cidade ganha gente com os resgates e os faróis.
-const WALKER_ART := ["morador_f", "morador_g", "morador_a", "morador_c"]
+const WALKER_ART := ["morador_f", "morador_g", "morador_a", "morador_c", "morador_h"]
 const WALKER_BASE := 2
 const WALKER_MAX := 6
 const WALK_ROUTE := [
