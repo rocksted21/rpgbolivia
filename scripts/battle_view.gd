@@ -117,7 +117,12 @@ const PAN_LIMIT := 380.0 # quanto a câmera solta pode se afastar do foco
 const TWIST_START := 0.08 # radianos de torção com dois dedos antes de girar
 const PINCH_IN := 1.3 # abrir os dedos nessa proporção aproxima; fechar o inverso afasta
 const DANGER_HOT := Color(1.0, 0.42, 0.32)
+const CAMP_ICONS := {"camp": "tent", "garden": "ruin", "shrine": "candle", "crossing": "house"}
+const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest"}
 const DANGER_CALM := Color(0.62, 0.9, 0.55)
+const XP_INK := Color(0.55, 0.9, 1.0)
+const LEVEL_INK := Color(1.0, 0.85, 0.3)
+const SkillTreeScene = preload("res://scenes/skill_tree.tscn")
 const TURN_SPEED := 1.9 # radianos por segundo com a tecla apertada
 const TURN_EASE := 9.0 # quão rápido o giro acelera e freia
 const TURN_DRAG := 0.007 # radianos por pixel ao arrastar com o botão do meio
@@ -325,7 +330,10 @@ var drag_ok := false # o toque começou numa casa sem inimigo, com zoom
 var dragging := false
 var touches := {} # dedo -> posição na tela
 var gesture := {} # dois dedos: ângulo e distância de partida
-var hit_from := Vector2.ZERO # de onde veio o último golpe, para o tranco de quem apanha
+var hit_from := Vector2.ZERO
+var fight_kills := 0 # inimigos derrotados na luta atual: viram experiência no fim dela
+var fight_boss := false
+var tree_layer: CanvasLayer # árvore de talentos aberta por cima do jogo # de onde veio o último golpe, para o tranco de quem apanha
 var healers_animated := {} # quem já fez o gesto de cura nesta ação (Clareira cura vários)
 
 
@@ -333,26 +341,79 @@ func _ready() -> void:
 	meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
 	fx_meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/fx/meta.json"))
 	_start_battle()
+	online_session.match_started.connect(_on_room_opened)
+	online_session.relocated.connect(_on_relocated)
 	if online_session.playing:
+		_go_online()
+		_network_packet({})
+
+
+## Liga a cena à sala: comandos, pacotes e quem joga com cada herói.
+func _go_online() -> void:
+	if not online_session.command_received.is_connected(_network_command):
 		online_session.command_received.connect(_network_command)
 		online_session.packet_received.connect(_network_packet)
 		online_session.connection_lost.connect(_network_lost)
 		online_session.changed.connect(_room_status)
-		var layer := CanvasLayer.new()
-		add_child(layer)
-		var row := HBoxContainer.new()
-		row.position = Vector2(860, 74)
-		layer.add_child(row)
-		room_label = Label.new()
-		room_label.add_theme_font_size_override("font_size", 18)
-		row.add_child(room_label)
-		var leave_button := Button.new()
-		leave_button.text = "Sair da sala"
-		sound_manager.bind_button(leave_button)
-		leave_button.pressed.connect(_leave_online)
-		row.add_child(leave_button)
-		_room_status()
-		_network_packet({})
+		online_session.player_arrived.connect(_on_player_arrived)
+	hud.save_allowed = online_session.relay.is_master
+	hud.load_allowed = false
+	_room_status()
+
+
+## A jornada que estava rolando virou sala (botão Grupo): o dono segue jogando com todos.
+func _on_room_opened() -> void:
+	if online_session.state != state:
+		return
+	_go_online()
+	hud.show_banner("Sala aberta: %s" % online_session.relay.room_code, LEVEL_INK)
+	_open_group()
+
+
+## Alguém entrou no meio: recebe a partida e o dono já vê a janela para dar um herói a ele.
+func _on_player_arrived(id: int) -> void:
+	online_session.publish([], not busy, _free_roam())
+	hud.show_banner("%s entrou na sala" % online_session.players.get(id, "Jogador"), Color(0.6, 1.0, 0.6))
+	sound_manager.play_ui(&"switch3")
+	_open_group()
+
+
+func _open_group() -> void:
+	var heroes := []
+	for unit in state.party:
+		heroes.append({"unit": unit, "type_id": unit.type_id, "owner": online_session.owner_of(unit) if online_session.playing else 0})
+	hud.show_group({
+		"online": online_session.playing, "is_host": online_session.playing and online_session.relay.is_master,
+		"code": online_session.relay.room_code, "players": online_session.players if online_session.playing else {}, "heroes": heroes,
+	})
+
+
+func _open_room() -> void:
+	if online_session.playing or expedition or town or state.winner() >= 0:
+		return
+	hud.show_banner("Abrindo sala…", Color(0.8, 0.9, 1.0))
+	online_session.open_existing(state)
+
+
+## Dono fecha a sala e continua jogando sozinho; quem não é dono volta para o lobby.
+func _leave_room() -> void:
+	if not online_session.playing:
+		return
+	if not online_session.relay.is_master:
+		_leave_online()
+		return
+	for signal_name in ["command_received", "packet_received", "connection_lost", "changed", "player_arrived"]:
+		for connection in online_session.get_signal_connection_list(signal_name):
+			if connection["callable"].get_object() == self:
+				online_session.disconnect(signal_name, connection["callable"])
+	online_session.leave()
+	state.split_fights = false
+	hud.save_allowed = true
+	hud.load_allowed = true
+	hud.set_party_owners({})
+	_update_party_progress()
+	_refresh_end_turn()
+	_update_journey()
 
 
 func _exit_tree() -> void:
@@ -376,8 +437,10 @@ func _start_battle() -> void:
 	var chosen: Variant = get_tree().root.get_meta(WORLD_META, [])
 	var party_types: Array = chosen if chosen is Array else ([chosen] if str(chosen) != "" else [])
 	exploring = online_session.playing or not party_types.is_empty()
-	town = not online_session.playing and get_tree().root.get_meta(TOWN_META, false)
+	town = get_tree().root.get_meta(TOWN_META, false)
 	expedition = false
+	if online_session.playing: # online: o mapa vem da sala
+		town = online_session.state is TownState
 	if town:
 		music_manager.play_menu()
 	else:
@@ -387,6 +450,7 @@ func _start_battle() -> void:
 		level_layers = TOWN_LAYERS_PER_LEVEL if town else WORLD_LAYERS_PER_LEVEL
 	if online_session.playing:
 		state = online_session.state
+		expedition = state is ExpeditionState
 	elif not loaded.is_empty():
 		state = SaveGame.restore(loaded)
 		expedition = loaded.mode == "expedition"
@@ -416,6 +480,8 @@ func _start_battle() -> void:
 	cells_to_build.clear()
 	cells_to_unload.clear()
 	camera_look = null
+	fight_kills = 0
+	fight_boss = false
 	zoomed = false
 	pan = Vector2.ZERO
 	dragging = false
@@ -503,9 +569,10 @@ func _start_battle() -> void:
 	hud.option_pressed.connect(_on_option_pressed)
 	hud.order_toggled.connect(_on_order_toggled)
 	hud.end_turn_pressed.connect(_end_turn)
+	hud.jump_pressed.connect(func(): _set_jump_mode(not jump_mode))
 	hud.restart_pressed.connect(_leave_online if online_session.playing else (_back_to_menu if expedition else _start_battle))
 	hud.skills_pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
-	hud.save_allowed = not online_session.playing
+	hud.save_allowed = not online_session.playing or online_session.relay.is_master
 	hud.load_allowed = not online_session.playing
 	hud.options_toggled.connect(func(open): get_tree().paused = open and not online_session.playing)
 	hud.save_pressed.connect(_save_game)
@@ -522,6 +589,14 @@ func _start_battle() -> void:
 		if town:
 			_setup_town()
 		hud.setup_party(state.party, _owner_names())
+		_update_party_progress()
+		hud.show_group_button(online_session.playing or (not expedition and not town))
+		hud.group_pressed.connect(_open_group)
+		hud.open_room_pressed.connect(_open_room)
+		hud.leave_room_pressed.connect(_leave_room)
+		hud.group_assign.connect(func(unit, id):
+			online_session.assign(unit, id)
+			_open_group())
 		hud.party_pressed.connect(_on_party_pick)
 		hud.rotate_held.connect(func(direction): turn_hold = direction)
 		hud.together_toggled.connect(func(on): together = on)
@@ -564,6 +639,7 @@ func _update_journey() -> void:
 	if town:
 		_update_town()
 		return
+	hud.show_overview(not state.in_combat())
 	var danger: int = state.danger()
 	var heat := clampf((danger - 1) / 5.0, 0.0, 1.0)
 	var stats := [
@@ -577,6 +653,7 @@ func _update_journey() -> void:
 		hud.set_overview(title, stats)
 		return
 	stats.append({"icon": "flame", "value": state.brasas, "label": "Brasas", "color": Color(1.0, 0.68, 0.3)})
+	stats.append({"icon": "star", "value": state.level, "label": "Nível", "color": Color(1.0, 0.85, 0.35)})
 	hud.set_overview(title, stats, _level_info(), _compass_chips())
 	hud.set_tracker(_quest_tracker())
 	hud.update_party(selected if _free_roam() else state.active_unit())
@@ -611,19 +688,16 @@ func _show_result(result: int) -> void:
 				_rebuild_cell(state.beacon_cell) # o farol acende
 		var types := []
 		for unit in state.units:
-			if unit.team == Data.Team.PLAYER and (not online_session.playing or online_session.can_control(unit)):
+			if unit.team == Data.Team.PLAYER and (not online_session.playing or online_session.relay.is_master): # online: o save do dono
 				types.append(unit.type_id)
-		var before := 0
-		for type_id in types:
-			before += HeroProgress.earned(type_id)
-		var count := HeroProgress.award(types, gain)
-		if count == 1: # perto do teto, o herói pode ganhar menos que o previsto
-			var after := 0
-			for type_id in types:
-				after += HeroProgress.earned(type_id)
-			gain = after - before
-		if count > 0:
-			note = "+%d %s de skill%s" % [gain, "pontos" if gain > 1 else "ponto", " para %d heróis" % count if count > 1 else ""]
+		_reward_fight() # abates da última luta (na arena, a luta toda)
+		var xp_gain: int = gain * Skills.END_XP_PER_POINT
+		var raised := HeroProgress.add_xp(types.filter(func(type_id): return Skills.has_tree(type_id)), xp_gain)
+		if xp_gain > 0 and not types.is_empty():
+			note = "+%d XP para cada herói" % xp_gain
+		if not raised.is_empty():
+			note += "\nLevel up: %s" % ", ".join(raised.map(func(type_id): return Data.UNIT_TYPES[type_id]["name"]))
+		_update_party_progress()
 	for id in quests_finished:
 		note += "%sMissão cumprida: %s" % ["\n" if note != "" else "", TownContent.QUESTS[id]["title"]]
 	quests_finished = []
@@ -1445,11 +1519,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_refresh_overlays()
 			_update_hint()
 	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE and jump_mode:
-			_set_jump_mode(false)
-		elif event.keycode == KEY_J and not _free_roam():
-			_set_jump_mode(not jump_mode)
-		elif event.keycode == KEY_ESCAPE:
+		if event.keycode == KEY_ESCAPE:
 			if menu_cell != NO_CELL or not _free_roam():
 				_close_menu()
 			else:
@@ -1485,7 +1555,7 @@ func _pan_by(screen_delta: Vector2, reset := false) -> void:
 	if reset:
 		pan = Vector2.ZERO
 	else:
-		var ground := Vector2(screen_delta.x, screen_delta.y / BattleCamera.GROUND_TILT) / battle_camera.zoom
+		var ground: Vector2 = Vector2(screen_delta.x, screen_delta.y / BattleCamera.GROUND_TILT) / battle_camera.zoom
 		pan = (pan + ground.rotated(-view_angle)).limit_length(PAN_LIMIT)
 	if not exploring:
 		board.position = BOARD_POS + pan
@@ -1539,7 +1609,9 @@ func _end_turn() -> void:
 ## O botão só aparece quando é a vez de alguém que este jogador controla.
 func _refresh_end_turn() -> void:
 	var unit = state.active_unit()
-	hud.show_end_turn(not busy and state.winner() < 0 and not _free_roam() and unit != null and unit.team == Data.Team.PLAYER and online_session.can_control(unit))
+	var mine: bool = not busy and state.winner() < 0 and not _free_roam() and unit != null and unit.team == Data.Team.PLAYER and online_session.can_control(unit)
+	hud.show_end_turn(mine)
+	hud.show_jump(mine and (jump_mode or not state.jump_cells(unit).is_empty()), jump_mode)
 
 
 # O toque vira clique ao soltar, para dar tempo de saber se a pessoa está segurando.
@@ -1713,6 +1785,7 @@ func _set_jump_mode(on: bool) -> void:
 		return
 	jump_mode = on
 	_close_menu()
+	_refresh_end_turn()
 	_refresh_overlays()
 	_update_hint()
 
@@ -1746,8 +1819,8 @@ func _open_menu(cell: Vector2i) -> void:
 	# Sem ações, um menu só cobriria o alcance que a pessoa quer ver: a informação vai na dica.
 	if not options.is_empty():
 		var title: String = occupant.display_name if occupant != null else state.tile_name_at(cell)
-		var info: String = _menu_info(occupant) if occupant != null else "\n".join(_terrain_notes(_actor(), cell))
-		hud.show_menu(cell_to_screen(cell), title, occupant.team if occupant != null else -1, info, options)
+		var info: String = "" if occupant != null else "\n".join(_terrain_notes(_actor(), cell))
+		hud.show_menu(cell_to_screen(cell), title, occupant.team if occupant != null else -1, info, options, _menu_status(occupant))
 	# A fila mostra onde a magia seria solta, antes de confirmar.
 	var spell := _menu_spell()
 	if spell != "":
@@ -1789,8 +1862,6 @@ func _cell_options(cell: Vector2i) -> Array:
 			options.append({"kind": "travel", "label": "Ir até lá", "detail": "para ao ser visto"})
 		options.append({"kind": "cancel", "label": "Cancelar", "detail": ""})
 	elif cell == unit.pos:
-		if not state.jump_cells(unit).is_empty():
-			options.append({"kind": "jump_mode", "label": "Pular (J)", "detail": "ação fica %s× mais lenta" % _penalty_text(unit)})
 		options.append({"kind": "wait", "label": "Encerrar turno", "detail": "passa a vez"})
 	elif state.unit_at(cell) == null:
 		if _can_walk_to(unit, cell):
@@ -1805,10 +1876,12 @@ func _ability_option(unit, id: String, cell: Vector2i) -> Dictionary:
 	var target = state.unit_at(cell)
 	match ability["kind"]:
 		"attack":
-			return {"detail": _preview_text(unit, id, target), "tone": "damage"}
+			var hit: Dictionary = state.preview_attack(unit, id, target)
+			return {"detail": _preview_text(unit, id, target), "tone": "damage", "damage": hit["amount"], "flank": hit["flank"], "lethal": hit["amount"] >= target.hp}
 		"heal":
-			var detail := "+%d" % mini(ability["heal"], target.max_hp - target.hp)
-			return {"detail": detail + " e vizinhos" if ability.has("radius") else detail, "tone": "heal"}
+			var amount: int = mini(ability["heal"], target.max_hp - target.hp)
+			var detail := "+%d" % amount
+			return {"detail": detail + " e vizinhos" if ability.has("radius") else detail, "tone": "heal", "heal": amount}
 		"guard":
 			return {"detail": "atrai inimigos" if ability.has("taunt") else "reduz o dano"}
 		_:
@@ -1840,6 +1913,14 @@ func _area_text(unit, cells: Array) -> String:
 	if allies > 0:
 		text += ", %d aliado%s" % [allies, "" if allies == 1 else "s"]
 	return text
+
+
+## Vida e vez de quem está na casa, para a barra e o selo do menu.
+func _menu_status(occupant) -> Dictionary:
+	if occupant == null:
+		return {}
+	var aware: bool = state.takes_turns(occupant)
+	return {"hp": occupant.hp, "max_hp": occupant.max_hp, "unaware": not aware, "order": state.turn_order().find(occupant) + 1 if aware else 0}
 
 
 func _menu_info(occupant) -> String:
@@ -2118,9 +2199,8 @@ func _turn_hint(unit) -> String:
 	var steps: int = state.steps_left(unit)
 	var walk: String = "%d %s" % [steps, "casa" if steps == 1 else "casas"] if steps > 0 else "sem passos"
 	if jump_mode:
-		return "Pulo: clique numa casa verde · ação depois fica %s× mais lenta · Esc cancela" % _penalty_text(unit)
-	var jump := " · J pula" if not state.jump_cells(unit).is_empty() else ""
-	return "%s%s · Atacar encerra o turno · %s" % [walk, jump, END_TURN_KEY_HINT]
+		return "Pulo: clique numa casa verde · a ação depois fica %s× mais lenta" % _penalty_text(unit)
+	return "%s · Atacar encerra o turno · %s" % [walk, END_TURN_KEY_HINT]
 
 
 func _penalty_text(unit) -> String:
@@ -2298,8 +2378,15 @@ func _network_packet(_packet: Dictionary) -> void:
 
 
 func _room_status() -> void:
-	if room_label == null: return
-	room_label.text = "SALA DE %s · %d/4  " % [online_session.players.get(online_session.original_host, "Jogador"), online_session.players.size()]
+	if not online_session.playing or hud == null:
+		return
+	hud.set_party_owners(_owner_names())
+	if selected != null and not online_session.can_control(selected) and _free_roam():
+		_select(_first_mine())
+	if hud.group_open():
+		_open_group()
+	_refresh_end_turn()
+	_refresh_turn_markers()
 	_update_hint()
 
 
@@ -2370,7 +2457,11 @@ func _select_next() -> void:
 
 
 func _on_party_pick(unit) -> void:
-	if _free_roam() and unit.alive() and online_session.can_control(unit):
+	var can_open: bool = _free_roam() and not online_session.playing and Skills.has_tree(unit.type_id)
+	if can_open and (unit == selected or HeroProgress.available(unit.type_id) > 0 or not unit.alive()):
+		sound_manager.play_ui(&"switch3")
+		_open_tree(unit)
+	elif _free_roam() and unit.alive() and online_session.can_control(unit):
 		sound_manager.play_ui(&"switch3")
 		_select(unit)
 	else:
@@ -2808,6 +2899,86 @@ func _play_combat_end(event: Dictionary) -> void:
 	hud.refresh(state)
 	_refresh_turn_markers()
 	await get_tree().create_timer(0.4).timeout
+	await _reward_fight()
+
+
+## Heróis deste jogador que estão de pé: só eles ganham experiência no save daqui.
+func _my_living_heroes() -> Array:
+	if online_session.playing and not online_session.relay.is_master:
+		return [] # os heróis são do save do dono da sala: só ele ganha experiência
+	return state.units.filter(func(unit): return unit.team == Data.Team.PLAYER and unit.alive() and Skills.has_tree(unit.type_id))
+
+
+## Fim de uma luta: "+N XP" sobe da cabeça de cada herói e, se alguém subiu, "LEVEL UP!".
+## A carta dele lá embaixo passa a mostrar os pontos para gastar.
+func _reward_fight(bonus := 0) -> void:
+	var amount := fight_kills * Skills.HERO_KILL_XP + (Skills.HERO_BOSS_XP if fight_boss else 0) + bonus
+	fight_kills = 0
+	fight_boss = false
+	var heroes := _my_living_heroes()
+	if amount <= 0 or heroes.is_empty():
+		return
+	var raised := HeroProgress.add_xp(heroes.map(func(unit): return unit.type_id), amount)
+	for unit in heroes:
+		if views.has(unit):
+			_pop_number(views[unit].position, "+%d XP" % amount, XP_INK, 0.8)
+	_update_party_progress()
+	if raised.is_empty():
+		return
+	await get_tree().create_timer(0.7).timeout
+	sound_manager.play_sfx(&"heal")
+	for unit in heroes:
+		if unit.type_id in raised and views.has(unit):
+			_pop_number(views[unit].position, "LEVEL UP!", LEVEL_INK, 1.3, "Nv %d" % HeroProgress.level(unit.type_id))
+	hud.show_banner("Level up!", LEVEL_INK)
+	await get_tree().create_timer(0.6).timeout
+
+
+## Nível, barra de experiência e pontos livres nas cartas dos heróis deste jogador.
+func _update_party_progress() -> void:
+	if not exploring:
+		return
+	if online_session.playing and not online_session.relay.is_master:
+		return
+	for unit in state.party:
+		hud.set_party_progress(unit, HeroProgress.level_info(unit.type_id), HeroProgress.available(unit.type_id))
+
+
+## Árvore de talentos por cima do jogo, só com os heróis da party. O que for comprado vale na hora.
+func _open_tree(unit) -> void:
+	if tree_layer != null or online_session.playing:
+		return
+	tree_layer = CanvasLayer.new()
+	tree_layer.layer = TOWN_PANELS_LAYER + 10
+	add_child(tree_layer)
+	var screen = SkillTreeScene.instantiate()
+	screen.embedded = true
+	screen.live = true
+	screen.start_hero = unit.type_id
+	screen.only_heroes = state.party.map(func(member): return member.type_id)
+	screen.bought.connect(_apply_bought_node)
+	screen.closed.connect(func():
+		tree_layer.queue_free()
+		tree_layer = null
+		_update_party_progress())
+	tree_layer.add_child(screen)
+
+
+func _apply_bought_node(type_id: String, node_id: String) -> void:
+	var found: Dictionary = Skills.locate(type_id, node_id)
+	for i in state.party.size():
+		var member = state.party[i]
+		if member.type_id != type_id or found.is_empty():
+			continue
+		member._apply_node(found["node"])
+		if state.builds_used is Dictionary:
+			var build: Array = state.builds_used.get(i, [])
+			build.append(node_id)
+			state.builds_used[i] = build
+		if views.has(member):
+			views[member].set_hp(member.hp)
+	_update_party_progress()
+	hud.update_party(selected if _free_roam() else state.active_unit())
 
 
 func _is_quiet(unit) -> bool:
@@ -2925,18 +3096,27 @@ func _level_info() -> Dictionary:
 	return {"level": state.level, "fraction": float(state.xp - floor_xp) / span, "note": "faltam %d XP" % left}
 
 
-## Farol e o local aberto mais perto, com a agulha já girada conforme a câmera.
+## Farol e o local aberto mais perto, no radar: só o ícone e a direção, já girada com a câmera.
 func _compass_chips() -> Array:
-	var chips := [_compass("Farol", state.beacon_cell)]
+	var chips := [_compass("Farol", state.beacon_cell, "lighthouse", BEACON_COLOR)]
 	var open: Array = state.open_landmarks(camera_cell)
 	if not open.is_empty() and (state.far_compass or Hex.distance(open[0], camera_cell) <= Exp.COMPASS_RADIUS):
-		chips.append(_compass(state.landmark_label(open[0]), open[0]))
+		var cell: Vector2i = open[0]
+		var icon := "tent"
+		var color := Color(0.85, 0.7, 0.5)
+		if state.camps.centers.has(cell):
+			icon = CAMP_ICONS.get(state.camps.sites.get(cell, ""), "tent")
+		elif state.landmarks.has(cell):
+			var kind: String = state.landmarks[cell]["kind"]
+			icon = LANDMARK_ICONS.get(kind, "star")
+			color = Exp.LANDMARKS[kind]["color"]
+		chips.append(_compass(state.landmark_label(cell), cell, icon, color))
 	return chips
 
 
-func _compass(label: String, cell: Vector2i) -> Dictionary:
+func _compass(label: String, cell: Vector2i, icon: String, color: Color) -> Dictionary:
 	var away: Vector2 = (_flat_point(cell) - _flat_point(camera_cell)).rotated(view_angle)
-	return {"label": label, "angle": Vector2(away.x, away.y * BattleCamera.GROUND_TILT).angle(), "distance": Hex.distance(cell, camera_cell)}
+	return {"label": label, "icon": icon, "color": color, "angle": Vector2(away.x, away.y * BattleCamera.GROUND_TILT).angle()}
 
 
 ## A primeira missão aceita, somando o que a expedição já fez por ela.
@@ -2979,6 +3159,10 @@ func _end_text() -> String:
 
 
 func _back_to_menu() -> void:
+	if online_session.playing and expedition: # online: volta todo mundo para a cidade
+		if online_session.relay.is_master:
+			online_session.relocate(TownState.new(_party_types(), randi(), online_session.match_builds(), TownProgress.expedition_setup()))
+		return
 	if expedition:
 		_start_battle() # o fim da expedição já deixou a volta para a cidade marcada
 	else:
@@ -2988,7 +3172,7 @@ func _back_to_menu() -> void:
 # --- Menu de opções ------------------------------------------------------------
 
 func _save_game() -> void:
-	if online_session.playing or state.winner() >= 0:
+	if (online_session.playing and not online_session.relay.is_master) or state.winner() >= 0:
 		return
 	if SaveGame.save(state):
 		hud.show_options_note("Jogo salvo!")
@@ -3049,7 +3233,21 @@ func _party_types() -> Array:
 	return state.party.map(func(unit): return unit.type_id)
 
 
+## Online: o dono trocou de mapa; todo mundo refaz a cena com o estado novo.
+func _on_relocated() -> void:
+	_start_battle()
+	if online_session.playing:
+		_go_online()
+		_network_packet({})
+
+
 func _depart(party_types: Array) -> void:
+	if online_session.playing: # online: a party é a da sala; só o dono decide a partida
+		if online_session.relay.is_master:
+			online_session.relocate(ExpeditionState.new(_party_types(), randi(), online_session.match_builds(), TownProgress.expedition_setup()))
+		else:
+			hud.show_banner("Só o dono da sala pode partir.", LEVEL_INK)
+		return
 	var root := get_tree().root
 	root.set_meta("world_hero", party_types)
 	root.set_meta(TOWN_META, false)
@@ -3066,8 +3264,8 @@ func _update_town() -> void:
 		{"icon": "heart", "value": "%d/%d" % [state.alive_party().size(), state.party.size()], "label": "Heróis", "color": Color(1.0, 0.45, 0.45)},
 		{"icon": "people", "value": people, "label": "Habitantes", "color": Color(0.7, 0.82, 1.0)},
 		{"icon": "flame", "value": TownProgress.brasas(), "label": "Brasas", "color": Color(1.0, 0.68, 0.3)},
-		{"icon": "star", "value": TownProgress.beacons(), "label": "Faróis acesos", "color": Color(1.0, 0.85, 0.35)},
-	], {"level": city_level, "fraction": -1.0, "name": "Nível da Cidade"})
+		{"icon": "star", "value": TownProgress.beacons(), "label": "Faróis", "color": Color(1.0, 0.85, 0.35)},
+	], {"level": city_level, "fraction": -1.0, "name": "Cidade"})
 	hud.update_party(selected)
 
 
@@ -3323,6 +3521,10 @@ func _play_heal(event: Dictionary) -> void:
 
 # O kit não tem animação de morte: a unidade tomba e some.
 func _play_death(event: Dictionary) -> void:
+	if event["target"].team == Data.Team.ENEMY:
+		fight_kills += 1
+		if expedition and state.is_boss(event["target"]):
+			fight_boss = true
 	if not hit_ctx.is_empty() or HeroJuice.is_hero(event["target"].type_id):
 		await _play_hero_death(event)
 		return

@@ -6,12 +6,17 @@ signal match_started
 signal packet_received(packet: Dictionary)
 signal command_received(sender: int, command: Dictionary)
 signal connection_lost(reason: String)
+signal relocated # o dono trocou de mapa (cidade <-> expedição): todos refazem a cena
+signal player_arrived(id: int) # alguém entrou com a partida rolando: o dono decide o herói dele
 
 const Relay = preload("res://net/relay_connection.gd")
 const WorldState = preload("res://scripts/world_state.gd")
+const TownState = preload("res://scripts/town_state.gd")
+const TownProgress = preload("res://scripts/town_progress.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Skills = preload("res://scripts/skill_data.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
+const SaveGame = preload("res://scripts/save_game.gd")
 var relay
 var player_name := "Jogador"
 var players := {}
@@ -27,6 +32,7 @@ var revision := 0
 var packets: Array = []
 var notice := ""
 var original_host := 0
+var pending_state = null # partida já em andamento que vai virar sala (open_existing)
 
 func _process(_delta: float) -> void:
 	if original_host != 0 and relay.dropped_code != 0:
@@ -71,6 +77,12 @@ func create_room() -> void:
 	notice = "Criando sala…"
 	changed.emit()
 
+## A jornada que já está rolando vira sala: o dono controla todos os heróis até alguém entrar.
+func open_existing(running_state) -> void:
+	pending_state = running_state
+	create_room()
+
+
 func join_room(code: String) -> void:
 	code = code.strip_edges().to_upper()
 	if code.is_empty() or code.length() > 32 or not code.is_valid_identifier():
@@ -96,6 +108,7 @@ func leave() -> void:
 	packets.clear()
 	revision = 0
 	original_host = 0
+	pending_state = null
 	notice = ""
 	changed.emit()
 
@@ -104,11 +117,24 @@ func _host_joined() -> void:
 	players = {relay.my_id: player_name}
 	player_builds = {relay.my_id: HeroProgress.all_builds()}
 	notice = "Aguardando jogadores."
+	if pending_state != null:
+		state = pending_state
+		pending_state = null
+		party_types = state.party.map(func(unit): return unit.type_id)
+		owners = []
+		for unit in state.party:
+			owners.append(relay.my_id) # os heróis vêm primeiro em state.units: owners segue essa ordem
+		state.split_fights = true
+		revision = 0
+		playing = true
+		relay.set_props({fase = "Jornada"})
+		match_started.emit()
 	changed.emit()
 
 func _client_joined() -> void:
 	original_host = relay.master_id
-	_send({type = "hello", name = player_name, builds = HeroProgress.all_builds()}, true)
+	# Quem entra usa os heróis do dono da sala: níveis, árvore e itens vêm do save dele.
+	_send({type = "hello", name = player_name}, true)
 	notice = "Aguardando confirmação do dono…"
 	changed.emit()
 
@@ -134,11 +160,9 @@ func heroes_of(id: int) -> Array:
 		if picks[hero] == id: result.append(hero)
 	return result
 
+## O dono pode começar sozinho: os heróis que ninguém pegou ficam com ele.
 func can_start() -> bool:
-	if players.size() < 2: return false
-	for id in players:
-		if heroes_of(id).is_empty(): return false
-	return true
+	return relay.is_master and not picks.is_empty()
 
 ## Só entram na party os heróis escolhidos, na ordem da lista: [índice do herói, ...].
 func party_heroes() -> Array:
@@ -171,23 +195,49 @@ func start_match() -> void:
 	party_types = heroes.map(func(hero): return Data.WORLD_HEROES[hero])
 	owners = heroes.map(func(hero): return picks[hero])
 	var builds := match_builds()
-	var world_seed := randi()
-	state = WorldState.new(party_types, world_seed, builds)
+	state = TownState.new(party_types, randi(), builds, TownProgress.expedition_setup()) # começa na cidade, como o solo
 	state.split_fights = true
 	revision = 0
 	playing = true
-	relay.set_props({locked = true, fase = "Jornada"})
-	_send({type = "start", owners = owners, players = players, party = party_types, world_seed = world_seed, builds = builds})
+	relay.set_props({fase = "Jornada"}) # a sala segue aberta: dá para entrar no meio
+	_send({type = "start", owners = owners, players = players, party = party_types, save = SaveGame.capture(state)})
 	match_started.emit()
 
-## Cada herói usa a build de quem ficou com ele: {índice na party: [nós]}.
+## Só o dono: troca o mapa da partida (cidade -> expedição -> cidade) e manda para todos.
+func relocate(new_state) -> void:
+	if not playing or not relay.is_master:
+		return
+	state = new_state
+	state.split_fights = true
+	revision = 0
+	_send({type = "relocate", save = SaveGame.capture(state)})
+	relocated.emit()
+
+## Todos os heróis usam a árvore do save do dono da sala: {índice na party: [nós]}.
 func match_builds() -> Dictionary:
 	var builds := {}
+	var saved: Dictionary = player_builds.get(relay.my_id, {})
 	for i in party_types.size():
-		var saved: Variant = player_builds.get(owners[i], {})
-		if saved is Dictionary:
-			builds[i] = Skills.sanitize(party_types[i], saved.get(party_types[i], []))
+		builds[i] = Skills.sanitize(party_types[i], saved.get(party_types[i], []))
 	return builds
+
+
+## Dono: passa o herói (índice em state.units) para um jogador da sala.
+func assign(unit, id: int) -> void:
+	if not relay.is_master or not playing or not players.has(id):
+		return
+	var index: int = state.units.find(unit)
+	if index < 0:
+		return
+	while owners.size() <= index:
+		owners.append(relay.my_id)
+	owners[index] = id
+	_roster()
+
+
+## Partida completa para quem entrou no meio: o save do momento refaz tudo do lado de lá.
+func _send_match(to: int) -> void:
+	_send({type = "start", to = to, owners = owners, players = players, party = party_types, save = SaveGame.capture(state)})
 
 
 ## Confere o que veio do dono, para uma mensagem estranha não derrubar o cliente.
@@ -251,9 +301,11 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 	var kind: String = str(message.get("type", ""))
 	if relay.is_master:
 		if sender not in relay.peer_ids: return
-		if kind == "hello" and not playing:
+		if kind == "hello" and not players.has(sender):
 			players[sender] = str(message.get("name", "Jogador")).strip_edges().left(20)
-			player_builds[sender] = message.get("builds", {})
+			if playing:
+				_send_match(sender)
+				player_arrived.emit(sender)
 			_roster()
 		elif kind == "pick" and message.get("hero") is int:
 			_toggle_pick(sender, message.hero)
@@ -268,17 +320,31 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 			picks = message.get("picks", {})
 			changed.emit()
 		"start":
-			if playing: return
+			if playing or (message.has("to") and message.get("to") != relay.my_id): return
 			var types := clean_party(message.get("party"))
-			if types.is_empty() or not message.get("world_seed") is int: return
+			if types.is_empty(): return
+			if message.get("save") is Dictionary: # entrou no meio: a partida chega inteira
+				state = SaveGame.restore(message.save)
+				if state == null or not "party" in state: return
+			elif message.get("world_seed") is int:
+				state = WorldState.new(types, message.world_seed, clean_builds(message.get("builds", {}), types))
+			else:
+				return
 			playing = true
 			players = message.players
 			owners = message.owners
 			party_types = types
-			state = WorldState.new(types, message.world_seed, clean_builds(message.get("builds", {}), types))
 			state.split_fights = true
 			revision = 0
 			match_started.emit()
+		"relocate":
+			if not playing or not message.get("save") is Dictionary: return
+			var moved = SaveGame.restore(message.save)
+			if moved == null or not "party" in moved: return
+			state = moved
+			state.split_fights = true
+			revision = 0
+			relocated.emit()
 		"battle":
 			if playing:
 				packets.append(message)

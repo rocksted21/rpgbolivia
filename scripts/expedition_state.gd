@@ -296,7 +296,7 @@ func _gain_xp(amount: int, events: Array) -> void:
 			member.max_hp += Exp.LEVEL_HP
 			member.atk += Exp.LEVEL_ATK
 			if member.alive():
-				member.hp += Exp.LEVEL_HP
+				member.hp = member.max_hp # upar de nível restaura a vida toda
 		events.append({"type": "level_up", "level": level})
 
 
