@@ -88,6 +88,8 @@ static func capture(state) -> Dictionary:
 					rows.append(row)
 			landmarks[cell] = entry
 		data.landmarks = landmarks
+		# O arquivo grava as chaves em ordem alfabética; a ordem original dos locais decide jogadas.
+		data.landmark_order = state.landmarks.keys()
 		data.terrain_override = state.terrain_override.duplicate()
 		data.beacon_cell = state.beacon_cell
 		data.boss = state.boss.uid if state.boss != null else 0
@@ -149,7 +151,7 @@ static func restore(data: Dictionary):
 		state.last_walker = by_uid.get(data.last_walker, state.party[0])
 	if data.mode == "expedition":
 		state.landmarks.clear()
-		for cell in data.landmarks:
+		for cell in data.get("landmark_order", data.landmarks.keys()):
 			var entry: Dictionary = data.landmarks[cell].duplicate()
 			entry.guards = entry.guards.map(func(uid): return by_uid.get(uid)).filter(func(u): return u != null)
 			state.landmarks[cell] = entry

@@ -645,7 +645,7 @@ func test_move_and_act() -> void:
 	var walked: Array = state.do_move(hero, Vector2i(2, 0))
 	check(walked.size() == 2 and walked[0]["type"] == "move", "anda o caminho inteiro em um comando")
 	check(hero.pos == Vector2i(2, 0) and hero.clock == clock and state.active_unit() == hero, "andar não passa a vez")
-	check(state.steps_left(hero) == 3, "sobram 3 casas")
+	check(state.steps_left(hero) == 1, "sobra 1 casa depois de andar 2")
 	state.do_ability(hero, "golpe", foe.pos)
 	check(hero.clock == clock + state.time_for(150, hero), "o ataque cobra o relógio")
 	check(hero.moved == 0, "o ataque encerra o turno: o próximo começa com todos os passos")

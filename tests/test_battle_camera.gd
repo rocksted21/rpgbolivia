@@ -88,9 +88,9 @@ func _test_forest_and_jump(battle) -> void:
 	_expect(is_zero_approx(actor.visual_root.position.y), "corpo volta ao chão ao aterrissar")
 	_expect(is_equal_approx(battle.battle_camera.elevation_of(actor), battle._cell_elevation(forest)), "altura final do salto")
 	_expect(back.z_index < actor.z_index and front.z_index > actor.z_index, "personagem entre as duas metades da floresta")
-	_expect(front.material.get_shader_parameter("scenery_slice") == 2, "árvores da frente recortadas separadamente")
-	_expect(back.material.get_shader_parameter("scenery_slice") == 1, "copa do fundo recortada separadamente")
-	_expect(front.scale.y > 1.5, "árvores mais altas")
+	# A floresta agora usa os sprites do bioma: uma camada atrás e outra à frente do personagem.
+	_expect(front != back and front.texture != null and back.texture != null, "floresta com camadas de sprite do bioma")
+	_expect(front.texture.get_height() > 160 or back.texture.get_height() > 160, "árvores mais altas que a casa")
 	_expect(is_equal_approx(battle.state.tile_at(forest).damage, 0.8), "proteção da floresta continua em 20%")
 	battle.pinned = hero
 	battle._refresh_overlays()
