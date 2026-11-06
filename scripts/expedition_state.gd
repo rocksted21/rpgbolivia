@@ -425,8 +425,9 @@ func _check_visits(events: Array) -> void:
 
 func _wake_guards(cell: Vector2i, entry: Dictionary, count: int, events: Array) -> void:
 	var guards := []
+	var types := _pack_types(count)
 	for spot in _spots_around(cell, count):
-		var unit = _spawn_enemy(_pick_type(), spot)
+		var unit = _spawn_enemy(types[guards.size()], spot)
 		guards.append(unit)
 		events.append({"type": "spawn", "unit": unit})
 	if guards.is_empty():
@@ -454,8 +455,9 @@ func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
 	boss.abilities = (Data.UNIT_TYPES[boss_type]["abilities"] if own_boss else Exp.BOSS["abilities"]).duplicate()
 	events.append({"type": "spawn", "unit": boss})
 	var guards := [boss]
+	var escort := _pack_types(spots.size() - 1)
 	for i in range(1, spots.size()):
-		var unit = _spawn_enemy(_pick_type(), spots[i])
+		var unit = _spawn_enemy(escort[i - 1], spots[i])
 		guards.append(unit)
 		events.append({"type": "spawn", "unit": unit})
 	entry["state"] = "fighting"

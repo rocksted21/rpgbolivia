@@ -127,7 +127,7 @@ func _timeline_box(unit, first: bool, seen: Dictionary, beyond: int) -> PanelCon
 	box.gui_input.connect(_on_timeline_input.bind(unit))
 	var portrait := TextureRect.new()
 	var atlas := AtlasTexture.new()
-	atlas.atlas = load("res://assets/units/%s.png" % unit.type_id)
+	atlas.atlas = load("res://assets/units/%s.png" % Data.art(unit.type_id))
 	var info: Dictionary = hud.meta[unit.type_id]
 	atlas.region = Rect2(0, 0, info["cell_w"], info["cell_h"])
 	portrait.texture = atlas

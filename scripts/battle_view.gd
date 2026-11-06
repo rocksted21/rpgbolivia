@@ -286,6 +286,9 @@ var journey_ui := JourneyUi.new(self) # objetivo, missão, poção e fim da expe
 
 func _ready() -> void:
 	meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
+	for type_id in Data.UNIT_TYPES: # variações usam a folha de outro tipo
+		if not meta.has(type_id) and meta.has(Data.art(type_id)):
+			meta[type_id] = meta[Data.art(type_id)]
 	fx_meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/fx/meta.json"))
 	_start_battle()
 	online_session.match_started.connect(_on_room_opened)

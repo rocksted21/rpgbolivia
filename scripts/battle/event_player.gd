@@ -91,6 +91,9 @@ func _play(events: Array, roam := false) -> void:
 				if not battle.my_fight and not battle._free_roam(): # meu herói chegou perto e entrou na luta
 					battle.my_fight = true
 					battle.hud.show_banner("Combate!", Color(1.0, 0.42, 0.3))
+			"ambush": # o resto do bando surge pelos flancos ou por trás
+				_mark_alerted(event["units"])
+				battle.hud.show_banner("Emboscada!", Color(1.0, 0.42, 0.3))
 			"combat_end":
 				await _play_combat_end(event)
 			"despawn":

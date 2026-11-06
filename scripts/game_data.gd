@@ -155,6 +155,9 @@ const ABILITIES := {
 	"bote": {"name": "Bote da Serpente", "kind": "attack", "min_range": 1, "range": 2, "power": 1.5, "time": 210},
 	"giro_machado": {"name": "Giro do Machado", "kind": "attack", "min_range": 1, "range": 1, "power": 1.7, "time": 240},
 	"decreto": {"name": "Decreto do Faraó", "kind": "attack", "min_range": 1, "range": 3, "power": 1.4, "time": 230},
+	# Inimigos que atacam de longe: põem pressão na retaguarda da party.
+	"flecha_ossea": {"name": "Flecha Óssea", "kind": "attack", "min_range": 2, "range": 4, "power": 0.85, "time": 170, "shot": "kit/arrow"},
+	"brasa_cuspida": {"name": "Cuspe de Brasa", "kind": "attack", "min_range": 1, "range": 3, "power": 0.6, "time": 130, "shot": "kit/magic", "status": {"id": "burn", "turns": 2, "amount": 2}},
 }
 
 const UNIT_TYPES := {
@@ -169,12 +172,20 @@ const UNIT_TYPES := {
 	"diabrete": {"name": "Diabrete", "role": "Ágil · fraco, mas age muito", "hp": 16, "atk": 8, "def": 0, "speed": 15, "abilities": ["golpe"]},
 	"feiticeira": {"name": "Feiticeira", "role": "Magia · chamas em área", "hp": 20, "atk": 13, "def": 0, "speed": 9, "move": 2, "abilities": ["chama"]},
 	"cerbero": {"name": "Cérbero", "role": "Fera · forte e veloz", "hp": 34, "atk": 14, "def": 2, "speed": 12, "abilities": ["golpe"]},
+	# Variações de longe: usam a folha de outro tipo (`art`) com outra cor (`tint`).
+	"esqueleto_arqueiro": {"name": "Esqueleto Arqueiro", "role": "Atirador · flechas de longe", "hp": 16, "atk": 10, "def": 0, "speed": 10, "abilities": ["flecha_ossea"], "art": "esqueleto", "tint": Color(0.72, 0.85, 1.0)},
+	"diabrete_brasa": {"name": "Diabrete de Brasa", "role": "Ágil · cospe brasas", "hp": 14, "atk": 8, "def": 0, "speed": 13, "abilities": ["brasa_cuspida"], "art": "diabrete", "tint": Color(1.0, 0.68, 0.45)},
 	# Chefes dos faróis, um por bioma (ver BOSS_BY_BIOME em expedition_data.gd).
 	"boss_cervo": {"name": "Rei Cervo Sombrio", "role": "Chefe · floresta", "hp": 42, "atk": 12, "def": 3, "speed": 8, "abilities": ["golpe", "esmagar"]},
 	"boss_serpente": {"name": "Rainha Serpente", "role": "Chefe · selva", "hp": 38, "atk": 12, "def": 2, "speed": 10, "abilities": ["golpe", "bote"]},
 	"boss_jarl": {"name": "Jarl de Gelo Negro", "role": "Chefe · neve", "hp": 46, "atk": 13, "def": 3, "speed": 7, "abilities": ["golpe", "giro_machado"]},
 	"boss_farao": {"name": "Faraó Eclipse", "role": "Chefe · deserto", "hp": 38, "atk": 12, "def": 2, "speed": 9, "abilities": ["golpe", "decreto"]},
 }
+
+## Folha de sprite do tipo (variações reaproveitam a de outro tipo).
+static func art(type_id: String) -> String:
+	return UNIT_TYPES.get(type_id, {}).get("art", type_id)
+
 
 static func range_text(ability: Dictionary) -> String:
 	if ability["kind"] == "guard":
@@ -262,6 +273,11 @@ const WORLD := {
 	"danger_max": 12,
 	"danger_hp": 0.08, # vida extra do inimigo por nível de perigo
 	"danger_atk": 0.05, # ataque extra do inimigo por nível de perigo
+	"group_min": 3, # inimigos andam em bando: nunca menos que isso por grupo
+	"group_ranged": 0.75, # chance de um bando sem atirador ganhar um
+	"reinforce_below": 3, # luta que começa com menos inimigos que isso chama reforços
+	"reinforce_delay": [300, 500], # tempo da fila até os reforços chegarem (uns 2 turnos)
+	"reinforce_dist": [3, 5], # distância da party onde eles surgem (pelos flancos ou por trás)
 }
 # Sozinho, o herói não tem quem o proteja: quem só ataca de longe ganha uma arma de perto.
 const WORLD_EXTRA_ABILITIES := {"besteiro": ["coronhada"]}
@@ -269,8 +285,10 @@ const WORLD_EXTRA_ABILITIES := {"besteiro": ["coronhada"]}
 const WORLD_SPAWNS := [
 	{"danger": 1, "type": "esqueleto", "weight": 5},
 	{"danger": 1, "type": "diabrete", "weight": 4},
+	{"danger": 1, "type": "esqueleto_arqueiro", "weight": 3, "ranged": true},
+	{"danger": 1, "type": "diabrete_brasa", "weight": 2, "ranged": true},
 	{"danger": 2, "type": "mumia", "weight": 3},
-	{"danger": 3, "type": "feiticeira", "weight": 2},
+	{"danger": 3, "type": "feiticeira", "weight": 2, "ranged": true},
 	{"danger": 4, "type": "cerbero", "weight": 2},
 ]
 

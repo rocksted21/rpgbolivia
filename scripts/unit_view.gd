@@ -3,6 +3,8 @@ extends Node2D
 
 signal anim_done
 
+const Data = preload("res://scripts/game_data.gd")
+
 enum Anim { IDLE, WALK, ATTACK, HURT, STRONG }
 enum Facing { SIDE, SOUTH, NORTH }
 
@@ -87,7 +89,7 @@ func setup(p_unit, p_team_color: Color, meta: Dictionary) -> void:
 	visual_root = Node2D.new()
 	add_child(visual_root)
 	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/units/%s.png" % unit.type_id)
+	sprite.texture = load("res://assets/units/%s.png" % Data.art(unit.type_id))
 	sprite.hframes = frames
 	sprite.vframes = row_frames.size() if not row_frames.is_empty() else Anim.STRONG
 	sprite.offset = Vector2(0, meta["cell_h"] / 2.0 - meta["feet_y"])
@@ -95,6 +97,7 @@ func setup(p_unit, p_team_color: Color, meta: Dictionary) -> void:
 	base_scale = sprite.scale
 	if meta.get("pixel", false):
 		sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.self_modulate = Data.UNIT_TYPES.get(unit.type_id, {}).get("tint", Color.WHITE)
 	visual_root.add_child(sprite)
 
 	var bar := ColorRect.new()

@@ -103,7 +103,7 @@ func _card_portrait(info: Dictionary, casting: bool) -> Control:
 	frame.add_child(box)
 	var portrait := TextureRect.new()
 	hud.card_atlas = AtlasTexture.new()
-	hud.card_atlas.atlas = load("res://assets/units/%s.png" % info["type_id"])
+	hud.card_atlas.atlas = load("res://assets/units/%s.png" % Data.art(info["type_id"]))
 	portrait.texture = hud.card_atlas
 	portrait.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 8)
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

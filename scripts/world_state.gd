@@ -22,6 +22,8 @@ var known := {} # toda unidade já vista, por uid: eventos podem citar quem já 
 ## Fora do online a party inteira luta junta.
 var split_fights := false
 var fighting := {} # heróis na fila de turnos agora (só vale com split_fights)
+var reinforce_left := 0 # inimigos que ainda vão chegar de emboscada nesta luta
+var reinforce_at := 0 # quando eles chegam, no relógio da fila
 
 
 ## `heroes`: tipos dos heróis, ou um só. `builds`: nós da árvore, por índice na party,
@@ -246,6 +248,12 @@ func engage(foes_list: Array, surprised: bool, opener = null) -> Array:
 			now = maxi(now, member.clock)
 		for member in _fighting_alive():
 			member.clock = now if member == opener else now + time_for(Data.STEP_TIME, member)
+		# Luta pequena demais é isca: o resto do bando chega depois, pelos flancos ou por trás.
+		reinforce_left = 0
+		if joining.size() < Data.WORLD["reinforce_below"]:
+			reinforce_left = Data.WORLD["group_min"] - joining.size() + (party.size() - 1) * Data.WORLD["party_group"]
+			var delay: Array = Data.WORLD["reinforce_delay"]
+			reinforce_at = now + rng.randi_range(delay[0], delay[1])
 	else:
 		now = active_unit().clock
 		for member in _enlist(joining, opener):
@@ -382,6 +390,11 @@ func _wander(events: Array) -> void:
 		if engaged.has(unit) or rng.randf() > Data.WORLD["wander_chance"]:
 			continue
 		var options: Array = Hex.neighbors(unit.pos).filter(func(cell): return can_enter(unit.pos, cell))
+		# O bando anda junto: quem tem companheiros por perto não se afasta deles.
+		var mates: Array = foes().filter(func(other):
+			return other != unit and not engaged.has(other) and Hex.distance(other.pos, unit.pos) <= Data.WORLD["group_radius"])
+		if not mates.is_empty():
+			options = options.filter(func(cell): return mates.any(func(other): return Hex.distance(other.pos, cell) <= 2))
 		if options.is_empty():
 			continue
 		var to: Vector2i = options[rng.randi_range(0, options.size() - 1)]
@@ -457,7 +470,11 @@ func tick() -> Array:
 	if split_fights and in_combat() and winner() < 0 and fighters().all(func(u): return not u.alive()):
 		engaged.clear()
 		escaped = true
+	# Matou a isca? O resto do bando não espera: chega agora, em vez de a luta acabar.
+	if was_fighting and not in_combat() and not escaped and reinforce_left > 0 and winner() < 0:
+		events.append_array(_reinforce())
 	if was_fighting and not in_combat() and winner() < 0:
+		reinforce_left = 0
 		events.append({"type": "combat_end", "fled": escaped})
 		_after_combat(events)
 	# Quem chega perto de uma luta em andamento entra nela.
@@ -468,6 +485,8 @@ func tick() -> Array:
 			for member in joined:
 				member.clock = now + time_for(Data.STEP_TIME, member)
 			events.append({"type": "combat_join", "units": joined, "surprised": false})
+	if reinforce_left > 0 and in_combat() and winner() < 0 and active_unit() != null and active_unit().clock >= reinforce_at:
+		events.append_array(_reinforce())
 	if not in_combat() and steps_until_spawn <= 0:
 		var spawn_steps: Array = Data.WORLD["spawn_steps"]
 		steps_until_spawn = float(rng.randi_range(spawn_steps[0], spawn_steps[1]))
@@ -496,8 +515,10 @@ func _after_combat(events: Array) -> void:
 
 func _spawn_group() -> Array:
 	var room := max_enemies() - foes().size()
-	var count := mini(room, group_size())
-	if count <= 0:
+	var size := group_size()
+	var count := mini(room, size)
+	# Sem vaga para um bando inteiro, espera: inimigo sozinho só faz perder tempo.
+	if count <= 0 or count < mini(size, Data.WORLD["group_min"]):
 		return []
 	var spots := _spawn_spots()
 	var events := []
@@ -505,19 +526,88 @@ func _spawn_group() -> Array:
 		return events
 	var anchor: Vector2i = spots[0]
 	spots.sort_custom(func(a, b): return Hex.distance(a, anchor) < Hex.distance(b, anchor))
+	var types := _pack_types(count) # o atirador fica por último, mais atrás no bando
 	for i in mini(count, spots.size()):
-		events.append({"type": "spawn", "unit": _spawn_enemy(_pick_type(), spots[i])})
+		events.append({"type": "spawn", "unit": _spawn_enemy(types[i], spots[i])})
 	return events
 
 
 ## Mais heróis, mais inimigos: cada herói além do primeiro abre vaga e engrossa os grupos.
 func max_enemies() -> int:
-	return mini(2 + danger() / 2, 6) + (party.size() - 1) * Data.WORLD["party_enemies"]
+	return mini(4 + danger() / 2, 8) + (party.size() - 1) * Data.WORLD["party_enemies"]
 
 
 func group_size() -> int:
 	var extra: int = (party.size() - 1) * Data.WORLD["party_group"]
-	return rng.randi_range(1 + extra, mini(1 + danger() / 2, 4) + extra)
+	var low: int = maxi(Data.WORLD["group_min"], 1 + extra)
+	return rng.randi_range(low, maxi(low, mini(2 + danger() / 2, 5) + extra))
+
+
+## Tipos de um bando: sorteados pelo perigo, e quase sempre com alguém que ataca de longe.
+func _pack_types(count: int) -> Array:
+	var types := []
+	for i in count:
+		types.append(_pick_type())
+	var has_ranged := types.any(func(type_id): return _ranged_type(type_id))
+	if count > 0 and not has_ranged and rng.randf() < Data.WORLD["group_ranged"]:
+		types[count - 1] = _pick_type(true)
+	return types
+
+
+func _ranged_type(type_id: String) -> bool:
+	return Data.WORLD_SPAWNS.any(func(entry): return entry["type"] == type_id and entry.get("ranged", false))
+
+
+## Reforços da emboscada: surgem pelos flancos ou por trás da party e entram na luta.
+func _reinforce() -> Array:
+	var count := reinforce_left
+	reinforce_left = 0
+	var events := []
+	var spots := _flank_spots()
+	if count <= 0 or spots.is_empty():
+		return events
+	var anchor: Vector2i = spots[0]
+	spots.sort_custom(func(a, b): return Hex.distance(a, anchor) < Hex.distance(b, anchor))
+	var types := _pack_types(count)
+	var arrived := []
+	for i in mini(count, spots.size()):
+		var unit = _spawn_enemy(types[i], spots[i])
+		arrived.append(unit)
+		events.append({"type": "spawn", "unit": unit})
+	events.append({"type": "ambush", "units": arrived})
+	events.append_array(engage(arrived, true))
+	reinforce_left = 0 # engage() pode ter pedido mais; uma emboscada por luta basta
+	return events
+
+
+## Casas livres a alguns passos da party, do lado oposto aos inimigos (ou atrás da caminhada).
+func _flank_spots() -> Array:
+	var heroes := _fighting_alive()
+	if heroes.is_empty():
+		return []
+	var center := Vector2.ZERO
+	for member in heroes:
+		center += _flat(member.pos)
+	center /= heroes.size()
+	var front := Vector2.ZERO
+	for unit in engaged:
+		if unit.alive():
+			front += _flat(unit.pos) - center
+	if front.length() < 0.01:
+		front = heading
+	front = front.normalized()
+	var dist: Array = Data.WORLD["reinforce_dist"]
+	var reach: Dictionary = search(heroes[0], Data.WORLD["sight_walk"])["cost"]
+	var spots := []
+	var scores := {}
+	for cell in reach:
+		var gap := _distance_to_any_hero(cell)
+		if gap < dist[0] or gap > dist[1] or unit_at(cell) != null:
+			continue
+		spots.append(cell)
+		scores[cell] = -(_flat(cell) - center).normalized().dot(front) + rng.randf() * 0.7
+	spots.sort_custom(func(a, b): return scores[a] > scores[b])
+	return spots
 
 
 ## Casas válidas na borda da névoa, a mais à frente da caminhada primeiro.
@@ -544,8 +634,10 @@ func _flat(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x + (cell.y & 1) * 0.5, cell.y * 0.866)
 
 
-func _pick_type() -> String:
+func _pick_type(ranged_only := false) -> String:
 	var allowed: Array = Data.WORLD_SPAWNS.filter(func(entry): return entry["danger"] <= danger())
+	if ranged_only and allowed.any(func(entry): return entry.get("ranged", false)):
+		allowed = allowed.filter(func(entry): return entry.get("ranged", false))
 	var total := 0
 	for entry in allowed:
 		total += entry["weight"]

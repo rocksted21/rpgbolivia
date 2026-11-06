@@ -45,6 +45,9 @@ var live := false # no meio de uma partida: redistribuir só vale fora dela
 
 func _ready() -> void:
 	meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
+	for type_id in Data.UNIT_TYPES: # variações usam a folha de outro tipo
+		if not meta.has(type_id) and meta.has(Data.art(type_id)):
+			meta[type_id] = meta[Data.art(type_id)]
 	var background := ColorRect.new()
 	background.color = INK
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

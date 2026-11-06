@@ -82,6 +82,9 @@ func _ready() -> void:
 	player_row.add_theme_constant_override("separation", 10)
 	column.add_child(player_row)
 	unit_meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
+	for type_id in Data.UNIT_TYPES: # variações usam a folha de outro tipo
+		if not unit_meta.has(type_id) and unit_meta.has(Data.art(type_id)):
+			unit_meta[type_id] = unit_meta[Data.art(type_id)]
 	hero_row = HBoxContainer.new()
 	hero_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	hero_row.add_theme_constant_override("separation", 16)

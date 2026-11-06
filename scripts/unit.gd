@@ -24,6 +24,7 @@ var passives := {} # regras especiais das skills (ver skill_data.gd)
 var ability_mods := {} # {habilidade: {campo: soma}}
 var taunted_by = null # quem a IA é obrigada a perseguir
 var taunt_actions := 0
+var ai_focus = null # alvo que a IA escolheu no começo do turno (ver ai.gd)
 var statuses := {} # efeitos com duração: {id: {"turns": n, "amount": x}} (ver Data.STATUS)
 var uid := 0 # identifica a unidade na rede, mesmo com inimigos entrando e saindo
 
