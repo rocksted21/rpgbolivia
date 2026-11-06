@@ -133,10 +133,7 @@ func _story_text() -> String:
 	var found := TownProgress.memories()
 	if found > 0:
 		lines.append(Exp.MEMORIES[found - 1])
-	if lines.is_empty():
-		lines.append("A escuridão apagou o mundo. Encontre o farol da região e traga de volta quem ainda resiste.")
-	if TownProgress.beacons() > 0:
-		lines.append("A próxima região ainda está sendo preparada: novas expedições rendem brasas, memórias e moradores.")
+	lines.append("Objetivo: %s" % TownProgress.objective())
 	return "\n".join(lines)
 
 

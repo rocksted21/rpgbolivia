@@ -30,6 +30,7 @@ func _initialize() -> void:
 	test_shop()
 	test_upgrades()
 	test_quests()
+	test_story()
 	DirAccess.remove_absolute(TownProgress.path)
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -205,6 +206,42 @@ func test_quests() -> void:
 	check(not TownProgress.complete_quest("primeira_chama"), "não recebe duas vezes")
 	check(TownProgress.quest_status("vigilia") == "available", "abre a próxima missão")
 	check(TownProgress.person_mark("guarda") == "", "sem mais nada, sem marca")
+
+
+## O guia conta a história em capítulos, um por farol, e o objetivo acompanha.
+func test_story() -> void:
+	_clean_save()
+	var guide: Array = Town.PEOPLE.filter(func(p): return p["id"] == Content.GUIDE)
+	check(guide.size() == 1 and Content.TALK.has(Content.GUIDE), "existe um guia com conversa")
+	var state = _new()
+	check(Hex.distance(guide[0]["cell"], Town.PLAZA) <= Town.VISIT_RADIUS, "o guia está perto de onde a party começa")
+	check(state.person_near(Town.PLAZA)["id"] == Content.GUIDE, "a primeira conversa à mão é com o guia")
+	check(TownProgress.story_pending() and TownProgress.person_mark(Content.GUIDE) == "!", "no começo o guia tem história")
+	check(TownProgress.objective() == Content.GOAL_TALK, "o objetivo manda falar com o guia")
+	check(TownProgress.pending_pages() == Content.STORY[0]["pages"], "conta o primeiro capítulo")
+	TownProgress.hear_story()
+	check(not TownProgress.story_pending() and TownProgress.person_mark(Content.GUIDE) == "", "contada, a marca some")
+	check(TownProgress.objective() == Content.GOAL_KEEPER, "depois, falar com o Faroleiro")
+	TownProgress.set_met(Content.KEEPER)
+	check(TownProgress.objective().ends_with("(0/%d)" % Content.BEACON_GOAL), "depois, acender um farol")
+	TownProgress.record({"won": true, "guardian": "boss_cervo", "brasas": 0, "rescued": [], "memories": 0})
+	TownProgress.record({"won": true, "guardian": "boss_cervo", "brasas": 0, "rescued": [], "memories": 0})
+	check(TownProgress.guardians() == ["boss_cervo"], "o guardião vencido fica lembrado, sem repetir")
+	check(TownProgress.pending_pages().size() == Content.STORY[1]["pages"].size() + Content.STORY[2]["pages"].size(), "quem pulou um capítulo ouve os dois")
+	TownProgress.record({"won": false, "brasas": 0, "rescued": [], "memories": 0})
+	check(not TownProgress.last_won(), "lembra que a última expedição foi perdida")
+	for i in 5:
+		TownProgress.record({"won": true, "brasas": 0, "rescued": [], "memories": 0})
+	check(TownProgress.story_stage() == Content.STORY.size() - 2, "sem a batalha final, a história para no último farol")
+	TownProgress.finish_story()
+	check(TownProgress.story_stage() == Content.STORY.size() - 1 and TownProgress.story_pending(), "a batalha final abre o fim")
+	for i in Content.STORY.size():
+		check(not Content.STORY[i]["pages"].is_empty() and Content.STORY[i]["call"].all(func(line): return line.length() <= 40), "capítulo %d tem falas e balões curtos" % i)
+		for page in Content.STORY[i]["pages"]:
+			check(Town.PEOPLE.any(func(p): return p["id"] == page[0]), "quem fala no capítulo %d existe" % i)
+	for kind in Exp.BOSS_BY_BIOME.values():
+		check(Exp.BOSS_LINES.has(kind) and Exp.BOSS_FAREWELL.has(kind), "%s tem falas" % kind)
+		check(Content.TALK[Content.KEEPER]["guardians"].has(kind), "o Faroleiro conta quem era %s" % kind)
 
 
 func test_growth() -> void:

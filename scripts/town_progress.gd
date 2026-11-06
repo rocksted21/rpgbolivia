@@ -195,8 +195,10 @@ static func quests_of(person: String) -> Array:
 	return Content.QUEST_ORDER.filter(func(id): return Content.QUESTS[id]["giver"] == person)
 
 
-## "?" tem missão para entregar, "!" tem missão nova, "" não tem nada.
+## "?" tem missão para entregar, "!" tem missão nova (ou, no guia, história nova), "" não tem nada.
 static func person_mark(person: String) -> String:
+	if person == Content.GUIDE and story_pending():
+		return "!"
 	var statuses: Array = quests_of(person).map(func(id): return quest_status(id))
 	if "ready" in statuses:
 		return "?"
@@ -214,8 +216,14 @@ static func record(result: Dictionary) -> Array:
 	config.set_value("town", "rescued", saved)
 	config.set_value("town", "memories", memories() + result["memories"])
 	config.set_value("town", "expeditions", expeditions() + 1)
+	config.set_value("town", "last_won", result["won"])
 	if result["won"]:
 		config.set_value("town", "beacons", beacons() + 1)
+	var guardian: String = str(result.get("guardian", ""))
+	var fallen := guardians()
+	if guardian != "" and guardian not in fallen:
+		fallen.append(guardian)
+		config.set_value("story", "guardians", fallen)
 	_spend_items(config, result)
 	var finished := _advance_quests(config, result)
 	config.set_value("town", "last_note", _note(result, finished))
@@ -255,6 +263,102 @@ static func _note(result: Dictionary, finished: Array) -> String:
 	for id in finished:
 		text += " " + Content.QUEST_READY % Content.QUESTS[id]["title"]
 	return text
+
+
+# --- História -------------------------------------------------------------------
+# Os capítulos ficam em Content.STORY. Chaves no save: story/heard (último capítulo contado),
+# story/final (batalha final vencida) e story/guardians (chefes já derrotados).
+
+## Capítulo atual: os faróis acesos (0 a 4); o último só depois da batalha final.
+static func story_stage() -> int:
+	return _stage(_load())
+
+
+static func _stage(config: ConfigFile) -> int:
+	if bool(config.get_value("story", "final", false)):
+		return Content.STORY.size() - 1
+	return clampi(int(config.get_value("town", "beacons", 0)), 0, Content.STORY.size() - 2)
+
+
+## Último capítulo que o guia já contou; -1 antes do primeiro.
+static func story_heard() -> int:
+	return int(_load().get_value("story", "heard", -1))
+
+
+static func story_pending() -> bool:
+	var config := _load()
+	return int(config.get_value("story", "heard", -1)) < _stage(config)
+
+
+## Falas de todos os capítulos que faltam contar, em ordem: quem pulou um ouve os dois.
+static func pending_pages() -> Array:
+	var pages := []
+	for i in range(story_heard() + 1, story_stage() + 1):
+		pages.append_array(Content.STORY[i]["pages"])
+	return pages
+
+
+static func hear_story() -> void:
+	var config := _load()
+	config.set_value("story", "heard", _stage(config))
+	_save(config)
+
+
+static func story_finished() -> bool:
+	return bool(_load().get_value("story", "final", false))
+
+
+## Para a batalha final, quando ela existir: abre o último capítulo.
+static func finish_story() -> void:
+	var config := _load()
+	config.set_value("story", "final", true)
+	_save(config)
+
+
+## Guardiões já derrotados (tipos em Data.UNIT_TYPES), sem repetir.
+static func guardians() -> Array:
+	var saved: Variant = _load().get_value("story", "guardians", [])
+	if not saved is Array:
+		return []
+	return Exp.BOSS_BY_BIOME.values().filter(func(kind): return kind in saved)
+
+
+static func last_won() -> bool:
+	return bool(_load().get_value("town", "last_won", true))
+
+
+## O objetivo do topo da tela, sem o "Objetivo:".
+static func objective() -> String:
+	var config := _load()
+	var stage := _stage(config)
+	if int(config.get_value("story", "heard", -1)) < stage:
+		return Content.GOAL_TALK
+	if stage == 0 and not bool(config.get_value("met", Content.KEEPER, false)):
+		return Content.GOAL_KEEPER
+	var goal: String = Content.STORY[stage]["goal"]
+	if stage < Content.BEACON_GOAL:
+		return "%s (%d/%d)" % [goal, stage, Content.BEACON_GOAL]
+	return goal
+
+
+## O que fazer agora, explicado pelo guia.
+static func objective_help() -> String:
+	var config := _load()
+	var stage := _stage(config)
+	if stage == 0 and not bool(config.get_value("met", Content.KEEPER, false)):
+		return Content.KEEPER_HELP
+	return Content.STORY[stage]["help"]
+
+
+## Já ouviu a fala deste morador para o capítulo atual?
+static func stage_seen(person: String) -> int:
+	return int(_load().get_value("stage_seen", person, -1))
+
+
+static func set_stage_seen(person: String) -> void:
+	var config := _load()
+	config.set_value("stage_seen", person, _stage(config))
+	_save(config)
 
 
 static func _save(config: ConfigFile) -> void:

@@ -89,15 +89,26 @@ func open_person(person: Dictionary) -> void:
 		_paragraph(ruins, Town.MISSING_TEXT)
 		_close_button(ruins)
 		return
+	if person["service"] == "guide" and TownProgress.story_pending():
+		_tell_story(person, TownProgress.pending_pages(), 0)
+		return
 	_conversation(person, _greeting(person))
+	TownProgress.set_stage_seen(person["id"])
 	if not TownProgress.met(person["id"]):
 		TownProgress.set_met(person["id"])
+		changed.emit() # conhecer alguém pode mudar o objetivo do topo
 
 
 func _greeting(person: Dictionary) -> String:
 	var talk: Dictionary = Content.TALK[person["id"]]
 	if not TownProgress.met(person["id"]):
 		return talk["first"]
+	if talk.has("defeat") and not TownProgress.last_won():
+		return talk["defeat"][TownProgress.expeditions() % talk["defeat"].size()]
+	var stage := TownProgress.story_stage()
+	var stages: Dictionary = talk.get("stages", {})
+	if stages.has(stage) and TownProgress.stage_seen(person["id"]) < stage:
+		return stages[stage] # a fala do capítulo, uma vez
 	if TownProgress.beacons() > 0 and talk.has("after_beacon") and TownProgress.expeditions() % 2 == 1:
 		return talk["after_beacon"]
 	return talk["greetings"][TownProgress.expeditions() % talk["greetings"].size()]
@@ -106,15 +117,7 @@ func _greeting(person: Dictionary) -> String:
 ## A conversa: retrato, a fala e o que dá para responder.
 func _conversation(person: Dictionary, text: String) -> void:
 	var body := _open(person["name"])
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 18)
-	body.add_child(top)
-	top.add_child(_portrait(person["art"]))
-	var said := _label(text, 21, TEXT)
-	said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	said.custom_minimum_size.x = WINDOW_WIDTH - 44 - PORTRAIT - 18
-	said.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	top.add_child(said)
+	_speech(body, person["art"], text)
 	var choices := GridContainer.new()
 	choices.columns = 2
 	choices.add_theme_constant_override("h_separation", 10)
@@ -122,9 +125,63 @@ func _conversation(person: Dictionary, text: String) -> void:
 	body.add_child(choices)
 	_add_quest_choices(choices, person)
 	_add_service_choice(choices, person)
-	for topic in Content.TALK[person["id"]]["topics"]:
+	for topic in _topics(person["id"]):
 		_choice(choices, topic[0]).pressed.connect(func(): _conversation(person, topic[1]))
 	_choice(choices, "Até mais").pressed.connect(close_window)
+
+
+## Retrato e fala lado a lado.
+func _speech(body: Control, art: String, text: String) -> void:
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 18)
+	body.add_child(top)
+	top.add_child(_portrait(art))
+	var said := _label(text, 21, TEXT)
+	said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	said.custom_minimum_size.x = WINDOW_WIDTH - 44 - PORTRAIT - 18
+	said.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(said)
+
+
+## Perguntas fixas, as que a história já abriu e as dos guardiões que caíram.
+func _topics(id: String) -> Array:
+	var talk: Dictionary = Content.TALK[id]
+	var out: Array = talk["topics"].duplicate()
+	var stage := TownProgress.story_stage()
+	var opened: Dictionary = talk.get("topics_at", {})
+	for at in opened:
+		if at <= stage:
+			out.append(opened[at])
+	var tales: Dictionary = talk.get("guardians", {})
+	for kind in TownProgress.guardians():
+		if tales.has(kind):
+			out.append(tales[kind])
+	return out
+
+
+## O guia conta os capítulos que faltam, uma fala por vez. No fim, diz o que fazer.
+func _tell_story(person: Dictionary, pages: Array, index: int) -> void:
+	var page: Array = pages[index]
+	var speaker := _person(page[0])
+	var body := _open(speaker.get("name", person["name"]))
+	_speech(body, speaker.get("art", person["art"]), page[1])
+	var row := _row(body)
+	var last := index == pages.size() - 1
+	_button(row, "Entendi" if last else "Continuar", true).pressed.connect(func():
+		if not last:
+			_tell_story(person, pages, index + 1)
+			return
+		TownProgress.hear_story()
+		TownProgress.set_met(person["id"])
+		changed.emit()
+		_conversation(person, TownProgress.objective_help()))
+
+
+func _person(id: String) -> Dictionary:
+	for person in Town.PEOPLE:
+		if person["id"] == id:
+			return person
+	return {}
 
 
 func _add_quest_choices(choices: Control, person: Dictionary) -> void:
@@ -152,6 +209,11 @@ func _add_service_choice(choices: Control, person: Dictionary) -> void:
 			_choice(choices, "Treinar (árvores de skills)").pressed.connect(func(): skills_requested.emit())
 		"beacon":
 			_choice(choices, "Como está a cidade?").pressed.connect(func(): _open_beacon(person))
+		"guide":
+			_choice(choices, "O que eu faço agora?", true).pressed.connect(func(): _conversation(person, TownProgress.objective_help()))
+			var told := TownProgress.story_heard()
+			if told >= 0:
+				_choice(choices, "Conte de novo").pressed.connect(func(): _tell_story(person, Content.STORY[told]["pages"], 0))
 	# Quem tem outro serviço também pode vender (o Ferreiro forja, a Padeira assa...).
 	if person["service"] != "shop" and Content.ITEM_ORDER.any(func(id): return Content.ITEMS[id]["seller"] == person["id"]):
 		_choice(choices, "Ver o que tem à venda").pressed.connect(func(): open_shop(person))
@@ -267,8 +329,7 @@ func _open_beacon(person: Dictionary) -> void:
 	var missing: Array = Exp.RESIDENT_ORDER.filter(func(id): return id not in TownProgress.rescued())
 	if not missing.is_empty():
 		_paragraph(body, "Ainda faltam na cidade: %s. Procure as vilas lá fora." % ", ".join(missing.map(func(id): return Exp.RESIDENTS[id]["name"])), MUTED)
-	if TownProgress.beacons() > 0:
-		_paragraph(body, Town.NEXT_REGION_TEXT, MUTED)
+	_paragraph(body, "Objetivo: %s" % TownProgress.objective(), GOLD)
 	_back_button(body, person)
 
 

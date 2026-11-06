@@ -499,7 +499,7 @@ func _select_next() -> void:
 
 
 func _on_party_pick(unit) -> void:
-	var can_open: bool = battle._free_roam() and not battle.online_session.playing and Skills.has_tree(unit.type_id)
+	var can_open: bool = battle._free_roam() and battle.online_session.can_control(unit) and Skills.has_tree(unit.type_id)
 	if can_open and (unit == battle.selected or HeroProgress.available(unit.type_id) > 0 or not unit.alive()):
 		battle.sound_manager.play_ui(&"switch3")
 		battle._open_tree(unit)

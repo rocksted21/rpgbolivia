@@ -8,6 +8,8 @@ signal command_received(sender: int, command: Dictionary)
 signal connection_lost(reason: String)
 signal relocated # o dono trocou de mapa (cidade <-> expedição): todos refazem a cena
 signal player_arrived(id: int) # alguém entrou com a partida rolando: o dono decide o herói dele
+signal progress_received(entry: Dictionary) # XP / level up de um herói de outro jogador
+signal hero_learned(type_id: String, node_id: String) # o dono confirmou um nó comprado: todos aplicam
 
 const Relay = preload("res://net/relay_connection.gd")
 const WorldState = preload("res://scripts/world_state.gd")
@@ -26,6 +28,8 @@ var picks := {}
 var party_types := [] # a party da partida; owners segue a mesma ordem
 ## Jogador -> {tipo do herói: [nós]}. Só o dono guarda; a partida usa match_builds().
 var player_builds := {}
+## Tipo do herói -> {hero, level, fraction, max, points}: o que o dono de cada herói informou.
+var hero_progress := {}
 var playing := false
 var state
 var revision := 0
@@ -103,6 +107,7 @@ func leave() -> void:
 	picks.clear()
 	party_types.clear()
 	player_builds.clear()
+	hero_progress.clear()
 	playing = false
 	state = null
 	packets.clear()
@@ -133,8 +138,8 @@ func _host_joined() -> void:
 
 func _client_joined() -> void:
 	original_host = relay.master_id
-	# Quem entra usa os heróis do dono da sala: níveis, árvore e itens vêm do save dele.
-	_send({type = "hello", name = player_name}, true)
+	# Cada jogador leva a árvore dos seus heróis: o dono usa ela nos heróis que forem dele.
+	_send({type = "hello", name = player_name, builds = HeroProgress.all_builds()}, true)
 	notice = "Aguardando confirmação do dono…"
 	changed.emit()
 
@@ -142,7 +147,7 @@ func _send(message: Dictionary, to_host := false) -> void:
 	relay.send(1 if to_host else 0, var_to_bytes(message))
 
 func _roster() -> void:
-	_send({type = "roster", players = players, owners = owners, picks = picks})
+	_send({type = "roster", players = players, owners = owners, picks = picks, progress = hero_progress})
 	changed.emit()
 
 static func hero_count() -> int:
@@ -213,13 +218,84 @@ func relocate(new_state) -> void:
 	_send({type = "relocate", save = SaveGame.capture(state)})
 	relocated.emit()
 
-## Todos os heróis usam a árvore do save do dono da sala: {índice na party: [nós]}.
+## Cada herói usa a árvore do save de quem joga com ele: {índice na party: [nós]}.
 func match_builds() -> Dictionary:
 	var builds := {}
-	var saved: Dictionary = player_builds.get(relay.my_id, {})
+	var mine: Dictionary = player_builds.get(relay.my_id, {})
 	for i in party_types.size():
+		var owner: int = int(owners[i]) if i < owners.size() else relay.my_id
+		var saved: Dictionary = player_builds.get(owner, mine)
 		builds[i] = Skills.sanitize(party_types[i], saved.get(party_types[i], []))
 	return builds
+
+
+func _owner_of_type(type_id: String) -> int:
+	if state == null:
+		return 0
+	for unit in state.party:
+		if unit.type_id == type_id:
+			return owner_of(unit)
+	return 0
+
+
+## Comprei um nó num herói meu: o dono confere, aplica e avisa todo mundo.
+func learn(type_id: String, node_id: String) -> void:
+	if not playing:
+		return
+	if relay.is_master:
+		_confirm_learn(relay.my_id, type_id, node_id)
+	else:
+		_send({type = "learn", hero = type_id, node = node_id}, true)
+
+
+func _confirm_learn(sender: int, type_id: String, node_id: String) -> void:
+	if _owner_of_type(type_id) != sender or Skills.locate(type_id, node_id).is_empty():
+		return
+	var saved: Dictionary = player_builds.get(sender, {})
+	var build: Array = saved.get(type_id, [])
+	if not node_id in build:
+		build.append(node_id)
+	saved[type_id] = build
+	player_builds[sender] = saved
+	_send({type = "learned", hero = type_id, node = node_id})
+	hero_learned.emit(type_id, node_id)
+
+
+## Nível e XP dos meus heróis, para os outros verem: [{hero, level, fraction, max, points, xp, up}].
+func report_progress(entries: Array) -> void:
+	if not playing or entries.is_empty():
+		return
+	for entry in entries:
+		hero_progress[entry["hero"]] = entry
+	if relay.is_master:
+		_send({type = "progress", from = relay.my_id, entries = entries})
+	else:
+		_send({type = "progress", entries = entries}, true)
+
+
+static func clean_progress(entry: Variant) -> Dictionary:
+	if not entry is Dictionary or not entry.get("hero") is String or not Skills.has_tree(entry["hero"]):
+		return {}
+	return {
+		hero = entry["hero"], level = clampi(int(entry.get("level", 1)), 1, 99), fraction = clampf(float(entry.get("fraction", 0.0)), 0.0, 1.0),
+		max = bool(entry.get("max", false)), points = clampi(int(entry.get("points", 0)), 0, Skills.MAX_POINTS),
+		xp = clampi(int(entry.get("xp", 0)), 0, 100000), up = bool(entry.get("up", false)),
+	}
+
+
+## `sender` 0: veio do dono da sala, já conferido.
+func _take_progress(entries: Variant, sender: int) -> Array:
+	var accepted := []
+	if not entries is Array:
+		return accepted
+	for raw in entries:
+		var entry := clean_progress(raw)
+		if entry.is_empty() or (sender != 0 and _owner_of_type(entry["hero"]) != sender):
+			continue
+		hero_progress[entry["hero"]] = entry
+		accepted.append(entry)
+		progress_received.emit(entry)
+	return accepted
 
 
 ## Dono: passa o herói (índice em state.units) para um jogador da sala.
@@ -303,6 +379,12 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 		if sender not in relay.peer_ids: return
 		if kind == "hello" and not players.has(sender):
 			players[sender] = str(message.get("name", "Jogador")).strip_edges().left(20)
+			var builds := {}
+			if message.get("builds") is Dictionary:
+				for type_id in message.builds:
+					if type_id is String and Skills.has_tree(type_id):
+						builds[type_id] = Skills.sanitize(type_id, message.builds[type_id])
+			player_builds[sender] = builds
 			if playing:
 				_send_match(sender)
 				player_arrived.emit(sender)
@@ -311,6 +393,12 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 			_toggle_pick(sender, message.hero)
 		elif kind == "command" and playing and players.has(sender) and message.get("command") is Dictionary:
 			command_received.emit(sender, message.command)
+		elif kind == "learn" and playing and message.get("hero") is String and message.get("node") is String:
+			_confirm_learn(sender, message.hero, message.node)
+		elif kind == "progress" and playing:
+			var accepted := _take_progress(message.get("entries"), sender)
+			if not accepted.is_empty():
+				_send({type = "progress", from = sender, entries = accepted})
 		return
 	if sender != original_host: return
 	match kind:
@@ -318,6 +406,11 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 			players = message.players
 			owners = message.owners
 			picks = message.get("picks", {})
+			if message.get("progress") is Dictionary:
+				for type_id in message.progress:
+					var entry := clean_progress(message.progress[type_id])
+					if not entry.is_empty() and _owner_of_type(entry["hero"]) != relay.my_id:
+						hero_progress[entry["hero"]] = entry
 			changed.emit()
 		"start":
 			if playing or (message.has("to") and message.get("to") != relay.my_id): return
@@ -345,6 +438,12 @@ func _receive(sender: int, payload: PackedByteArray) -> void:
 			state.split_fights = true
 			revision = 0
 			relocated.emit()
+		"learned":
+			if playing and message.get("hero") is String and message.get("node") is String:
+				hero_learned.emit(message.hero, message.node)
+		"progress":
+			if playing and message.get("from") != relay.my_id:
+				_take_progress(message.get("entries"), 0)
 		"battle":
 			if playing:
 				packets.append(message)

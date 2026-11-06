@@ -71,6 +71,7 @@ func _update_town() -> void:
 		{"icon": "flame", "value": TownProgress.brasas(), "label": "Brasas", "color": Color(1.0, 0.68, 0.3)},
 		{"icon": "star", "value": TownProgress.beacons(), "label": "Faróis", "color": Color(1.0, 0.85, 0.35)},
 	], {"level": city_level, "fraction": -1.0, "name": "Cidade"})
+	battle.hud.set_tracker("Objetivo: %s" % TownProgress.objective()) # o norte da história, sempre à vista
 	battle.hud.update_party(battle.selected)
 
 

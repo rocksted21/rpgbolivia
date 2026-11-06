@@ -114,6 +114,8 @@ func _room_status() -> void:
 	if not battle.online_session.playing or battle.hud == null:
 		return
 	battle.hud.set_party_owners(battle._owner_names())
+	battle._report_progress(battle._my_party_types()) # quem entrou (ou trocou de herói) vê o nível de todos
+	battle._update_party_progress()
 	if battle.selected != null and not battle.online_session.can_control(battle.selected) and battle._free_roam():
 		battle.input_ctl._select(battle._first_mine())
 	if battle.hud.group_open():

@@ -98,12 +98,38 @@ const RESIDENTS := {
 # Ordem em que aparecem nas vilas: duas vilas por expedição, então três expedições salvam todos.
 const RESIDENT_ORDER := ["curandeira", "ferreiro", "padeira", "cartografa", "arquivista", "alquimista"]
 
-# Rascunho da história: cada memória encontrada aparece uma vez, nesta ordem.
+# História (ver docs/SPOILER_historia.md): cada memória encontrada aparece uma vez, nesta ordem.
 const MEMORIES := [
 	"Uma voz antiga: \"Quando a última chama apagar, ninguém lembrará que houve um mundo.\"",
+	"Um mapa do céu desenhado à mão. Metade das estrelas foi riscada, uma por uma.",
 	"Um diário queimado: \"Os faroleiros não chegaram tarde. Eles estavam aqui quando começou.\"",
+	"O sino de um barco antigo. Alguém raspou o nome gravado nele, com muito cuidado.",
 	"Nomes riscados em uma parede. O último ainda parece recente.",
-	"Uma ordem selada: \"Apaguem os faróis. É o único jeito de escondê-lo.\"",
+	"Uma carta: \"Mestre, o senhor não está salvando o mundo. Está trancando o mundo numa caixa.\" Assinada só com um B.",
+	"Uma ordem selada: \"Apaguem os faróis. Sem chama acesa, ele não tem o que beber.\"",
 	"O eco de um juramento: \"Guardaremos a luz, mesmo de quem a acendeu.\"",
+	"Uma voz cansada, que um dia foi gentil: \"Eu só não queria perder mais ninguém.\"",
+	"Um nome escrito no casco de um barco. Ninguém aqui o conhece, mas um de vocês sente vontade de chorar ao lê-lo.",
 ]
 const EMPTY_MEMORY := "Só ecos desta vez. Eles ainda fortalecem quem escuta."
+
+# O que cada guardião diz quando a luta começa e quando cai (aparece na tela de vitória).
+const BOSS_LINES := {
+	"boss_cervo": "\"Mais uma chama tentando passar? Nesta floresta, ninguém acende nada.\"",
+	"boss_serpente": "\"Vocês cheiram a fogo novo... Ele também cheirava assim, no começo.\"",
+	"boss_jarl": "\"Juramos guardar a luz. Até de quem a acendeu. Até de vocês.\"",
+	"boss_farao": "\"Ele levou o céu inteiro. Não vai levar a minha última estrela.\"",
+}
+const BOSS_FAREWELL := {
+	"boss_cervo": "\"Tomé... eu me chamava Tomé.\nNão deixem que ele beba esta chama.\"",
+	"boss_serpente": "\"Killa... agora eu lembro.\nDigam ao Bento que eu cumpri o juramento.\"",
+	"boss_jarl": "\"Gunnar. Guardei a luz até de quem a acendeu.\nAgora ela é de vocês.\"",
+	"boss_farao": "\"Inti... E as estrelas? Ele ainda tem todas.\nO Primeiro Faroleiro nunca solta nada.\"",
+}
+# A batalha final ainda não existe: estes textos esperam por ela.
+const VILLAIN := {
+	"name": "Vésper, o Primeiro Faroleiro",
+	"place": "Farol Negro",
+	"intro": "\"Eu guardei vocês. Guardei tudo. Num mundo que esquece, quem vai lembrar de vocês se eu soltar?\"",
+	"farewell": "\"Então... lembrem por mim.\"",
+}

@@ -68,11 +68,12 @@ func _show_result(result: int) -> void:
 				battle.board_art._rebuild_cell(battle.state.beacon_cell) # o farol acende
 		var types := []
 		for unit in battle.state.units:
-			if unit.team == Data.Team.PLAYER and (not battle.online_session.playing or battle.online_session.relay.is_master): # online: o save do dono
+			if unit.team == Data.Team.PLAYER and battle.online_session.can_control(unit): # online: cada um no seu save
 				types.append(unit.type_id)
 		battle._reward_fight() # abates da última luta (na arena, a luta toda)
 		var xp_gain: int = gain * Skills.END_XP_PER_POINT
 		var raised := HeroProgress.add_xp(types.filter(func(type_id): return Skills.has_tree(type_id)), xp_gain)
+		battle._report_progress(types, xp_gain, raised)
 		if xp_gain > 0 and not types.is_empty():
 			note = "+%d XP para cada herói" % xp_gain
 		if not raised.is_empty():
@@ -81,6 +82,10 @@ func _show_result(result: int) -> void:
 	for id in battle.quests_finished:
 		note += "%sMissão cumprida: %s" % ["\n" if note != "" else "", TownContent.QUESTS[id]["title"]]
 	battle.quests_finished = []
+	if battle.expedition and won and battle.state.boss != null: # as últimas palavras do guardião
+		var farewell: String = Exp.BOSS_FAREWELL.get(battle.state.boss.type_id, "")
+		if farewell != "":
+			note = farewell + ("\n\n" + note if note != "" else "")
 	battle.hud.show_end(_end_text() if battle.exploring else ("Vitória!" if won else "Derrota"), note)
 
 
@@ -124,7 +129,7 @@ func _quest_tracker() -> String:
 		var quest: Dictionary = TownContent.QUESTS[id]
 		var done: int = mini(TownProgress.quest_progress(id) + int(result["tally"].get(quest["count"], 0)), quest["target"])
 		return "Missão: %s (%d/%d)" % [quest["title"], done, quest["target"]]
-	return ""
+	return "Objetivo: %s" % TownContent.EXPEDITION_GOAL
 
 
 func _use_potion() -> void:
