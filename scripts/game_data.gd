@@ -244,6 +244,7 @@ const WORLD := {
 	"first_spawn_steps": 6,
 	"spawn_steps": [5, 10], # passos entre um grupo e outro
 	"sight_radius": 3, # o inimigo inicia o combate ao ver o herói a essa distância
+	"ambush_range": 2, # fora de combate, ataques de longe alcançam essas casas a mais (emboscada)
 	"sight_walk": 900, # pontos de movimento: mais longe que isso a pé, o inimigo não entra na luta
 	"give_up_radius": 5, # inimigo em combate, sem caminho e mais longe que isso, desiste
 	"group_radius": 3, # quem está perto de quem viu entra na luta junto

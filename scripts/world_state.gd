@@ -133,8 +133,18 @@ func tile_name_at(cell: Vector2i) -> String:
 
 func cells_in_range(unit, ability_id: String) -> Array:
 	var ability: Dictionary = unit.ability(ability_id)
-	return _disc(unit.pos, ability["range"]).filter(func(cell):
+	return _disc(unit.pos, ability["range"] + ambush_bonus(unit, ability)).filter(func(cell):
 		return Hex.distance(unit.pos, cell) >= ability["min_range"])
+
+
+## Fora de combate, quem ataca de longe mira de mais longe que a visão do inimigo:
+## assim dá para abrir a luta com um tiro antes de ser visto.
+func ambush_bonus(unit, ability: Dictionary) -> int:
+	if not party.has(unit) or is_fighting(unit) or ability["range"] <= 1 or ability.get("dash", false):
+		return 0
+	if ability["kind"] != "attack" and ability["kind"] != "charge":
+		return 0
+	return int(Data.WORLD["ambush_range"])
 
 
 func area_of(tile: Vector2i, radius: int) -> Array:

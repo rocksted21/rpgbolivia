@@ -67,7 +67,7 @@ const FOG_START := 650.0
 const FOG_END := 1100.0
 const PATH_COLOR := Color(0.27, 0.67, 1.0, 0.7)
 const INSPECT_COLOR := Color(1.0, 1.0, 1.0, 0.95)
-const ZOOM_IN := 1.5 # botão de zoom: aproximado; solto, volta ao padrão (1.0 na arena)
+const ZOOM_IN := 1.25 # botão de zoom: aproximado; solto, volta ao padrão (1.0 na arena)
 const PAN_LIMIT := 380.0 # quanto a câmera solta pode se afastar do foco
 const XP_INK := Color(0.55, 0.9, 1.0)
 const LEVEL_INK := Color(1.0, 0.85, 0.3)
@@ -759,7 +759,7 @@ func _base_zoom() -> float:
 	return EXPLORE_ZOOM if exploring else 1.0
 
 
-## Botão, Z, roda do mouse ou pinça: aproxima para 1.5 e libera o arrasto; soltar recentra.
+## Botão, Z, roda do mouse ou pinça: aproxima para 1.25 e libera o arrasto; soltar recentra.
 func _set_zoomed(on: bool) -> void:
 	if on == zoomed or battle_camera == null:
 		return

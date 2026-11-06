@@ -6,7 +6,7 @@ const SHADER = preload("res://scripts/battle_perspective.gdshader")
 const SHADER_ADD = preload("res://scripts/battle_perspective_add.gdshader")
 const FOCUS := Vector2(660, 450)
 const SCREEN_FOCUS := Vector2(660, 470)
-const GROUND_TILT := 0.60
+const GROUND_TILT := 0.80 # mais alto = câmera mais de cima
 const PERSPECTIVE := 0.001
 const NO_CULL_RECT := Rect2(-100000, -100000, 200000, 200000)
 

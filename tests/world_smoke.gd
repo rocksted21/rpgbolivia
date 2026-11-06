@@ -258,7 +258,7 @@ func _test_walking(state) -> void:
 		_expect(trail_seen, "seguidor anda pelas casas do líder")
 		var links := 0
 		for ahead in view.file_next:
-			if Hex.distance(ahead.pos, view.file_next[ahead].pos) == 1:
+			if Hex.distance(ahead.pos, view.file_next[ahead].pos) <= 2: # folga do seguidor (FOLLOW_SLACK)
 				links += 1
 		_expect(links >= state.party.size() - 2, "ao parar, a fila continua colada (%d elos)" % links)
 		await _shot("2_party_em_fila")

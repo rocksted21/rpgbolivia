@@ -16,6 +16,7 @@ const FACE_SIDE_FLIP := 0.3 # andando quase na vertical, não troca de lado à t
 const CATCH_UP := 0.7 # quanto o seguidor acelera por casa de atraso
 const FILE_RETRY := 0.05
 const FILE_PATIENCE := 1.5
+const FOLLOW_SLACK := 2 # o seguidor fica parado enquanto estiver a até essas casas de quem segue
 
 var battle: BattleView # a tela dona deste módulo
 
@@ -187,6 +188,13 @@ func _start_file(leader, followers: Array, target: Vector2i) -> void:
 		ahead = member
 
 
+func _ahead_of(hero):
+	for ahead in battle.file_next.keys():
+		if battle.file_next[ahead] == hero:
+			return ahead
+	return null
+
+
 func _end_walk(hero) -> void:
 	battle.walk_paths.erase(hero)
 	battle.walk_goals.erase(hero)
@@ -239,6 +247,21 @@ func _roam_step(hero) -> void:
 	if not hero.alive() or path.is_empty():
 		_end_walk(hero)
 		return
+	var gap := 0
+	if not battle.walk_goals.has(hero):
+		# Seguidor perto de quem está à frente fica parado: só anda quando precisa.
+		var ahead = _ahead_of(hero)
+		if ahead != null and ahead.alive():
+			gap = Hex.distance(hero.pos, ahead.pos)
+			if gap <= FOLLOW_SLACK:
+				if battle.walk_paths.has(ahead):
+					battle.step_wait[hero] = FILE_RETRY
+				else:
+					_end_walk(hero) # quem está à frente parou: a fila também para
+				return
+			# Corta as voltas da trilha: pula para a casa mais adiante que já está ao lado.
+			while path.size() > 1 and Hex.distance(hero.pos, path[1]) <= 1 and battle.state.can_step(hero, path[1]):
+				path.pop_front()
 	var cell: Vector2i = path[0]
 	if battle.walk_goals.has(hero):
 		# Quem puxa a fila não fica preso aos que vêm atrás; sozinho, respeita o limite da party.
@@ -266,7 +289,7 @@ func _roam_step(hero) -> void:
 		_end_walk(hero)
 	var from: Vector2i = hero.pos
 	# Atrasado na fila, o seguidor acelera até colar em quem está à frente.
-	var late: int = path.size() if not battle.walk_goals.has(hero) else 0
+	var late: int = maxi(0, gap - FOLLOW_SLACK - 1)
 	var wait: float = battle.WALK_STEP / (1.0 + CATCH_UP * late)
 	battle.step_wait[hero] = wait
 	var events: Array = battle.state.do_step(hero, cell)
