@@ -252,6 +252,7 @@ func result() -> Dictionary:
 	counted["brasas"] = kept
 	return {
 		"won": won,
+		"guardian": boss.type_id if won and boss != null else "", # a história lembra quem caiu
 		"brasas": kept,
 		"rescued": rescued.duplicate(),
 		"memories": memories.size(),
@@ -387,7 +388,10 @@ func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
 		events.append({"type": "spawn", "unit": unit})
 	entry["state"] = "fighting"
 	entry["guards"] = [boss]
-	events.append({"type": "landmark", "cell": cell, "title": boss.display_name, "detail": "Derrote o guardião para acender o farol.", "done": false, "color": Color(1.0, 0.45, 0.35)})
+	var detail := "Derrote o guardião para acender o farol."
+	if Exp.BOSS_LINES.has(boss_type):
+		detail = "%s\n%s" % [Exp.BOSS_LINES[boss_type], detail]
+	events.append({"type": "landmark", "cell": cell, "title": boss.display_name, "detail": detail, "done": false, "color": Color(1.0, 0.45, 0.35)})
 	events.append_array(engage(guards, true))
 
 

@@ -130,7 +130,9 @@ const DECOR := [
 	{"art": "doca", "cell": Vector2i(18, 26)}, {"art": "barco_a", "cell": Vector2i(20, 27)}, {"art": "barco_b", "cell": Vector2i(15, 27)},
 	{"art": "barco_a", "cell": Vector2i(22, 28)},
 ]
-# service: "resident" (melhorias), "memories", "skills", "beacon", "shop", "board" ou "talk".
+# service: "resident" (melhorias), "memories", "skills", "beacon", "shop", "board", "talk" ou "guide".
+# O guia fica ao lado da fonte, perto de onde a party começa: é o primeiro com quem se fala.
+# O ferreiro tem de ser o primeiro da lista (tests/test_town.gd).
 const PEOPLE := [
 	{"id": "ferreiro", "name": "Ferreiro", "art": "morador_ferreiro", "cell": Vector2i(10, 12), "service": "resident", "needs": "ferreiro"},
 	{"id": "curandeira", "name": "Curandeira", "art": "morador_curandeira", "cell": Vector2i(12, 20), "service": "resident", "needs": "curandeira"},
@@ -142,10 +144,11 @@ const PEOPLE := [
 	{"id": "mercadora", "name": "Mercadora", "art": "morador_d", "cell": Vector2i(15, 18), "service": "shop"},
 	{"id": "sacerdotisa", "name": "Sacerdotisa", "art": "morador_e", "cell": Vector2i(13, 11), "service": "shop"},
 	{"id": "mural", "name": "Mural de Missões", "art": "mural", "cell": Vector2i(19, 12), "service": "board"},
+	{"id": "guia", "name": "Pavio", "art": "morador_g", "cell": Vector2i(18, 14), "service": "guide"},
 ]
 
 # Quem anda pelas ruas. A cidade ganha gente com os resgates e os faróis.
-const WALKER_ART := ["morador_f", "morador_g", "morador_a", "morador_c"]
+const WALKER_ART := ["morador_f", "morador_a", "morador_c"] # morador_g é o guia: não pode ter sósia
 const WALKER_BASE := 2
 const WALKER_MAX := 6
 const WALK_ROUTE := [
@@ -159,7 +162,6 @@ const BEACON_HEIGHT := 288.0 # altura da lanterna do farol no modelo
 const FORGE_LIGHT := 1.2
 
 const BEACON_TEXT := "Enquanto esta chama arder, a cidade existe. Acendam os faróis das regiões e a escuridão vai recuar até quem a trouxe."
-const NEXT_REGION_TEXT := "O farol da região já brilha. O caminho até a próxima região ainda está sendo aberto."
 const NO_MEMORY_TEXT := "Ninguém aqui lembra de muita coisa. Traga memórias das expedições e eu conto o que elas significam."
 const MISSING_TEXT := "Este lugar está em ruínas. Procure uma vila tomada pela escuridão: quem mora ali pode trazê-lo de volta."
 const SKILLS_TEXT := "Treine aqui antes de partir. O que vocês aprenderam nas expedições vira força nas árvores de skills."

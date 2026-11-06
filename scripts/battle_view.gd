@@ -356,6 +356,8 @@ func _go_online() -> void:
 		online_session.connection_lost.connect(_network_lost)
 		online_session.changed.connect(_room_status)
 		online_session.player_arrived.connect(_on_player_arrived)
+		online_session.progress_received.connect(_on_progress_received)
+		online_session.hero_learned.connect(_on_hero_learned)
 	hud.save_allowed = online_session.relay.is_master
 	hud.load_allowed = false
 	_room_status()
@@ -402,7 +404,7 @@ func _leave_room() -> void:
 	if not online_session.relay.is_master:
 		_leave_online()
 		return
-	for signal_name in ["command_received", "packet_received", "connection_lost", "changed", "player_arrived"]:
+	for signal_name in ["command_received", "packet_received", "connection_lost", "changed", "player_arrived", "progress_received", "hero_learned"]:
 		for connection in online_session.get_signal_connection_list(signal_name):
 			if connection["callable"].get_object() == self:
 				online_session.disconnect(signal_name, connection["callable"])
@@ -688,11 +690,12 @@ func _show_result(result: int) -> void:
 				_rebuild_cell(state.beacon_cell) # o farol acende
 		var types := []
 		for unit in state.units:
-			if unit.team == Data.Team.PLAYER and (not online_session.playing or online_session.relay.is_master): # online: o save do dono
+			if unit.team == Data.Team.PLAYER and online_session.can_control(unit): # online: cada um no seu save
 				types.append(unit.type_id)
 		_reward_fight() # abates da última luta (na arena, a luta toda)
 		var xp_gain: int = gain * Skills.END_XP_PER_POINT
 		var raised := HeroProgress.add_xp(types.filter(func(type_id): return Skills.has_tree(type_id)), xp_gain)
+		_report_progress(types, xp_gain, raised)
 		if xp_gain > 0 and not types.is_empty():
 			note = "+%d XP para cada herói" % xp_gain
 		if not raised.is_empty():
@@ -701,6 +704,10 @@ func _show_result(result: int) -> void:
 	for id in quests_finished:
 		note += "%sMissão cumprida: %s" % ["\n" if note != "" else "", TownContent.QUESTS[id]["title"]]
 	quests_finished = []
+	if expedition and won and state.boss != null: # as últimas palavras do guardião
+		var farewell: String = Exp.BOSS_FAREWELL.get(state.boss.type_id, "")
+		if farewell != "":
+			note = farewell + ("\n\n" + note if note != "" else "")
 	hud.show_end(_end_text() if exploring else ("Vitória!" if won else "Derrota"), note)
 
 
@@ -2381,6 +2388,8 @@ func _room_status() -> void:
 	if not online_session.playing or hud == null:
 		return
 	hud.set_party_owners(_owner_names())
+	_report_progress(_my_party_types()) # quem entrou (ou trocou de herói) vê o nível de todos
+	_update_party_progress()
 	if selected != null and not online_session.can_control(selected) and _free_roam():
 		_select(_first_mine())
 	if hud.group_open():
@@ -2457,7 +2466,7 @@ func _select_next() -> void:
 
 
 func _on_party_pick(unit) -> void:
-	var can_open: bool = _free_roam() and not online_session.playing and Skills.has_tree(unit.type_id)
+	var can_open: bool = _free_roam() and online_session.can_control(unit) and Skills.has_tree(unit.type_id)
 	if can_open and (unit == selected or HeroProgress.available(unit.type_id) > 0 or not unit.alive()):
 		sound_manager.play_ui(&"switch3")
 		_open_tree(unit)
@@ -2903,10 +2912,9 @@ func _play_combat_end(event: Dictionary) -> void:
 
 
 ## Heróis deste jogador que estão de pé: só eles ganham experiência no save daqui.
+## Online, cada um sobe os heróis com que joga; os outros só veem o aviso.
 func _my_living_heroes() -> Array:
-	if online_session.playing and not online_session.relay.is_master:
-		return [] # os heróis são do save do dono da sala: só ele ganha experiência
-	return state.units.filter(func(unit): return unit.team == Data.Team.PLAYER and unit.alive() and Skills.has_tree(unit.type_id))
+	return state.units.filter(func(unit): return unit.team == Data.Team.PLAYER and unit.alive() and Skills.has_tree(unit.type_id) and online_session.can_control(unit))
 
 
 ## Fim de uma luta: "+N XP" sobe da cabeça de cada herói e, se alguém subiu, "LEVEL UP!".
@@ -2923,6 +2931,7 @@ func _reward_fight(bonus := 0) -> void:
 		if views.has(unit):
 			_pop_number(views[unit].position, "+%d XP" % amount, XP_INK, 0.8)
 	_update_party_progress()
+	_report_progress(heroes.map(func(unit): return unit.type_id), amount, raised)
 	if raised.is_empty():
 		return
 	await get_tree().create_timer(0.7).timeout
@@ -2934,19 +2943,73 @@ func _reward_fight(bonus := 0) -> void:
 	await get_tree().create_timer(0.6).timeout
 
 
-## Nível, barra de experiência e pontos livres nas cartas dos heróis deste jogador.
+## Nível, barra de experiência e pontos livres nas cartas dos heróis.
+## Os meus vêm do meu save; online, os dos outros vêm do que o dono de cada um informou.
 func _update_party_progress() -> void:
 	if not exploring:
 		return
-	if online_session.playing and not online_session.relay.is_master:
-		return
 	for unit in state.party:
-		hud.set_party_progress(unit, HeroProgress.level_info(unit.type_id), HeroProgress.available(unit.type_id))
+		if online_session.can_control(unit):
+			hud.set_party_progress(unit, HeroProgress.level_info(unit.type_id), HeroProgress.available(unit.type_id))
+		elif online_session.hero_progress.has(unit.type_id):
+			var entry: Dictionary = online_session.hero_progress[unit.type_id]
+			hud.set_party_progress(unit, entry, entry["points"])
+
+
+## Online: conta para a sala o nível dos meus heróis. `raised`: quem acabou de subir.
+func _report_progress(type_ids: Array, xp_gain := 0, raised := []) -> void:
+	if not online_session.playing:
+		return
+	var entries := []
+	for type_id in type_ids:
+		if not Skills.has_tree(type_id):
+			continue
+		var info := HeroProgress.level_info(type_id)
+		entries.append({hero = type_id, level = info["level"], fraction = info["fraction"], max = info["max"],
+			points = HeroProgress.available(type_id), xp = xp_gain, up = type_id in raised})
+	online_session.report_progress(entries)
+
+
+func _my_party_types() -> Array:
+	return state.party.filter(func(unit): return online_session.can_control(unit)).map(func(unit): return unit.type_id)
+
+
+## Herói de outro jogador ganhou XP ou subiu: todo mundo vê.
+func _on_progress_received(entry: Dictionary) -> void:
+	_update_party_progress()
+	var unit = null
+	for member in state.party:
+		if member.type_id == entry["hero"]:
+			unit = member
+	if unit == null or not views.has(unit):
+		return
+	if entry["xp"] > 0:
+		_pop_number(views[unit].position, "+%d XP" % entry["xp"], XP_INK, 0.8)
+	if entry["up"]:
+		await get_tree().create_timer(0.7).timeout
+		if not views.has(unit):
+			return
+		sound_manager.play_sfx(&"heal")
+		_pop_number(views[unit].position, "LEVEL UP!", LEVEL_INK, 1.3, "Nv %d" % entry["level"])
+		hud.show_banner("%s subiu de nível!" % unit.display_name, LEVEL_INK)
+
+
+## Online: o dono da sala confirmou o nó; todos aplicam no herói, e quem comprou atualiza a carta.
+func _on_hero_learned(type_id: String, node_id: String) -> void:
+	_apply_bought_node(type_id, node_id)
+	if online_session.relay.is_master:
+		online_session.publish([], not busy, _free_roam())
+	if type_id in _my_party_types():
+		_report_progress([type_id])
 
 
 ## Árvore de talentos por cima do jogo, só com os heróis da party. O que for comprado vale na hora.
+## Online, só os heróis com que eu jogo: o nó vai para o dono da sala, que avisa todos.
 func _open_tree(unit) -> void:
-	if tree_layer != null or online_session.playing:
+	if tree_layer != null:
+		return
+	var mine: Array = _my_party_types().filter(func(type_id): return Skills.has_tree(type_id))
+	if mine.is_empty():
 		return
 	tree_layer = CanvasLayer.new()
 	tree_layer.layer = TOWN_PANELS_LAYER + 10
@@ -2954,9 +3017,9 @@ func _open_tree(unit) -> void:
 	var screen = SkillTreeScene.instantiate()
 	screen.embedded = true
 	screen.live = true
-	screen.start_hero = unit.type_id
-	screen.only_heroes = state.party.map(func(member): return member.type_id)
-	screen.bought.connect(_apply_bought_node)
+	screen.start_hero = unit.type_id if unit.type_id in mine else mine[0]
+	screen.only_heroes = mine
+	screen.bought.connect(online_session.learn if online_session.playing else _apply_bought_node)
 	screen.closed.connect(func():
 		tree_layer.queue_free()
 		tree_layer = null
@@ -2970,6 +3033,8 @@ func _apply_bought_node(type_id: String, node_id: String) -> void:
 		var member = state.party[i]
 		if member.type_id != type_id or found.is_empty():
 			continue
+		if state.builds_used is Dictionary and node_id in state.builds_used.get(i, []):
+			continue # já está no herói (o aviso da rede chegou de novo)
 		member._apply_node(found["node"])
 		if state.builds_used is Dictionary:
 			var build: Array = state.builds_used.get(i, [])
@@ -3126,7 +3191,7 @@ func _quest_tracker() -> String:
 		var quest: Dictionary = TownContent.QUESTS[id]
 		var done: int = mini(TownProgress.quest_progress(id) + int(result["tally"].get(quest["count"], 0)), quest["target"])
 		return "Missão: %s (%d/%d)" % [quest["title"], done, quest["target"]]
-	return ""
+	return "Objetivo: %s" % TownContent.EXPEDITION_GOAL
 
 
 func _use_potion() -> void:
@@ -3266,6 +3331,7 @@ func _update_town() -> void:
 		{"icon": "flame", "value": TownProgress.brasas(), "label": "Brasas", "color": Color(1.0, 0.68, 0.3)},
 		{"icon": "star", "value": TownProgress.beacons(), "label": "Faróis", "color": Color(1.0, 0.85, 0.35)},
 	], {"level": city_level, "fraction": -1.0, "name": "Cidade"})
+	hud.set_tracker("Objetivo: %s" % TownProgress.objective()) # o norte da história, sempre à vista
 	hud.update_party(selected)
 
 

@@ -18,6 +18,8 @@ const BUBBLE_TIME := 3.2
 const BUBBLE_PAUSE := Vector2(2.5, 5.0)
 const BUBBLE_RADIUS := 7
 const BOARD_FEET := Vector2(93, 160)
+const CALL_PAUSE := 4.5 # o guia chama a party de tempos em tempos enquanto tem história nova
+const NO_CELL := Vector2i(-9999, -9999)
 
 var view
 var state
@@ -25,6 +27,9 @@ var camera
 var lights := []
 var walkers := []
 var bubble_wait := 2.0
+var call_wait := 1.0
+var calling := false
+var guide_cell := NO_CELL
 var time := 0.0
 
 
@@ -45,6 +50,10 @@ func setup(p_view) -> void:
 	var count: int = mini(Town.WALKER_BASE + TownProgress.rescued().size() + TownProgress.beacons(), Town.WALKER_MAX)
 	for i in count:
 		_add_walker(i)
+	for person in Town.PEOPLE:
+		if person["id"] == Content.GUIDE:
+			guide_cell = person["cell"]
+	calling = TownProgress.story_pending()
 
 
 # --- Luz -----------------------------------------------------------------------
@@ -214,6 +223,8 @@ func _chat() -> void:
 	var talkers := []
 	for cell in state.people:
 		var person: Dictionary = state.people[cell]
+		if calling and cell == guide_cell:
+			continue # o guia está chamando a party: sem conversa solta por cima
 		if state.is_present(person) and Content.AMBIENT.has(person["id"]) and Hex.distance(cell, hero) <= BUBBLE_RADIUS:
 			talkers.append({"cell": cell, "lines": Content.AMBIENT[person["id"]]})
 	for walker in walkers:
@@ -223,6 +234,15 @@ func _chat() -> void:
 		return
 	var pick: Dictionary = talkers[randi() % talkers.size()]
 	say(pick["cell"], pick["lines"][randi() % pick["lines"].size()])
+
+
+## Enquanto houver capítulo novo, o guia chama a party com um balão. Para quando ele contar.
+func _call_party() -> void:
+	calling = guide_cell != NO_CELL and state.people.has(guide_cell) and TownProgress.story_pending()
+	if not calling:
+		return
+	var lines: Array = Content.STORY[TownProgress.story_heard() + 1]["call"]
+	say(guide_cell, lines[randi() % lines.size()])
 
 
 func _process(delta: float) -> void:
@@ -236,3 +256,8 @@ func _process(delta: float) -> void:
 	if bubble_wait <= 0.0:
 		bubble_wait = randf_range(BUBBLE_PAUSE.x, BUBBLE_PAUSE.y)
 		_chat()
+	if calling:
+		call_wait -= delta
+		if call_wait <= 0.0:
+			call_wait = CALL_PAUSE
+			_call_party()

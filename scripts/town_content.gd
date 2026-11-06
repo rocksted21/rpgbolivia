@@ -128,14 +128,117 @@ const QUESTS := {
 }
 const QUEST_ORDER := ["primeira_chama", "sucata", "ervas", "freguesia", "aguas", "emboscadas", "carga", "treino", "lembrancas", "vigilia"]
 
+# --- História ------------------------------------------------------------------
+# SPOILER: o enredo inteiro está em docs/SPOILER_historia.md.
+# Cada capítulo é contado pelo guia na volta para casa. O capítulo atual é o número de faróis
+# acesos (0 a 4); o último só aparece depois da batalha final (TownProgress.finish_story()).
+# pages: [quem fala (id em Town.PEOPLE), fala]. goal: o objetivo no topo da tela.
+# help: o que fazer, em palavras simples. call: o que o guia grita enquanto tem algo a contar.
+const GUIDE := "guia"
+const KEEPER := "guarda"
+const BEACON_GOAL := 4
+const GOAL_TALK := "Fale com o Pavio, ao lado da fonte"
+const GOAL_KEEPER := "Fale com o Faroleiro, no alto da colina"
+const KEEPER_HELP := "Primeiro, subam a avenida até o farol, ao norte, e falem com o Faroleiro. Ele quer conhecer vocês. Depois é só partir: o botão \"Partir para a Expedição\" fica no canto da tela."
+const EXPEDITION_GOAL := "Acenda o farol (siga a bússola)"
+const STORY := [
+	{
+		"goal": "Acenda o farol de uma região",
+		"help": "Toquem em \"Partir para a Expedição\", no canto da tela, e escolham a party. Lá fora, a bússola no topo da tela aponta o farol. Derrotem o guardião e o farol acende. No caminho, vilas tomadas pela escuridão têm gente para salvar!",
+		"call": ["Ei, vocês! Aqui, na fonte!", "Vocês acordaram!", "Aqui! Perto da fonte!"],
+		"pages": [
+			["guia", "Ei! Vocês acordaram! Achei vocês desmaiados num barco sem remos, lá na doca. Vieram do meio da escuridão."],
+			["guia", "Não lembram de nada, né? Tudo bem. Quem sai da escuridão chega sem nome. Eu também cheguei assim. O Faroleiro me chama de Pavio."],
+			["guia", "Aqui é a Cidade-Farol, o último lugar com luz. Enquanto a Grande Chama arder lá no alto, quem mora aqui não é esquecido."],
+			["guia", "Lá fora, a escuridão apaga tudo: estradas, vilas, até o nome das pessoas. E quem é esquecido de vez... simplesmente some."],
+			["guia", "Antigamente, cada região tinha um farol. Todos se apagaram, e uma criatura ficou de guarda em cada um. Se alguém acender os quatro de novo, o mundo volta a lembrar de si."],
+			["guia", "E vocês atravessaram o escuro e chegaram inteiros. Ninguém faz isso! O Faroleiro precisa conhecer vocês. Ele fica no alto da colina, ao norte, cuidando da chama."],
+		],
+	},
+	{
+		"goal": "Acenda mais um farol",
+		"help": "O mesmo caminho: partam, sigam a bússola até o farol e derrotem o guardião. Antes, gastem as brasas em melhorias e poções. Cada farol aceso deixa a cidade maior.",
+		"call": ["Vocês voltaram!", "Eu vi a luz da torre!", "Venham aqui, rápido!"],
+		"pages": [
+			["guia", "Vocês voltaram! Eu vi da torre: uma luz nova, lá longe. A cidade inteira saiu na rua para olhar!"],
+			["guia", "O Faroleiro ficou olhando para ela a noite toda. Quando contei que o guardião tinha caído, ele só perguntou: \"Ele disse alguma coisa antes?\""],
+			["guia", "Por que ele ia querer saber o que um monstro disse? Eu acho que ele sabe mais do que conta."],
+			["guia", "Faltam três faróis. Cada um que acende traz gente de volta e deixa a escuridão mais fraca. Vamos!"],
+		],
+	},
+	{
+		"goal": "Acenda o terceiro farol",
+		"help": "Partam de novo e acendam o terceiro farol. Os guardiões não perdoam: treinem com o Mestre de Armas e levem poções.",
+		"call": ["Tenho uma coisa pra contar!", "Ei! Aqui!", "Vocês precisam ouvir isso!"],
+		"pages": [
+			["guia", "Dois faróis! A Taverneira diz que nunca vendeu tanta sopa."],
+			["guia", "Ontem subi a torre e ouvi o Faroleiro falando sozinho. Ele dizia nomes: Tomé, Killa, Gunnar, Inti... E pedia desculpas para cada um."],
+			["guia", "Vocês acham que os guardiões eram... gente? Gente daqui?"],
+			["guia", "Se eram, estavam guardando os faróis de alguém. Mas de quem? Eu vou descobrir. Vocês, acendam o terceiro."],
+		],
+	},
+	{
+		"goal": "Acenda o último farol",
+		"help": "Falta um. Partam, sigam a bússola até o farol e derrotem o último guardião. Com os quatro acesos, a luz vai mostrar onde Vésper se esconde.",
+		"call": ["O Faroleiro desceu da torre!", "Venham! Ele quer falar!", "Vocês precisam ouvir isso!"],
+		"pages": [
+			["guia", "Ele desceu! O Faroleiro desceu da torre pela primeira vez em anos. Disse que vocês merecem ouvir a verdade."],
+			["guarda", "Meu nome é Bento. Fui aprendiz de Vésper, o Primeiro Faroleiro. Foi ele quem acendeu a Grande Chama e todos os faróis do mundo."],
+			["guarda", "As chamas guardam mais que luz: guardam a memória das coisas. Vésper tinha pavor de que algo fosse esquecido. Então começou a guardar tudo... dentro de si mesmo."],
+			["guarda", "Primeiro bebeu as estrelas. Depois as estradas. Depois os nomes. O que ele guarda para si, o mundo esquece. Isso é a escuridão."],
+			["guarda", "Fui eu que dei a ordem: apaguem os faróis, e ele não terá o que beber. Tomé, Killa, Gunnar e Inti ficaram no escuro guardando as últimas brasas. Até de quem as acendeu."],
+			["guarda", "Agora vocês acendem o que eu mandei apagar. E está certo: a chama de vocês é nova, ele não consegue bebê-la. Mas ele já percebeu. Acendam o último farol, e ele não terá mais onde se esconder."],
+		],
+	},
+	{
+		"goal": "Enfrente Vésper no Farol Negro",
+		"help": "A última expedição leva ao Farol Negro, onde as quatro terras se encontram. Preparem tudo antes de ir: melhorias, poções e skills.",
+		"call": ["Olhem o horizonte!", "Os quatro estão acesos!", "Venham ver isso!"],
+		"pages": [
+			["guia", "Os quatro faróis estão acesos! E olhem lá longe, onde as quatro terras se encontram... tem uma torre que não estava lá."],
+			["guarda", "O Farol Negro. É onde Vésper se escondeu com tudo o que roubou. A luz de vocês finalmente o encontrou."],
+			["guarda", "Há mais uma coisa. Vocês não vieram de lugar nenhum: vieram de lá. Eram nomes que ele guardava, e a Grande Chama chamou vocês de volta. Por isso não lembram de nada."],
+			["guia", "Então... eu também saí de lá? Meu nome de verdade está com ele?"],
+			["guarda", "Está, Pavio. O de vocês também. Vésper vai perguntar se vale a pena viver num mundo que esquece. Pensem bem na resposta. E voltem."],
+		],
+	},
+	{
+		"goal": "A luz voltou ao mundo",
+		"help": "A história terminou, mas o mundo continua lá fora. Ainda há vilas perdidas e gente para salvar.",
+		"call": ["As estrelas voltaram!", "Olhem o céu!"],
+		"pages": [
+			["guia", "Vocês voltaram! Olhem para cima... as estrelas! Todas elas!"],
+			["guarda", "No fim, Vésper soltou tudo. A luz voltou para quem era dona dela. Os nomes também."],
+			["guia", "Eu lembrei do meu nome. É Lucas! Mas acho que vou continuar sendo Pavio. Combina com o farol."],
+			["guarda", "E vocês? Lembraram quem eram? Não precisam me contar. Agora há uma cidade inteira que nunca vai esquecer vocês."],
+			["guarda", "Estou cansado, meus amigos. Pavio, a chama é sua agora. Não a guarde só para você. Divida."],
+		],
+	},
+]
+
 # --- Conversas -----------------------------------------------------------------
 # first: a primeira vez. greetings: depois disso, muda a cada expedição.
 # topics: [pergunta, resposta]. after_beacon: troca o cumprimento quando há farol aceso.
+# stages: {capítulo: fala} dita uma vez quando a história chega naquele capítulo.
+# topics_at: {capítulo: [pergunta, resposta]} que aparece a partir daquele capítulo.
+# guardians: {chefe: [pergunta, resposta]} que aparece depois de vencer aquele guardião.
+# defeat: cumprimentos na volta de uma expedição perdida.
 const TALK := {
+	"guia": {
+		"first": "Oi! Eu sou o Pavio, aprendiz do farol. Precisando de alguma coisa, é só chamar!",
+		"greetings": ["Precisam de alguma coisa? Eu sei onde fica tudo nesta cidade!", "O Faroleiro diz que eu falo demais. Eu acho que falo o necessário."],
+		"defeat": ["Vocês voltaram! Machucados, mas voltaram. Isso já é mais do que a escuridão queria.", "Cair uma vez não apaga ninguém. A Curandeira e o Mestre de Armas podem deixar vocês mais fortes."],
+		"stages": {5: "Lucas ou Pavio? Ainda estou decidindo. Acho que Pavio."},
+		"topics": [
+			["Quem é você?", "Pavio, aprendiz do farol! Também cheguei pelo mar escuro, sem nome. O Faroleiro me deu este porque eu sou pequeno e seguro a chama."],
+			["O que tem na cidade?", "A Mercadora e a Sacerdotisa vendem coisas. A Taverneira guarda as memórias que vocês acharem, o Mestre de Armas treina e o Mural tem pedidos. Ferreiro e Curandeira, só se vocês resgatarem."],
+		],
+	},
 	"ferreiro": {
 		"first": "Achei que nunca mais ouviria este martelo. Obrigado por me tirar de lá. Agora, o que posso consertar?",
 		"greetings": ["Lâmina cega não salva ninguém. Deixe-me ver isso.", "Ferro velho, ideias novas. O que vai ser?"],
 		"after_beacon": "Com mais um farol aceso, o carvão até queima melhor. Coisa da minha cabeça, talvez.",
+		"stages": {3: "O velho me pediu uma lâmina. Disse que é para quando ele não estiver mais aqui. Não gostei disso."},
 		"topics": [
 			["Como você foi parar naquela vila?", "Fui buscar ferro e fiquei. A escuridão chegou de noite e a estrada sumiu. Só sobrou a oficina."],
 			["O que acontece com a forja agora?", "Agora ela é sua. Traga brasas e todo herói que sair daqui sai mais forte."],
@@ -145,6 +248,7 @@ const TALK := {
 		"first": "Vocês me acharam. Ainda tenho as mãos e as ervas, e isso basta. Sentem-se, por favor.",
 		"greetings": ["Quem vem de lá sempre volta com um corte novo. Deixe-me ver.", "As ervas ainda crescem aqui. Pequenos milagres."],
 		"after_beacon": "A horta floresceu fora de época. Acho que ela também viu o farol.",
+		"stages": {2: "Tem gente chegando com memórias voltando aos pedaços. Dói, mas é bom sinal."},
 		"topics": [
 			["A escuridão tem cura?", "Para o corpo, sim. Para o que ela apaga da memória, não conheço nenhuma."],
 			["Por que as fontes ainda brilham?", "Porque alguém as acendeu antes de nós. Não sei quem. Espero que seja amigo."],
@@ -154,6 +258,10 @@ const TALK := {
 		"first": "Bem-vindos à última taverna do mundo. A bebida é ruim, mas é a única. O que vai ser?",
 		"greetings": ["Sentem-se. Aqui ninguém pergunta o que vocês viram lá fora.", "Tem sopa. Não perguntem de quê."],
 		"after_beacon": "Depois daquele farol, vendi mais em uma noite do que no ano todo. Continuem.",
+		"stages": {
+			1: "Gente nova chegando pela estrada! Faz anos que não ouço tanta conversa aqui.",
+			3: "Dizem que o velho desceu da torre. O mundo deve estar acabando. Ou começando.",
+		},
 		"topics": [
 			["O que dizem por aí?", "Que as trilhas antigas ligam os faróis. Quem segue o calçamento raramente se perde."],
 			["Quem construiu esta cidade?", "Os faroleiros. E depois sumiram quase todos. Só restou aquele velho lá em cima, que não gosta de falar disso."],
@@ -162,40 +270,69 @@ const TALK := {
 	"mestre": {
 		"first": "Postura ruim. Guarda baixa. Ótimo, tenho trabalho. Vão ficar parados aí?",
 		"greetings": ["De novo. Desta vez, com vontade.", "Cicatriz nova é lição nova. Mostre o que aprendeu."],
+		"stages": {4: "Treinem como se fosse a última vez. Porque pode ser."},
 		"topics": [
 			["Como ficamos mais fortes?", "Cada expedição ensina. O que vocês aprendem vira ponto de skill. Gastem nas árvores de cada herói."],
 			["Algum conselho para a luta?", "Terreno alto bate mais forte, floresta protege e quem cerca o inimigo acerta mais. O resto é coragem."],
 		],
 	},
 	"guarda": {
-		"first": "Você é quem vai lá fora, então. Eu cuido desta chama há mais tempo do que deveria. Enquanto ela arder, a cidade existe.",
+		"first": "Então são vocês que o Pavio tirou do barco. Saíram da escuridão com vida... faz muito tempo que não vejo isso. Cuido desta chama há mais tempo do que deveria, e sozinha ela não basta. Acendam o farol de uma região. Depois conversamos sobre o resto.",
 		"greetings": ["A chama está firme hoje.", "Daqui de cima dá para ver onde a escuridão termina. Fica um pouco mais longe a cada dia."],
 		"after_beacon": "Mais uma luz no horizonte. Faltam poucas para enxergarmos quem começou tudo isso.",
+		"stages": {
+			1: "Uma luz nova no horizonte. Eu sabia que ainda havia brasa debaixo daquele escuro.",
+			2: "Quando o vento vem das regiões, eu ouço nomes antigos. Não liguem para um velho.",
+			3: "Agora vocês sabem quem eu sou. Se ainda quiserem a minha ajuda, ela é de vocês.",
+			4: "Não olhem muito tempo para o Farol Negro. Ele olha de volta.",
+			5: "Vejam o céu. Eu tinha esquecido como era.",
+		},
 		"topics": [
 			["O que é a escuridão?", "Ela chegou devagar. Primeiro as estrelas, depois as estradas, depois os nomes. Alguém a trouxe."],
 			["Para que servem os faróis?", "Cada farol aceso devolve uma região. Com todos acesos, ele não terá onde se esconder."],
 		],
+		"topics_at": {
+			3: ["Quem acendeu as fontes de luz?", "Tomé, Killa, Gunnar e Inti, antes de irem para o escuro. Deixaram água limpa para quem viesse depois. Para vocês, eu acho."],
+		},
+		"guardians": {
+			"boss_cervo": ["Quem era o Rei Cervo?", "Tomé. Caçador, faroleiro da floresta. Errava as flechas de propósito para os cervos fugirem. Fui eu que pedi que ele ficasse lá, no escuro."],
+			"boss_serpente": ["Quem era a Rainha Serpente?", "Killa cuidava do farol do pântano e de todo mundo que se perdia nele. Ela disse que cumpriu o juramento? Então quem ainda deve sou eu."],
+			"boss_jarl": ["Quem era o Jarl de Gelo?", "Gunnar, capitão da nossa guarda. Foi o primeiro a aceitar ficar. Disse que o frio não assusta quem já perdeu tudo."],
+			"boss_farao": ["Quem era o Faraó Eclipse?", "Inti contava as estrelas. Quando elas começaram a sumir, foi ela quem percebeu primeiro quem as estava levando."],
+		},
 	},
 	"pescador": {
 		"first": "Os barcos não saem há muito tempo. A água ficou escura como tinta. Se você vai lá fora, talvez possa me ajudar.",
 		"greetings": ["Hoje nem os peixes querem saber de mim.", "Dizem que do outro lado do lago ainda há luz. Eu não apostaria nisso."],
+		"stages": {
+			2: "A água clareou perto da doca. Hoje vi um peixe! Um só, mas vi.",
+			4: "Do barco dá para ver uma torre preta no meio da névoa. Eu não remaria até lá nem por toda a sopa do mundo.",
+		},
 		"topics": [
 			["Dá para atravessar o lago?", "De barco, não mais. Mas as pontes velhas ainda aguentam. Quem as fez sabia construir."],
 			["O que vive nessa água?", "Antes, trutas. Agora prefiro não puxar a rede para descobrir."],
 		],
+		"topics_at": {
+			0: ["Você viu quando chegamos?", "Vi o Pavio puxando o barco de vocês. Madeira antiga, sem remos e sem nome. Igual aos barcos que os faroleiros usavam."],
+		},
 	},
 	"viajante": {
 		"first": "Cheguei seguindo o farol. É a única coisa que a escuridão não apagou. E você, de onde vem?",
 		"greetings": ["Nem toda ruína está vazia. Fique de olho.", "Ainda não decidi se fico. Mas a sopa está melhorando."],
+		"stages": {3: "Decidi: vou ficar. Quero ver como essa história termina."},
 		"topics": [
-			["O que você viu lá fora?", "Quatro terras: floresta de pedra, pântano de tinta, neve de cinzas e deserto de ouro. Nenhuma feliz em me ver."],
+			["O que você viu lá fora?", "Quatro terras: floresta de ruínas, pântano de tinta, neve de cinzas e deserto de ouro. Nenhuma feliz em me ver."],
 			["Como reconhecer uma emboscada?", "Não dá. Ruínas parecem todas iguais. Entre com a vida cheia."],
 		],
+		"topics_at": {
+			4: ["Onde fica o Farol Negro?", "Onde as quatro terras se encontram. Passei perto uma vez. Lá, nem o eco volta."],
+		},
 	},
 	"mercadora": {
 		"first": "Cliente novo! Não ligue para a poeira, a mercadoria é honesta. Quase toda. Dê uma olhada.",
 		"greetings": ["Brasa na mão e vontade de gastar? Chegou no lugar certo.", "Separei umas coisas boas. Só para você. E para os outros também."],
 		"after_beacon": "Mais um farol, mais gente na estrada e mais freguesia. Continue assim.",
+		"stages": {4: "Até eu estou com medo daquela torre preta. Leve poções. Leve muitas. Faço preço."},
 		"topics": [
 			["O que vale levar?", "Poção sempre. Se a expedição parecer longa, ração e pedra de amolar. E o amuleto, se você gosta de lucro."],
 			["De onde vem isso tudo?", "De quem não voltou para buscar. Não me olhe assim, alguém tinha de guardar."],
@@ -205,6 +342,10 @@ const TALK := {
 		"first": "Entre, sem medo. Esta capela está meio caída, mas quem reza aqui ainda é ouvido. Eu acho.",
 		"greetings": ["A luz o acompanhe. Literalmente, se possível.", "Rezei por quem saiu. Fico feliz que tenha voltado."],
 		"after_beacon": "Sinto a luz mais perto. Até os sinos parecem mais leves.",
+		"stages": {
+			2: "Os sinos tocaram duas vezes esta noite. Alguém lá fora lembrou de rezar.",
+			4: "Agora eu sei qual é a pergunta dele. A resposta é de vocês.",
+		},
 		"topics": [
 			["O que é a Bênção do Farol?", "Um pouco da chama que protege a cidade, para levar com você. Dura uma expedição."],
 			["Você acredita que vamos vencer?", "Acredito que cada chama acesa é uma resposta. A pergunta dele nós ainda vamos ouvir."],
@@ -214,6 +355,7 @@ const TALK := {
 
 # Falas soltas que os moradores dizem quando a party passa por perto.
 const AMBIENT := {
+	"guia": ["O farol nunca dorme!", "Já foram na taverna?"],
 	"ferreiro": ["Quente o bastante...", "Onde deixei o martelo?"],
 	"curandeira": ["Cuidado com a horta!", "Falta musgo-de-sal."],
 	"taverneira": ["Sopa quente!", "Última taverna do mundo!"],

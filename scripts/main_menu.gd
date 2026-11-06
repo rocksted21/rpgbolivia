@@ -610,6 +610,9 @@ func _fill_archive() -> void:
 	var story := _text(body, note if note != "" else "Nenhuma expedição voltou ainda. O arquivo espera por suas histórias.", body_font, 14, TEXT_DIM)
 	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	story.custom_minimum_size.x = 460
+	var goal := _text(body, "Objetivo: %s" % TownProgress.objective(), body_font, 14, GOLD)
+	goal.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	goal.custom_minimum_size.x = 460
 
 
 func _load_game() -> void:
