@@ -11,21 +11,32 @@ const GameSettings = preload("res://scripts/game_settings.gd")
 const SaveGame = preload("res://scripts/save_game.gd")
 const OPTIONS_WIDTH := 136
 
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal option_pressed(index: int)
 signal order_toggled(on: bool)
 signal restart_pressed
 signal skills_pressed
 signal menu_pressed
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal party_pressed(unit)
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal rotate_held(direction: int) # -1 ou 1 enquanto o botão está apertado; 0 ao soltar
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal together_toggled(on: bool)
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal unit_picked(unit)
 signal potion_pressed
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal end_turn_pressed
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal save_pressed
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal load_pressed
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal quit_pressed
+@warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal options_toggled(open: bool)
+signal zoom_toggled(on: bool)
 
 const Data = preload("res://scripts/game_data.gd")
 const SpellPreview = preload("res://scripts/spell_preview.gd")
@@ -51,6 +62,15 @@ const MENU_WIDTH := 340.0
 const SHOW_ORDER_TEXT := "Mostrar ordem"
 const HIDE_ORDER_TEXT := "Esconder ordem"
 const ANIM_IDLE := 0
+# Painel do topo (exploração): mesmas cores das janelas da Cidade-Farol.
+const PANEL_FILL := Color(0.098, 0.118, 0.165, 0.93)
+const PANEL_EDGE := Color("f2ca76")
+const PANEL_TEXT := Color("f5efdf")
+const PANEL_MUTED := Color("aab2c2")
+const OVERVIEW_LEFT := 110.0 # à esquerda fica a fila de turnos
+const OVERVIEW_WIDTH := 850.0 # à direita ficam os botões da câmera
+const ICON_BUTTON := Vector2(56, 48)
+const XP_BAR := Vector2(110, 8)
 const HudOptions = preload("res://scripts/hud/options_menu.gd")
 const HudCard = preload("res://scripts/hud/unit_card.gd")
 const HudActionMenu = preload("res://scripts/hud/action_menu.gd")
@@ -81,7 +101,20 @@ var timeline_tween: Tween
 var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magia carregada
 
 
-var journey: Label
+var overview: CenterContainer
+var overview_title: Label
+var overview_level: HBoxContainer
+var overview_badge: Label
+var overview_bar: Panel
+var overview_xp: Label
+var overview_stats: HBoxContainer
+var overview_chips: HBoxContainer
+var overview_key := ""
+var overview_cells := [] # {value, icon} na ordem dos números
+var overview_chip_nodes := [] # {dial, name, distance}
+var overview_text := "" # o painel em uma linha (testes)
+var quest_chip: PanelContainer
+var zoom_button: Button
 var potion_button: Button
 var tracker: Label
 var options_button: Button
@@ -134,6 +167,14 @@ func setup(p_meta: Dictionary) -> void:
 	sound_manager.bind_button(order_button, &"switch1")
 	order_button.toggled.connect(_on_order_toggled)
 	add_child(order_button)
+
+	# Na arena fica ao lado da ordem; na exploração vai para a barra da câmera (setup_party).
+	zoom_button = _icon_button("zoom_in", Vector2(SCREEN.x - MARGIN - 200 - 8 - ICON_BUTTON.x, MARGIN))
+	zoom_button.toggle_mode = true
+	zoom_button.tooltip_text = "Aproximar (Z ou roda do mouse). Aproximado, arraste o chão para mover a câmera."
+	zoom_button.toggled.connect(func(on):
+		_show_zoom(on)
+		zoom_toggled.emit(on))
 
 	hint = Label.new()
 	hint.position = Vector2(90, 676)
@@ -260,14 +301,7 @@ func _on_order_toggled(on: bool) -> void:
 ## Prepara a tela para a exploração: mostra o progresso e oferece voltar ao menu no fim.
 func setup_exploration() -> void:
 	order_button.visible = false
-	journey = _label("", 22, Color(1.0, 0.95, 0.8))
-	journey.position = Vector2(0, 16)
-	journey.custom_minimum_size = Vector2(SCREEN.x - 320, 0) # à direita ficam os botões da câmera
-	journey.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	journey.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	journey.add_theme_color_override("font_outline_color", Color.BLACK)
-	journey.add_theme_constant_override("outline_size", 6)
-	add_child(journey)
+	_build_overview()
 	var end_column: Node = end_label.get_parent()
 	end_panel.position = Vector2(320, 240)
 	end_panel.custom_minimum_size = Vector2(640, 200)
@@ -284,8 +318,210 @@ func setup_exploration() -> void:
 	end_column.add_child(menu_button)
 
 
-func set_journey(alive: int, total: int, distance: int, kills: int, danger: int, biome := "") -> void:
-	journey.text = "%s   ·   Heróis %d/%d   ·   Distância %d   ·   Abates %d   ·   Perigo %d" % [biome, alive, total, distance, kills, danger]
+## Botão quadrado só com ícone, do tamanho de um dedo.
+func _icon_button(kind: String, at: Vector2) -> Button:
+	var button := party_ui._corner_button("", at, ICON_BUTTON.x)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(center)
+	center.add_child(_icon(kind, PANEL_TEXT, 28))
+	return button
+
+
+func _show_zoom(on: bool) -> void:
+	var icon = zoom_button.get_child(0).get_child(0)
+	icon.kind = "zoom_out" if on else "zoom_in"
+	icon.queue_redraw()
+
+
+## Sincroniza o botão quando o zoom muda por gesto ou tecla.
+func set_zoomed(on: bool) -> void:
+	zoom_button.set_pressed_no_signal(on)
+	_show_zoom(on)
+
+
+## Painel do topo: nome do lugar, nível, números com ícone e a bússola embaixo.
+func _build_overview() -> void:
+	overview = CenterContainer.new()
+	overview.position = Vector2(OVERVIEW_LEFT, 8)
+	overview.custom_minimum_size = Vector2(OVERVIEW_WIDTH, 0)
+	overview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(overview)
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 6)
+	overview.add_child(stack)
+	var card_box := PanelContainer.new()
+	var style := _box(PANEL_FILL, Color(PANEL_EDGE, 0.75), 2, 14, 0)
+	style.content_margin_left = 18
+	style.content_margin_right = 18
+	style.content_margin_top = 6
+	style.content_margin_bottom = 8
+	style.shadow_color = Color(0, 0, 0, 0.35)
+	style.shadow_size = 6
+	style.shadow_offset = Vector2(0, 3)
+	card_box.add_theme_stylebox_override("panel", style)
+	stack.add_child(card_box)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 4)
+	card_box.add_child(column)
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 16)
+	column.add_child(head)
+	overview_title = _title("", 24, PANEL_EDGE)
+	overview_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	overview_title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+	overview_title.add_theme_constant_override("outline_size", 4)
+	head.add_child(overview_title)
+	overview_level = HBoxContainer.new()
+	overview_level.add_theme_constant_override("separation", 8)
+	overview_level.visible = false
+	head.add_child(overview_level)
+	var badge := PanelContainer.new()
+	var badge_style := _box(PANEL_EDGE, PANEL_EDGE, 0, 10, 0)
+	badge_style.content_margin_left = 8
+	badge_style.content_margin_right = 10
+	badge.add_theme_stylebox_override("panel", badge_style)
+	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	overview_level.add_child(badge)
+	var badge_row := HBoxContainer.new()
+	badge_row.add_theme_constant_override("separation", 4)
+	badge.add_child(badge_row)
+	badge_row.add_child(_icon("star", MENU_INK, 16))
+	overview_badge = _title("", 17, MENU_INK)
+	badge_row.add_child(overview_badge)
+	var xp_column := VBoxContainer.new()
+	xp_column.add_theme_constant_override("separation", 1)
+	xp_column.alignment = BoxContainer.ALIGNMENT_CENTER
+	overview_level.add_child(xp_column)
+	var back := Panel.new()
+	back.custom_minimum_size = XP_BAR
+	back.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0.55), Color(0, 0, 0, 0.55), 0, 4, 0))
+	xp_column.add_child(back)
+	overview_bar = Panel.new()
+	overview_bar.size = XP_BAR
+	overview_bar.add_theme_stylebox_override("panel", _box(PANEL_EDGE, PANEL_EDGE, 0, 4, 0))
+	back.add_child(overview_bar)
+	overview_xp = _label("", 12, PANEL_MUTED)
+	xp_column.add_child(overview_xp)
+
+	var rule := ColorRect.new()
+	rule.color = Color(PANEL_EDGE, 0.22)
+	rule.custom_minimum_size = Vector2(0, 1)
+	column.add_child(rule)
+	overview_stats = HBoxContainer.new()
+	overview_stats.alignment = BoxContainer.ALIGNMENT_CENTER
+	overview_stats.add_theme_constant_override("separation", 0)
+	column.add_child(overview_stats)
+
+	overview_chips = HBoxContainer.new()
+	overview_chips.alignment = BoxContainer.ALIGNMENT_CENTER
+	overview_chips.add_theme_constant_override("separation", 8)
+	stack.add_child(overview_chips)
+	quest_chip = _chip_box(Color(0.55, 0.72, 0.95, 0.6))
+	quest_chip.visible = false
+	quest_chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	stack.add_child(quest_chip)
+	var quest_row := HBoxContainer.new()
+	quest_row.add_theme_constant_override("separation", 6)
+	quest_chip.add_child(quest_row)
+	quest_row.add_child(_icon("star", Color(0.78, 0.86, 0.95), 16))
+	tracker = _label("", 15, Color(0.85, 0.9, 0.97))
+	quest_row.add_child(tracker)
+	_ignore_mouse(overview)
+
+
+func _chip_box(edge: Color) -> PanelContainer:
+	var chip := PanelContainer.new()
+	var style := _box(PANEL_FILL, edge, 1, 16, 0)
+	style.content_margin_left = 8
+	style.content_margin_right = 12
+	style.content_margin_top = 3
+	style.content_margin_bottom = 3
+	chip.add_theme_stylebox_override("panel", style)
+	return chip
+
+
+## `stats`: [{icon, value, label, color?, ink?}]. `level`: {} ou {level, fraction, note}
+## (fraction negativa esconde a barra). `chips`: bússola, [{label, angle, distance}].
+## Muda só os números quando o desenho é o mesmo: a bússola acompanha o giro a cada quadro.
+func set_overview(title: String, stats: Array, level := {}, chips := []) -> void:
+	if overview == null:
+		_build_overview()
+	var key := str(stats.map(func(s): return s["label"])) + str(chips.map(func(c): return c["label"]))
+	if key != overview_key:
+		overview_key = key
+		_rebuild_overview(stats, chips)
+	overview_title.text = title
+	var line := [title]
+	overview_level.visible = not level.is_empty()
+	if not level.is_empty():
+		overview_badge.text = "Nv %d" % level["level"]
+		var fraction: float = level.get("fraction", -1.0)
+		overview_bar.get_parent().visible = fraction >= 0.0
+		overview_bar.size.x = XP_BAR.x * clampf(fraction, 0.0, 1.0)
+		overview_xp.text = level.get("note", "")
+		overview_xp.visible = overview_xp.text != ""
+		line.append("%s %d (%s)" % [level.get("name", "Nível"), level["level"], overview_xp.text])
+	for i in stats.size():
+		var stat: Dictionary = stats[i]
+		overview_cells[i]["value"].text = str(stat["value"])
+		overview_cells[i]["value"].add_theme_color_override("font_color", stat.get("ink", PANEL_TEXT))
+		overview_cells[i]["icon"].color = stat.get("color", PANEL_TEXT)
+		overview_cells[i]["icon"].queue_redraw()
+		line.append("%s %s" % [stat["label"], stat["value"]])
+	for i in chips.size():
+		var chip: Dictionary = chips[i]
+		overview_chip_nodes[i]["dial"].angle = chip["angle"]
+		overview_chip_nodes[i]["distance"].text = str(chip["distance"])
+		line.append("%s %d" % [chip["label"], chip["distance"]])
+	overview_text = "   ·   ".join(line)
+
+
+func _rebuild_overview(stats: Array, chips: Array) -> void:
+	for child in overview_stats.get_children() + overview_chips.get_children():
+		child.get_parent().remove_child(child)
+		child.queue_free()
+	overview_cells = []
+	overview_chip_nodes = []
+	for i in stats.size():
+		if i > 0:
+			var bar := ColorRect.new()
+			bar.color = Color(PANEL_EDGE, 0.18)
+			bar.custom_minimum_size = Vector2(1, 30)
+			bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			overview_stats.add_child(bar)
+		var cell := VBoxContainer.new()
+		cell.custom_minimum_size.x = 92
+		cell.add_theme_constant_override("separation", -2)
+		overview_stats.add_child(cell)
+		var row := HBoxContainer.new()
+		row.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_theme_constant_override("separation", 6)
+		cell.add_child(row)
+		var icon := _icon(stats[i]["icon"], PANEL_TEXT, 20)
+		row.add_child(icon)
+		var value := _title("", 22, PANEL_TEXT)
+		row.add_child(value)
+		var caption := _label(stats[i]["label"], 12, PANEL_MUTED)
+		caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		cell.add_child(caption)
+		overview_cells.append({"value": value, "icon": icon})
+	for chip in chips:
+		var box := _chip_box(Color(PANEL_EDGE, 0.55))
+		overview_chips.add_child(box)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		box.add_child(row)
+		var dial := _icon("compass", PANEL_EDGE, 24)
+		row.add_child(dial)
+		row.add_child(_label(chip["label"], 15, PANEL_TEXT))
+		var distance := _title("", 16, PANEL_EDGE)
+		distance.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(distance)
+		overview_chip_nodes.append({"dial": dial, "distance": distance})
+	_ignore_mouse(overview)
 
 
 ## Aviso grande no meio da tela, que some sozinho: início e fim de combate.
@@ -311,37 +547,12 @@ func set_hint(text: String) -> void:
 	hint.text = text
 
 
-## Primeira linha do topo, quando o texto padrão da jornada não serve (na cidade).
-func set_status(text: String) -> void:
-	journey.text = text
-
-
-## Linha da expedição, abaixo do progresso: nível, brasas e bússola.
-func set_objective(text: String) -> void:
-	if objective == null:
-		objective = _label("", 20, Color(0.95, 0.85, 0.55))
-		objective.position = Vector2(0, 48)
-		objective.custom_minimum_size = Vector2(SCREEN.x - 320, 0)
-		objective.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		objective.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		objective.add_theme_color_override("font_outline_color", Color.BLACK)
-		objective.add_theme_constant_override("outline_size", 6)
-		add_child(objective)
-	objective.text = text
-
-
-## Missão em andamento, abaixo da linha da expedição.
+## Missão em andamento: um selo abaixo da bússola.
 func set_tracker(text: String) -> void:
-	if tracker == null:
-		tracker = _label("", 17, Color(0.78, 0.86, 0.95))
-		tracker.position = Vector2(0, 78)
-		tracker.custom_minimum_size = Vector2(SCREEN.x - 320, 0)
-		tracker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		tracker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tracker.add_theme_color_override("font_outline_color", Color.BLACK)
-		tracker.add_theme_constant_override("outline_size", 5)
-		add_child(tracker)
+	if overview == null:
+		_build_overview()
 	tracker.text = text
+	quest_chip.visible = text != ""
 
 
 ## Botão da Poção de Luz, no canto. Sem poção, ele some.

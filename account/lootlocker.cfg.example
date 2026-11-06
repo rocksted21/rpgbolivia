@@ -1,0 +1,6 @@
+; Copy this file to lootlocker.cfg and fill in the values from LootLocker.
+[lootlocker]
+game_key="YOUR_GAME_API_KEY"
+domain_key="YOUR_DOMAIN_KEY"
+development_mode=true
+base_url="https://YOUR_DOMAIN_KEY.api.lootlocker.com"

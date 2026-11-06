@@ -59,6 +59,8 @@ var options: Control
 var archive: Control
 var menu_buttons: Array[Button] = []
 var volume_chip: Button
+var account_button: Button
+var account_panel: Control
 var volume_slider: HSlider
 var counters: Label
 var version_label: Label
@@ -92,6 +94,12 @@ func _ready() -> void:
 	_menu_button(3, "MEMÓRIAS & ARQUIVO", "Resumos e história", _open_archive)
 	_menu_button(4, "AJUSTES", "Opções", _open_options)
 	_menu_button(5, "SAIR DO JOGO", "Fechar", func(): get_tree().quit())
+	_build_account_frame()
+	account_button = _menu_button(6, "CONTA", "", _open_account)
+	var account := get_node_or_null("/root/PlayerAccount")
+	if account != null:
+		account.changed.connect(_update_account_chip)
+	_update_account_chip()
 	hover_embers = _embers(14, Vector2(24, 10), 0.9, Vector2(40, -30), Color("ffb347"), 1.0)
 	add_child(hover_embers)
 	_build_options()
@@ -387,6 +395,57 @@ func _build_status() -> void:
 	add_child(volume_chip)
 	sound_manager.bind_button(volume_chip)
 	_update_volume_chip()
+
+
+
+## O fundo só tem 6 molduras: copia a do SAIR para a linha de baixo e troca o ícone.
+func _build_account_frame() -> void:
+	const SOURCE := Rect2(128, 880, 488, 96) # moldura do SAIR no fundo 1920×1080
+	const ROW_SHIFT := 102.75 # BUTTON_STEP em pixels do fundo
+	const ICON_CENTER := Vector2(175, 928) # centro do medalhão do SAIR
+	var to_screen := 1280.0 / BACKGROUND.get_width()
+	var frame := TextureRect.new()
+	var atlas := AtlasTexture.new()
+	atlas.atlas = BACKGROUND
+	atlas.region = SOURCE
+	frame.texture = atlas
+	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	frame.position = (SOURCE.position + Vector2(0, ROW_SHIFT)) * to_screen
+	frame.size = SOURCE.size * to_screen
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(frame)
+	var icon := Control.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = (ICON_CENTER + Vector2(0, ROW_SHIFT)) * to_screen
+	icon.draw.connect(func() -> void:
+		icon.draw_circle(Vector2.ZERO, 15.0, Color("1d0c10"))
+		icon.draw_circle(Vector2(0, -5), 5.5, GOLD)
+		icon.draw_circle(Vector2(0, 11), 10.0, GOLD)
+		icon.draw_rect(Rect2(-11, 9, 22, 8), Color("1d0c10")))
+	add_child(icon)
+
+
+func _update_account_chip() -> void:
+	if account_button == null:
+		return
+	var account := get_node_or_null("/root/PlayerAccount")
+	var caption: Label = account_button.get_meta("caption")
+	if account != null and account.is_registered():
+		caption.text = account.display_name if not account.display_name.is_empty() else "Minha conta"
+	else:
+		caption.text = "Criar conta / Entrar"
+
+
+func _open_account() -> void:
+	if is_instance_valid(account_panel) or open_modal != null:
+		return
+	account_panel = preload("res://account/account_panel.gd").new()
+	account_panel.account = get_node_or_null("/root/PlayerAccount")
+	account_panel.closed.connect(func() -> void:
+		account_panel = null
+		_update_account_chip()
+		if is_instance_valid(single_player): single_player.grab_focus())
+	add_child(account_panel)
 
 
 func _update_volume_chip() -> void:

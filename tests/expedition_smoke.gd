@@ -65,7 +65,7 @@ func _run() -> void:
 	await _idle()
 	await _wait_frames(60)
 	_expect(view.town and view.state.foes().is_empty(), "o jogo começa na cidade")
-	_expect(view.hud.journey.text.contains("Cidade-Farol"), "o topo mostra a cidade")
+	_expect(view.hud.overview_text.contains("Cidade-Farol"), "o topo mostra a cidade")
 	await _shot("1_cidade_inicio")
 	await _test_town()
 	await _idle()
@@ -78,7 +78,7 @@ func _run() -> void:
 	view.hud.potion_button.pressed.emit()
 	_expect(state.party[0].hp > 1 and state.potions == 0 and not view.hud.potion_button.visible, "a poção cura pela tela")
 	await _shot("2_inicio_expedicao")
-	_expect(view.hud.objective.text.contains("Farol"), "a bússola aponta o farol")
+	_expect(view.hud.overview_text.contains("Farol"), "a bússola aponta o farol")
 	await _test_volume()
 
 	# Ruínas: marca no mapa, recompensa e a marca some.
@@ -149,7 +149,7 @@ func _run() -> void:
 	await _idle()
 	await _wait_frames(60)
 	_expect(view.town and not view.expedition, "a expedição volta para a cidade")
-	_expect(view.hud.objective.text.contains("Faróis acesos 1"), "a cidade mostra o farol")
+	_expect(view.hud.overview_text.contains("Faróis acesos 1"), "a cidade mostra o farol")
 	await _shot("11_cidade_depois")
 	await _test_growth()
 	print("Expedição: ", "FALHOU" if failed else "OK")

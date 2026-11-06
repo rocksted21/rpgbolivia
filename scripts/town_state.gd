@@ -98,6 +98,10 @@ func _put(cell: Vector2i, path: String, ground_y: int, offset := 0, depth := BEH
 
 ## Construção em 3D: o pé do modelo fica no centro da casa, e o desenho muda com a câmera.
 func _put_model(cell: Vector2i, model: String, face: Vector2i) -> void:
+	var illustrated := "res://assets/town/ilustrado/%s.png" % model
+	if ResourceLoader.exists(illustrated):
+		_put(cell, illustrated, MODEL_GROUND)
+		return
 	if not props.has(cell):
 		props[cell] = []
 	# A frente do modelo olha para `face`: a casa fica de frente para a rua.

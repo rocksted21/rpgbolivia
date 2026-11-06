@@ -148,7 +148,7 @@ func _run() -> void:
 	await _shot("5_fim")
 	_expect(view.hud.end_panel.visible, "tela de fim aparece")
 	_expect(view.hud.end_note.visible and view.hud.end_note.text.contains("skill"), "fim da jornada avisa os pontos ganhos")
-	_expect(view.hud.journey.text.contains("Heróis 0/"), "topo da tela mostra a queda")
+	_expect(view.hud.overview_text.contains("Heróis 0/"), "topo da tela mostra a queda")
 	var old_state = view.state
 	view.hud.restart_pressed.emit()
 	await _idle()

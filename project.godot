@@ -23,6 +23,7 @@ PatchLoader="*res://update/patch_loader.gd"
 SoundManager="*res://scenes/SoundManager.tscn"
 MusicManager="*res://scenes/Musicmanager.tscn"
 OnlineSession="*res://net/online_session.gd"
+PlayerAccount="*res://account/player_account.gd"
 
 [display]
 

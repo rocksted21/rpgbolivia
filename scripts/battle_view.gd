@@ -48,6 +48,7 @@ const BOARD_POS := Vector2(250, 142) # sem painel lateral: o tabuleiro fica no m
 const BOARD_SCALE := 0.5
 const TILE_WIDTH := 186
 const ROW_STEP := 160
+const HEX_MIDDLE := Vector2(93, 107)
 const SIDE_HEIGHT := 29 # altura da lateral do tile; empilhar tiles a cada 29 px forma o penhasco
 const LAYERS_PER_LEVEL := 4 # 116 px por nível; a altura é projetada na vertical
 # Na exploração os degraus são mais baixos: num mapa gerado, uma casa atrás de um
@@ -55,6 +56,7 @@ const LAYERS_PER_LEVEL := 4 # 116 px por nível; a altura é projetada na vertic
 const WORLD_LAYERS_PER_LEVEL := 3
 const TOWN_LAYERS_PER_LEVEL := 2 # a planta da cidade conta com degraus baixos
 const TOWN_GROUND_EDGE := 0.35 # calçada e grama com a borda mais limpa que no mato das expedições
+const FOREST_HEIGHT := 1.65
 const FEET := Vector2(93, 125)
 const NO_CELL := Vector2i(-999999, -999999) # coordenadas negativas existem na exploração
 const HOLD_TIME := 0.45
@@ -62,7 +64,10 @@ const WORLD_META := "world_hero" # o menu guarda aqui o herói escolhido para ex
 const EXPLORE_ZOOM := 0.8 # a câmera fica mais longe fora da arena; o resto da lista acompanha
 const FOG_START := 650.0
 const FOG_END := 1100.0
+const PATH_COLOR := Color(0.27, 0.67, 1.0, 0.7)
 const INSPECT_COLOR := Color(1.0, 1.0, 1.0, 0.95)
+const ZOOM_IN := 1.5 # botão de zoom: aproximado; solto, volta ao padrão (1.0 na arena)
+const PAN_LIMIT := 380.0 # quanto a câmera solta pode se afastar do foco
 const TURN_SPEED := 1.9 # radianos por segundo com a tecla apertada
 const TURN_EASE := 9.0 # quão rápido o giro acelera e freia
 const MAP_REFRESH := 0.12 # segundos entre revisões do mapa enquanto gira
@@ -184,6 +189,9 @@ var fx_meta := {}
 var views := {}
 var overlays := {}
 var reach_lines := {}
+var move_tiles := {} # casa -> [preenchimento, borda], criados só quando aparecem
+var move_shown: Array[Vector2i] = []
+var move_pulse := 0.0
 var forests := {}
 var trees := {} # árvores soltas do mapa: ficam transparentes quando escondem alguém
 var active_outline: Line2D
@@ -191,6 +199,7 @@ var inspect_outline: Line2D
 var busy := true
 var hover := NO_CELL
 var menu_cell := NO_CELL # casa com o menu aberto
+var jump_mode := false # J (ou "Pular" no menu do herói): o próximo clique numa casa verde pula
 var menu_options := []
 var show_order := false
 var pressing := false
@@ -216,6 +225,7 @@ var person_labels := {}
 var quests_finished := []
 var landmark_nodes := {} # casa: marcas no mapa de um local especial
 var selected # o herói que recebe os cliques fora de combate
+var my_fight := false # online: algum herói meu está na luta atual (as lutas dos outros não me prendem)
 var together := true # fora de combate, os heróis do jogador andam em fila atrás do selecionado
 var file_next := {} # herói -> quem anda logo atrás dele
 var file_blocked := {} # seguidor -> tempo esperando alguém sair da frente
@@ -247,6 +257,13 @@ var wall_meshes := {}
 var wall_groups := [] # paredes por lado do hexágono: as de costas para a câmera ficam escondidas
 var juice # tremor, hitstop e clarões dos heróis (battle_juice.gd)
 var hit_ctx := {} # peso do golpe de herói em andamento: os eventos de dano seguintes usam
+var zoomed := false
+var pan := Vector2.ZERO # deslocamento da câmera arrastada, em coordenadas do tabuleiro
+var press_pos := Vector2.ZERO
+var drag_ok := false # o toque começou numa casa sem inimigo, com zoom
+var dragging := false
+var touches := {} # dedo -> posição na tela
+var gesture := {} # dois dedos: ângulo e distância de partida
 var hit_from := Vector2.ZERO # de onde veio o último golpe, para o tranco de quem apanha
 var healers_animated := {} # quem já fez o gesto de cura nesta ação (Clareira cura vários)
 var board_art := BoardArt.new(self) # chão, casas, paredes, enfeites e o mapa que carrega aos poucos
@@ -347,6 +364,11 @@ func _start_battle() -> void:
 	cells_to_build.clear()
 	cells_to_unload.clear()
 	camera_look = null
+	zoomed = false
+	pan = Vector2.ZERO
+	dragging = false
+	touches.clear()
+	gesture = {}
 	roam_from = NO_CELL
 	selected = _first_mine() if exploring else null
 	camera_unit = selected
@@ -355,6 +377,8 @@ func _start_battle() -> void:
 	z_origin = 0
 	overlays.clear()
 	reach_lines.clear()
+	move_tiles.clear()
+	move_shown.clear()
 	forests.clear()
 	trees.clear()
 	hover = NO_CELL
@@ -435,6 +459,7 @@ func _start_battle() -> void:
 	hud.save_pressed.connect(_save_game)
 	hud.load_pressed.connect(_load_game)
 	hud.quit_pressed.connect(_quit_to_title)
+	hud.zoom_toggled.connect(_set_zoomed)
 	if exploring:
 		hud.setup_exploration()
 		hud.menu_pressed.connect(_back_to_menu)
@@ -618,7 +643,7 @@ func _advance() -> void:
 		_place_ground_marker(active_outline, unit.pos)
 		active_outline.visible = not _free_roam()
 		active_outline.z_index = _z(_row(unit.pos)) + 3
-		if exploring and state.in_combat():
+		if exploring and state.in_combat() and not _free_roam():
 			_focus_turn(unit)
 		marks_ctl._refresh_turn_markers()
 		hud.refresh(state)
@@ -644,6 +669,7 @@ func _advance() -> void:
 
 
 func _perform(events: Array) -> void:
+	jump_mode = false
 	busy = true
 	input_ctl._refresh_end_turn()
 	input_ctl._close_menu()
@@ -653,11 +679,45 @@ func _perform(events: Array) -> void:
 	_advance()
 
 
+func _base_zoom() -> float:
+	return EXPLORE_ZOOM if exploring else 1.0
+
+
+## Botão, Z, roda do mouse ou pinça: aproxima para 1.5 e libera o arrasto; soltar recentra.
+func _set_zoomed(on: bool) -> void:
+	if on == zoomed or battle_camera == null:
+		return
+	zoomed = on
+	battle_camera.set_zoom(ZOOM_IN if on else _base_zoom())
+	if not on:
+		_pan_by(Vector2.ZERO, true)
+	hud.set_zoomed(on)
+
+
+## Move a câmera pelo arrasto na tela. A tela é o chão girado e achatado: desfaz os dois.
+func _pan_by(screen_delta: Vector2, reset := false) -> void:
+	var before := pan
+	if reset:
+		pan = Vector2.ZERO
+	else:
+		var ground: Vector2 = Vector2(screen_delta.x, screen_delta.y / BattleCamera.GROUND_TILT) / battle_camera.zoom
+		pan = (pan + ground.rotated(-view_angle)).limit_length(PAN_LIMIT)
+	if not exploring:
+		board.position = BOARD_POS + pan
+	elif not reset:
+		board.position += pan - before # na hora, sem a suavização de seguir o herói
+
+
 # --- Exploração --------------------------------------------------------------
 
 ## Fora de combate: o herói anda livre, sem fila de turnos.
 func _free_roam() -> bool:
-	return exploring and not state.in_combat()
+	if not exploring or not state.in_combat():
+		return exploring
+	if not state.split_fights:
+		return false
+	# Online: só fico preso aos turnos se algum herói meu estiver nesta luta.
+	return not state.party.any(func(u): return online_session.can_control(u) and state.is_fighting(u))
 
 
 ## O herói que recebe as ordens agora: o selecionado fora de combate, o da vez em combate.
@@ -680,13 +740,14 @@ func _first_mine():
 # --- Câmera --------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	marks_ctl._pulse_moves(delta)
 	if not exploring or board == null:
 		return
 	_update_turn(delta)
 	roam_ctl._update_walks(delta)
 	if town and selected != null:
 		town_panels.set_nearby(state.person_near(selected.pos))
-	var goal: Vector2 = camera_look if camera_look != null else BattleCamera.FOCUS - _camera_point() * BOARD_SCALE
+	var goal: Vector2 = camera_look if camera_look != null else BattleCamera.FOCUS - _camera_point() * BOARD_SCALE + pan
 	board.position = board.position.lerp(goal, 1.0 - exp(-delta * CAMERA_SPEED))
 	board_art._work_on_map(BUILD_BUDGET_USEC)
 	roam_ctl._roam_tick(delta)
@@ -704,6 +765,7 @@ func _camera_point() -> Vector2:
 
 func _follow(unit) -> void:
 	camera_unit = unit
+	pan = Vector2.ZERO
 	_set_camera(unit.pos)
 
 
@@ -740,6 +802,8 @@ func _set_view_angle(angle: float) -> void:
 	board_art._show_facing_walls()
 	board_art._refresh_depths()
 	board_art._update_model_frames()
+	if expedition and hud != null:
+		journey_ui._update_journey() # a bússola do painel gira junto
 	if map_refresh <= 0.0:
 		map_refresh = MAP_REFRESH
 		board_art._sync_world(camera_cell, false)
@@ -796,6 +860,10 @@ func _quit_to_title() -> void:
 
 func _update_journey() -> void:
 	journey_ui._update_journey()
+
+
+func _rebase_depth(row: int) -> void:
+	board_art._rebase_depth(row)
 
 
 func _sync_world(center: Vector2i, all_now := true) -> void:

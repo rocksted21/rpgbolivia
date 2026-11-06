@@ -47,6 +47,7 @@ func _run(dir: String) -> void:
 		state.landmarks[beacon] = {"kind": "farol", "state": "done", "guards": []}
 		state.landmarks[chest] = {"kind": "bau", "state": "idle", "guards": []}
 		state.landmarks[ruin] = {"kind": "ruina", "state": "idle", "guards": []}
+		view._rebase_depth(view._row(cell))
 		for member in state.party:
 			var i: int = state.party.find(member)
 			member.pos = cell + Vector2i(i, 1)

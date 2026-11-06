@@ -1,5 +1,13 @@
 # Estilo visual
 
+## Direção vigente: os personagens são a referência
+
+O ambiente foi refeito a partir de `artifacts/hero_style_reference.png`: Guardião, Duelista, Mago e Druida. Contornos azul-marinho/vinho, proporções compactas, sombras em poucas cores e manchas de pixels legíveis. Evitar textura fotográfica, microdetalhes pictóricos e blocos 3D com aparência de protótipo. Esta direção substitui as pranchas antigas como referência principal.
+
+O conjunto atual é preparado por `tools/build_unified_environment.py` a partir de `assets/unified_sources`: quatro biomas, materiais do chão, objetos, quatro cenários e prédios da cidade. Pisos contínuos e hexágonos compartilham os mesmos materiais. O pixel de arte é ampliado 2x com nearest, como nos heróis. Fontes e prompts ImageGen são preservados nessa pasta. Os scripts antigos de construção de arte são estudos anteriores e não devem sobrescrever este conjunto.
+
+Construções e cenários atuais usam sprites voltados para a câmera, como as árvores. Os modelos antigos de 16 ângulos ficam como fallback. A iluminação do chão é limitada para que não estoure as cores nem dispute atenção com os personagens.
+
 Referência para qualquer arte, efeito ou tela nova do jogo. Revisado em 05/11/2026, comparando o texto com a arte do projeto e com capturas do jogo.
 
 **Em uma frase:** pixel art chibi em um mundo Belle Époque em ruínas, onde quase tudo é escuro e frio, e a pouca luz quente é o que importa.
@@ -67,7 +75,11 @@ Herói é azul e inimigo é vermelho nas barras e marcadores. A fonte ainda não
 - **Um pedaço de cada bioma:** Floresta, Selva, Neve e Deserto são quatro regiões contínuas que se encontram em um ponto. Neve e Deserto nunca fazem fronteira, a não ser nesse ponto.
 - **Terra alta:** planaltos largos, em até três degraus, com penhascos irregulares.
 - **Cenário solto:** árvores e pedras saem do centro da casa. Nas matas, só parte das casas tem árvore, e cada árvore é sólida: a party contorna, sem atravessar. Uma árvore fica transparente quando esconde alguém.
+- **Relevos da Floresta e Selva:** colinas com encostas irregulares, raízes e rocha exposta; afloramentos maiores em camadas erodidas com musgo. Arte ImageGen em `colinas_natural_a/b.png` e `montanha_natural.png`, preparada por `tools/import_natural_relief.py`. Fontes e prompts em `assets/terrain_sources`. As antigas peças triangulares ficam preservadas; altura, colisão e custos de movimento não mudam.
 - **Texturas:** `tools/build_ground.py` gera o chão a partir das cores das peças de cada bioma. A Cidade-Farol usa o mesmo chão, com calçada de pedras soltas nas ruas e os degraus menos tortos, porque escadas e prédios seguem a planta.
+- **Detalhes do chão:** manchas em degraus de cor, tufos baixos, folhas e pedrinhas com sombra curta. Trilhas são terra batida; estradas têm lajes quebradas e trechos de terra. A escala é de 2 pixels por pixel de arte, como os heróis; o chão não usa brilhos de loot.
+- **Acampamentos abandonados:** os locais de emboscada recebem fogueira de cinza fria, carroça de carga quebrada com lona vinho desbotada e caixas de madeira. `tools/build_camp_models.py` usa o renderizador da cidade para gerar 16 ângulos. O centro é caminhável, carroça e caixas são sólidas, e a composição só entra quando preserva os acessos existentes.
+- **Outras composições:** jardins de mansão em ruínas (fonte seca, portão de ferro e muro com hera), santuários de estrada (velas apagadas, monumento e banco partido) e travessias arruinadas (guarita e pilares junto a uma ponte real). Arte ilustrada em `assets/scenes`, com esculturas, ferro curvo e vegetação; sprites voltados à câmera como as árvores. Fontes e prompts em `assets/scenes/ART.md`; `tools/import_ruin_sprites.py` prepara os sprites. O antigo renderizador `tools/build_ruin_models.py` fica como estudo anterior. Ruínas mantêm seus prêmios. A travessia só aparece onde há ponte acessível e margem livre; água, trilhas, rampas e passagens são preservadas.
 
 ## Cidade-Farol
 

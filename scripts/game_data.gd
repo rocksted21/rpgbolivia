@@ -7,11 +7,16 @@ const STEP_TIME := 100
 const CLIMB_TIME := 40
 const WAIT_TIME := 50
 # Turno em combate: anda até gastar os pontos de movimento e usa uma ação, em qualquer ordem.
-# Um passo em chão plano gasta STEP_TIME pontos: velocidade 10 dá 4 casas; 15 dá 5; 7 dá 3.
-const MOVE_BASE := 200
-const MOVE_PER_SPEED := 25
+# Um passo em chão plano gasta STEP_TIME pontos: todos andam 3 casas (terreno/subida gastam mais).
+const MOVE_BASE := 300
+const MOVE_PER_SPEED := 0
 const MOVE_ONLY_TIME := 100 # andar e não agir atrasa menos que atacar
 const TURN_TIME := 150 # quanto a fila supõe que um turno dura, para prever a ordem
+# Pulo: herói salta por cima de 1 unidade (aliada ou inimiga) em linha reta, gastando 2 passos.
+# Quem pulou age mais devagar no resto do turno: o tempo da ação é multiplicado pela classe.
+const JUMP_TIME := 200
+const JUMP_PENALTY := {"duelista": 1.25, "besteiro": 1.5, "mago": 1.75, "mago_agua": 1.75, "druida": 2.0, "guardiao": 2.0}
+const JUMP_PENALTY_DEFAULT := 2.0
 const FLANK_MULT := 1.5
 const HEIGHT_MULT_PER_LEVEL := 0.2
 const GUARD_MULT := 0.5
@@ -156,13 +161,13 @@ const UNIT_TYPES := {
 	"guardiao": {"name": "Guardião", "role": "Tanque · segura a linha", "hp": 46, "atk": 11, "def": 5, "speed": 9, "abilities": ["golpe", "guarda"]},
 	"duelista": {"name": "Duelista", "role": "Ágil · age mais vezes", "hp": 28, "atk": 12, "def": 2, "speed": 14, "abilities": ["golpe", "rapido", "giro"]},
 	"besteiro": {"name": "Besteiro", "role": "Atirador · ataca de longe", "hp": 26, "atk": 13, "def": 1, "speed": 10, "abilities": ["tiro", "virote_pesado"]},
-	"mago": {"name": "Mago de Fogo", "role": "Magia · fogo em área", "hp": 24, "atk": 15, "def": 1, "speed": 9, "abilities": ["faisca", "bola_fogo", "flor_fogo", "escudo_fogo"]},
+	"mago": {"name": "Mago de Fogo", "role": "Magia · fogo em área", "hp": 24, "atk": 15, "def": 1, "speed": 9, "move": 2, "abilities": ["faisca", "bola_fogo", "flor_fogo", "escudo_fogo"]},
 	"druida": {"name": "Druida Élfica", "role": "Suporte · cura aliados", "hp": 26, "atk": 10, "def": 1, "speed": 11, "abilities": ["vinha", "cura"]},
-	"mago_agua": {"name": "Mago de Água", "role": "Magia · água e gelo", "hp": 24, "atk": 14, "def": 1, "speed": 10, "abilities": ["gota", "bola_agua", "floco_neve"]},
+	"mago_agua": {"name": "Mago de Água", "role": "Magia · água e gelo", "hp": 24, "atk": 14, "def": 1, "speed": 10, "move": 2, "abilities": ["gota", "bola_agua", "floco_neve"]},
 	"esqueleto": {"name": "Esqueleto", "role": "Soldado · morto-vivo comum", "hp": 22, "atk": 10, "def": 1, "speed": 10, "abilities": ["golpe"]},
 	"mumia": {"name": "Múmia", "role": "Tanque · lenta e resistente", "hp": 40, "atk": 11, "def": 3, "speed": 7, "abilities": ["golpe"]},
 	"diabrete": {"name": "Diabrete", "role": "Ágil · fraco, mas age muito", "hp": 16, "atk": 8, "def": 0, "speed": 15, "abilities": ["golpe"]},
-	"feiticeira": {"name": "Feiticeira", "role": "Magia · chamas em área", "hp": 20, "atk": 13, "def": 0, "speed": 9, "abilities": ["chama"]},
+	"feiticeira": {"name": "Feiticeira", "role": "Magia · chamas em área", "hp": 20, "atk": 13, "def": 0, "speed": 9, "move": 2, "abilities": ["chama"]},
 	"cerbero": {"name": "Cérbero", "role": "Fera · forte e veloz", "hp": 34, "atk": 14, "def": 2, "speed": 12, "abilities": ["golpe"]},
 	# Chefes dos faróis, um por bioma (ver BOSS_BY_BIOME em expedition_data.gd).
 	"boss_cervo": {"name": "Rei Cervo Sombrio", "role": "Chefe · floresta", "hp": 42, "atk": 12, "def": 3, "speed": 8, "abilities": ["golpe", "esmagar"]},
@@ -243,6 +248,7 @@ const WORLD := {
 	"give_up_radius": 5, # inimigo em combate, sem caminho e mais longe que isso, desiste
 	"group_radius": 3, # quem está perto de quem viu entra na luta junto
 	"flee_radius": 10, # inimigo em combate mais longe que isso perde o herói de vista
+	"fight_radius": 7, # online: herói a até essa distância dos inimigos entra na luta; o resto segue explorando
 	"wander_chance": 0.3, # chance de um inimigo parado dar um passo a cada passo do herói
 	"rest_heal": 2, # fora de combate, andar recupera vida
 	"deploy_steps": 2, # quantas casas cada herói anda para se espalhar quando o combate começa

@@ -33,6 +33,7 @@ func _initialize() -> void:
 	test_hex()
 	test_clock()
 	test_step_rules()
+	test_jump()
 	test_opportunity()
 	test_damage_modifiers()
 	test_guard()
@@ -449,6 +450,25 @@ func test_clock() -> void:
 	check(state.timeline(5).size() == 5, "linha do tempo com 5 entradas")
 
 
+func test_jump() -> void:
+	var state := flat()
+	var hero = state.add_unit("druida", PLAYER, Vector2i(0, 2))
+	var ally = state.add_unit("guardiao", PLAYER, Vector2i(1, 2))
+	var foe = state.add_unit("esqueleto", ENEMY, Vector2i(3, 2))
+	check(state.jump_cells(hero).get(Vector2i(2, 2)) == Data.JUMP_TIME, "herói pula o aliado colado, custa JUMP_TIME")
+	check(state.jump_cells(hero).has(Vector2i(0, 0)), "pula mesmo sem nada no meio")
+	check(state.jump_cells(hero).size() == 12 - 3, "12 casas a 2 de distância, menos as fora do mapa e a ocupada")
+	check(not state.move_cells(hero).has(Vector2i(2, 2)) or state.move_cells(hero)[Vector2i(2, 2)] > Data.JUMP_TIME, "andar nunca pula sozinho")
+	check(state.jump_cells(foe).is_empty(), "inimigo não pula")
+	var normal: int = state.action_time(170, hero)
+	state.do_jump(hero, Vector2i(2, 2))
+	check(hero.pos == Vector2i(2, 2) and hero.jumped, "pulou e caiu do outro lado")
+	check(state.action_time(170, hero) == state.time_for(340, hero) and state.action_time(170, hero) > normal, "druida pulando age 2x mais devagar")
+	var before: int = hero.clock
+	state.do_ability(hero, "cura", ally.pos)
+	check(hero.clock - before == state.time_for(340, hero) and not hero.jumped, "cura após pulo custa o dobro e zera o pulo")
+
+
 func test_step_rules() -> void:
 	var terrain := FLAT.duplicate(true)
 	terrain[2][3] = 5 # água
@@ -618,7 +638,7 @@ func test_move_and_act() -> void:
 	var hero = state.add_unit("duelista", Data.Team.PLAYER, Vector2i(0, 0))
 	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, Vector2i(3, 0))
 	foe.clock = 1000
-	check(state.move_points(hero) / Data.STEP_TIME == 5, "velocidade 14 anda 5 casas")
+	check(state.move_points(hero) / Data.STEP_TIME == 3, "todos andam 3 casas")
 	check(state.move_cells(hero).has(Vector2i(2, 0)) and not state.move_cells(hero).has(foe.pos), "alcance de movimento sem casa ocupada")
 	check(state.approach_cell(hero, foe) == Vector2i(2, 0), "acha a casa de onde alcança o alvo")
 	var clock: int = hero.clock

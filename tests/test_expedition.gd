@@ -8,6 +8,7 @@ const AI = preload("res://scripts/ai.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const ExpeditionState = preload("res://scripts/expedition_state.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
+const SaveGame = preload("res://scripts/save_game.gd")
 
 const SIM_RUNS := 3
 
@@ -59,9 +60,21 @@ func test_placement() -> void:
 				var spacing: int = Exp.CHEST_SPACING if "bau" in [state.landmarks[cells[i]]["kind"], state.landmarks[cells[j]]["kind"]] else Exp.LANDMARK_SPACING
 				check(Hex.distance(cells[i], cells[j]) >= spacing, "locais separados")
 		_check_network(state, world_seed)
+		check(not state.camps.centers.is_empty(), "semente %d: tem acampamento" % world_seed)
+		var reached: Dictionary = state.layout.walk_area()
+		for center in state.camps.centers:
+			check(reached.has(center), "acampamento acessível pela rede do mapa")
+			check(state.tile_at(center)["walkable"], "fogueira fria permite caminhar")
+		for cell in state.camps.cells:
+			var prop: Dictionary = state.camps.cells[cell]
+			check(state.tile_at(cell)["walkable"] != prop["solid"], "carga e carroça bloqueiam suas casas")
+			check(not prop["solid"] or not state.gen.is_path(cell), "objetos não bloqueiam trilhas")
 	var a = _new(77)
 	var b = _new(77)
 	check(a.beacon_cell == b.beacon_cell and a.landmarks.keys() == b.landmarks.keys(), "mesma semente, mesmos locais")
+	check(a.camps.cells == b.camps.cells, "mesma semente, mesmo acampamento")
+	var restored = SaveGame.restore(SaveGame.capture(a))
+	check(a.camps.cells == restored.camps.cells, "save restaura composição e colisão do acampamento")
 
 
 ## A estrada liga o início ao farol, e todo local que não é escondido tem caminho até ela.
@@ -286,7 +299,7 @@ func test_visits() -> void:
 
 	state = _new(9)
 	var ambush: Variant = _cell_of(state, "emboscada")
-	check(state.tile_name_at(ambush) == "Ruínas", "a emboscada se disfarça de ruínas")
+	check(state.tile_name_at(ambush) in ["Ruínas", "Acampamento abandonado"], "emboscada parece um local abandonado")
 	_visit(state, ambush)
 	var guards: Array = state.landmarks[ambush]["guards"]
 	check(state.in_combat() and not guards.is_empty(), "a emboscada começa um combate")

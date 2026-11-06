@@ -116,7 +116,12 @@ void fragment() {
 	vec4 ink = COLOR;
 	// Atmosfera discreta: as fileiras distantes perdem um pouco de contraste.
 	ink.rgb = mix(ink.rgb, vec3(0.47, 0.54, 0.61), distance_fade);
-	ink.rgb *= 1.0 + min(lit, 1.6) * light_color;
+	// A paleta nova já tem sombras e brilhos pintados; a luz não deve estourar o piso.
+	if (ground_surface) {
+		float gray = dot(ink.rgb, vec3(0.299, 0.587, 0.114));
+		ink.rgb = mix(vec3(gray), ink.rgb, 0.82) * 0.9;
+	}
+	ink.rgb *= 1.0 + min(lit, 1.0) * 0.65 * light_color;
 	ink.rgb = mix(ink.rgb, fog_color, fog);
 	COLOR = ink;
 }

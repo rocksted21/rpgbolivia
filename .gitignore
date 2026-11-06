@@ -16,3 +16,6 @@ update/runtime.cfg
 
 # Resultado de tools/rodar_testes.bat
 /tools/saida_testes/
+
+# Credenciais LootLocker locais (copie account/lootlocker.cfg.example)
+account/lootlocker.cfg

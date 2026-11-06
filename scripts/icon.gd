@@ -2,8 +2,15 @@ extends Control
 ## Ícones simples desenhados em código: o kit não traz ícones de interface.
 ## Coordenadas num quadrado de 0 a 1, escaladas pelo tamanho do controle.
 
+const HOLE := Color(0.08, 0.09, 0.12) # olhos da caveira
+
 var kind := ""
 var color := Color.BLACK
+var angle := 0.0: # só a bússola usa: para onde a agulha aponta, na tela
+	set(value):
+		if not is_equal_approx(value, angle):
+			angle = value
+			queue_redraw()
 
 
 func setup(p_kind: String, p_color: Color, p_size: float) -> void:
@@ -60,6 +67,77 @@ func _draw() -> void:
 			_fill([0.9, 0.1, 0.56, 0.18, 0.82, 0.44])
 			_line(0.14, 0.86, 0.14, 0.66, w)
 			_line(0.14, 0.86, 0.34, 0.86, w)
+		"steps":
+			_oval(0.32, 0.5, 0.12, 0.2)
+			_oval(0.32, 0.82, 0.08, 0.09)
+			_oval(0.68, 0.24, 0.12, 0.2)
+			_oval(0.68, 0.56, 0.08, 0.09)
+		"skull":
+			draw_circle(_p(0.5, 0.42), size.x * 0.36, color)
+			_fill([0.3, 0.6, 0.7, 0.6, 0.66, 0.9, 0.34, 0.9])
+			draw_circle(_p(0.36, 0.46), size.x * 0.1, HOLE)
+			draw_circle(_p(0.64, 0.46), size.x * 0.1, HOLE)
+			draw_colored_polygon(_points([0.5, 0.6, 0.44, 0.7, 0.56, 0.7]), HOLE)
+		"people":
+			draw_circle(_p(0.68, 0.3), size.x * 0.14, color.darkened(0.25))
+			_half_oval(0.68, 0.84, 0.24, 0.36, color.darkened(0.25))
+			draw_circle(_p(0.38, 0.36), size.x * 0.17, color)
+			_half_oval(0.38, 0.98, 0.3, 0.42, color)
+		"compass":
+			var center := _p(0.5, 0.5)
+			var radius := size.x * 0.44
+			draw_arc(center, radius, 0.0, TAU, 24, Color(color, 0.6), maxf(1.5, w * 0.7), true)
+			var dir := Vector2.from_angle(angle)
+			var side := dir.orthogonal() * radius * 0.26
+			draw_colored_polygon(PackedVector2Array([center + dir * radius * 0.82, center + side, center - side]), color)
+			draw_colored_polygon(PackedVector2Array([center - dir * radius * 0.6, center + side, center - side]), Color(color, 0.35))
+		"turn_left", "turn_right":
+			_turn_arrow(kind == "turn_left", w)
+		"zoom_in", "zoom_out":
+			draw_arc(_p(0.42, 0.42), size.x * 0.3, 0.0, TAU, 24, color, w, true)
+			_line(0.64, 0.64, 0.9, 0.9, w * 1.6)
+			_line(0.29, 0.42, 0.55, 0.42, w)
+			if kind == "zoom_in":
+				_line(0.42, 0.29, 0.42, 0.55, w)
+
+
+## Seta curva de girar a câmera; `left` espelha para o sentido anti-horário.
+func _turn_arrow(left: bool, width: float) -> void:
+	var center := _p(0.5, 0.54)
+	var radius := size.x * 0.32
+	var from := deg_to_rad(30.0)
+	var to := deg_to_rad(290.0)
+	var arc := PackedVector2Array()
+	for i in 17:
+		arc.append(center + Vector2.from_angle(lerpf(from, to, i / 16.0)) * radius)
+	var radial := Vector2.from_angle(to)
+	var ahead := radial.orthogonal() # sentido em que o arco cresce
+	var tip := arc[-1] + ahead * size.x * 0.2
+	var head := PackedVector2Array([tip, arc[-1] + radial * size.x * 0.15, arc[-1] - radial * size.x * 0.15])
+	if left:
+		for i in arc.size():
+			arc[i].x = size.x - arc[i].x
+		for i in head.size():
+			head[i].x = size.x - head[i].x
+	draw_polyline(arc, color, width, true)
+	draw_colored_polygon(head, color)
+
+
+func _oval(x: float, y: float, rx: float, ry: float) -> void:
+	var points := PackedVector2Array()
+	for i in 14:
+		var a := TAU * i / 14.0
+		points.append(_p(x + cos(a) * rx, y + sin(a) * ry))
+	draw_colored_polygon(points, color)
+
+
+## Metade de cima de uma elipse: ombros das pessoas.
+func _half_oval(x: float, y: float, rx: float, ry: float, tint: Color) -> void:
+	var points := PackedVector2Array()
+	for i in 13:
+		var a := PI + PI * i / 12.0
+		points.append(_p(x + cos(a) * rx, y + sin(a) * ry))
+	draw_colored_polygon(points, tint)
 
 
 func _p(x: float, y: float) -> Vector2:

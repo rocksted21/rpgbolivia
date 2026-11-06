@@ -31,6 +31,7 @@ func _initialize() -> void:
 	test_rules()
 	test_spawning()
 	test_party()
+	test_split_fights()
 	test_network()
 	test_combat_flow()
 	test_full_runs()
@@ -307,6 +308,35 @@ func _foe_at(state, distance: int, type_id := "esqueleto"):
 
 func _kinds(events: Array) -> Array:
 	return events.map(func(e): return e["type"])
+
+
+## Online: herói longe da luta não entra nela e segue andando livre.
+func test_split_fights() -> void:
+	var state = WorldState.new(["duelista", "duelista"], 31)
+	state.split_fights = true
+	var near = state.party[0]
+	var far = state.party[1]
+	far.pos = near.pos + Vector2i(30, 0)
+	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, near.pos + Vector2i(Data.WORLD["sight_radius"], 0))
+	var events: Array = state.tick()
+	check(_kinds(events).has("combat_start"), "online: ver um herói inicia o combate")
+	check(state.is_fighting(near), "online: quem foi visto luta")
+	check(not state.is_fighting(far), "online: herói longe fica fora da luta")
+	check(not state.turn_order().has(far), "online: herói longe fora da fila")
+	check(not state.turn_based(far), "online: herói longe anda livre")
+	# Chegar perto da luta entra nela.
+	far.pos = foe.pos + Vector2i(Data.WORLD["fight_radius"], 0)
+	events = state.tick()
+	check(state.is_fighting(far) and state.turn_order().has(far), "online: quem chega perto entra na luta")
+	# Snapshot leva quem está lutando.
+	var copy = WorldState.new(["duelista", "duelista"], 31)
+	copy.split_fights = true
+	copy.apply_snapshot(state.snapshot())
+	check(copy.is_fighting(copy.party[1]), "online: snapshot leva quem luta")
+	# Fim da luta libera todo mundo.
+	foe.hp = 0
+	events = state.tick()
+	check(not state.in_combat() and state.fighting.is_empty(), "online: fim da luta libera os heróis")
 
 
 func test_party() -> void:
