@@ -19,6 +19,9 @@ const LINE_OFF := Color("3a4358")
 const STAT_ICONS := {"hp": ["heart", Color("ef6b5b")], "atk": ["sword", Color("e2a35a")], "def": ["shield", Color("5aa6ff")], "speed": ["bolt", GOLD]}
 const KIND_ICONS := {"attack": "sword", "charge": "flame", "heal": "heart", "guard": "shield", "buff": "star"}
 
+signal bought(type_id: String, node_id: String)
+signal closed
+
 const NODE_SIZE := Vector2(196, 92)
 const ROW_GAP := 20
 const COLUMN_GAP := 16
@@ -33,6 +36,11 @@ var hero_buttons := {}
 var node_buttons := {}
 var tree_column: VBoxContainer
 var detail_column: VBoxContainer
+# Aberta por cima do jogo (cartas da party): mostra só esses heróis e fecha sem trocar de cena.
+var embedded := false
+var only_heroes := []
+var start_hero := ""
+var live := false # no meio de uma partida: redistribuir só vale fora dela
 
 
 func _ready() -> void:
@@ -52,12 +60,12 @@ func _ready() -> void:
 	heroes.custom_minimum_size.x = 190
 	heroes.add_theme_constant_override("separation", 8)
 	row.add_child(heroes)
-	for type_id in Skills.hero_types():
+	for type_id in _heroes():
 		_hero_button(heroes, type_id)
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	heroes.add_child(spacer)
-	var back := _button(heroes, "Voltar", false)
+	var back := _button(heroes, "Fechar" if embedded else "Voltar", false)
 	back.pressed.connect(_back)
 
 	tree_column = VBoxContainer.new()
@@ -73,15 +81,27 @@ func _ready() -> void:
 	detail_column.add_theme_constant_override("separation", 10)
 	side.add_child(detail_column)
 
-	_select_hero(Skills.hero_types()[0])
+	_select_hero(start_hero if start_hero in _heroes() else _heroes()[0])
+
+
+func _heroes() -> Array:
+	var all := Skills.hero_types()
+	if only_heroes.is_empty():
+		return all
+	return only_heroes.filter(func(type_id): return type_id in all)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
 		_back()
 
 
 func _back() -> void:
+	if embedded:
+		closed.emit()
+		queue_free()
+		return
 	get_tree().change_scene_to_file(str(get_tree().root.get_meta("skills_back", "res://scenes/main_menu.tscn")))
 
 
@@ -119,9 +139,9 @@ func _hero_button(parent: Control, type_id: String) -> void:
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inner.add_child(column)
-	var name_label := _label(column, Data.UNIT_TYPES[type_id]["name"], 16, TEXT)
+	var name_label := _label(column, Data.UNIT_TYPES[type_id]["name"], 18, TEXT)
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var points := _label(column, "", 14, GOLD)
+	var points := _label(column, "", 16, GOLD)
 	hero_buttons[type_id] = {"button": button, "points": points}
 
 
@@ -133,7 +153,7 @@ func _style_hero_button(type_id: String) -> void:
 	for state in ["normal", "hover", "pressed"]:
 		entry["button"].add_theme_stylebox_override(state, _box(fill, border, 2, 8))
 	var free := HeroProgress.available(type_id)
-	entry["points"].text = "%d %s" % [free, "ponto livre" if free == 1 else "pontos livres"]
+	entry["points"].text = "Nv %d · %d %s" % [HeroProgress.level(type_id), free, "ponto" if free == 1 else "pontos"]
 	entry["points"].add_theme_color_override("font_color", GOLD if free > 0 else DIM)
 
 
@@ -160,10 +180,11 @@ func _render_tree() -> void:
 	node_buttons.clear()
 	var info: Dictionary = Data.UNIT_TYPES[hero]
 	_label(tree_column, info["name"], 30, TEXT)
-	_label(tree_column, info["role"], 16, GOLD)
+	_label(tree_column, info["role"], 17, GOLD)
 	var unlocked := HeroProgress.unlocked(hero)
 	var earned := HeroProgress.earned(hero)
-	_label(tree_column, "%d pontos livres · %d de %d ganhos no total" % [HeroProgress.available(hero), earned, Skills.MAX_POINTS], 16, DIM)
+	_level_row(tree_column)
+	_label(tree_column, "%d pontos livres · %d de %d ganhos no total" % [HeroProgress.available(hero), earned, Skills.MAX_POINTS], 17, DIM)
 	var grid := Control.new()
 	var branches: Array = Skills.tree(hero)
 	grid.custom_minimum_size = Vector2(tree_column.custom_minimum_size.x, 36 + (NODE_SIZE.y + ROW_GAP) * 4)
@@ -185,6 +206,28 @@ func _render_tree() -> void:
 				link.size = Vector2(4, ROW_GAP)
 				grid.add_child(link)
 			_node_button(grid, nodes[tier], Vector2(x, y), tier, unlocked, earned)
+
+
+## Nível e barra de experiência do herói, em cima da árvore.
+func _level_row(parent: Control) -> void:
+	var level := HeroProgress.level_info(hero)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	parent.add_child(row)
+	_label(row, "Nível %d" % level["level"], 20, GOLD)
+	var back := Panel.new()
+	back.custom_minimum_size = Vector2(260, 14)
+	back.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	back.add_theme_stylebox_override("panel", _box(PANEL_DIM, Color.TRANSPARENT, 0, 0))
+	row.add_child(back)
+	var fill := Panel.new()
+	fill.size = Vector2(260 * clampf(level["fraction"], 0.0, 1.0), 14)
+	fill.add_theme_stylebox_override("panel", _box(GOLD, Color.TRANSPARENT, 0, 0))
+	back.add_child(fill)
+	if level["max"]:
+		_label(row, "máximo", 17, DIM)
+	else:
+		_label(row, "%d / %d XP" % [HeroProgress.xp(hero), Skills.HERO_LEVEL_XP[level["level"]]], 17, DIM)
 
 
 func _node_button(parent: Control, node: Dictionary, at: Vector2, tier: int, unlocked: Array, earned: int) -> void:
@@ -270,8 +313,10 @@ func _render_detail() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	detail_column.add_child(spacer)
-	var note := _label(detail_column, "Exploração: +1 ponto a cada %d abates e a cada %d casas. Batalha: vitória +%d, derrota +%d. Redistribuir é grátis." % [Skills.JOURNEY_KILLS_PER_POINT, Skills.JOURNEY_DISTANCE_PER_POINT, Skills.WIN_POINTS, Skills.LOSS_POINTS], 14, DIM)
+	var note := _label(detail_column, "Cada nível dá 1 ponto. Os heróis ganham experiência derrotando inimigos e no fim de cada luta ou jornada." + (" Redistribuir: fora da partida." if live else " Redistribuir é grátis."), 16, DIM)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if live:
+		return
 	var reset := _button(detail_column, "Redistribuir pontos", false)
 	reset.disabled = unlocked.is_empty()
 	reset.pressed.connect(func():
@@ -304,6 +349,7 @@ func _render_selected(unlocked: Array, preview) -> void:
 		_label(detail_column, "Pontos insuficientes.", 15, DIM)
 	buy.pressed.connect(func():
 		if HeroProgress.unlock(hero, selected):
+			bought.emit(hero, selected)
 			_render())
 
 

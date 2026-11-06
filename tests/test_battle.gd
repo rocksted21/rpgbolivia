@@ -457,7 +457,7 @@ func test_jump() -> void:
 	var foe = state.add_unit("esqueleto", ENEMY, Vector2i(3, 2))
 	check(state.jump_cells(hero).get(Vector2i(2, 2)) == Data.JUMP_TIME, "herói pula o aliado colado, custa JUMP_TIME")
 	check(state.jump_cells(hero).has(Vector2i(0, 0)), "pula mesmo sem nada no meio")
-	check(state.jump_cells(hero).size() == 12 - 3, "12 casas a 2 de distância, menos as fora do mapa e a ocupada")
+	check(state.jump_cells(hero).keys().all(func(c): return Hex.distance(hero.pos, c) == 2 and state.unit_at(c) == null), "só casas livres a 2 de distância")
 	check(not state.move_cells(hero).has(Vector2i(2, 2)) or state.move_cells(hero)[Vector2i(2, 2)] > Data.JUMP_TIME, "andar nunca pula sozinho")
 	check(state.jump_cells(foe).is_empty(), "inimigo não pula")
 	var normal: int = state.action_time(170, hero)

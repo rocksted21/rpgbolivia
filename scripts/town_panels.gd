@@ -42,14 +42,14 @@ func setup(chosen: Array) -> void:
 	size = SCREEN
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var leave := _button(self, "Partir para a\nExpedição", true)
-	_place_corner(leave, 76, SCREEN.y - 126)
+	_place_corner(leave, 76, SCREEN.y - 12 - 92 - 8 - 76) # acima das cartas da party
 	leave.pressed.connect(open_party)
 	action_button = _button(self, "")
-	_place_corner(action_button, 56, SCREEN.y - 190)
+	_place_corner(action_button, 56, SCREEN.y - 12 - 92 - 8 - 76 - 8 - 56)
 	action_button.visible = false
 	action_button.pressed.connect(func(): open_person(nearby))
 	log_button = _button(self, "")
-	_place_corner(log_button, 48, 136)
+	_place_corner(log_button, 56, 392) # abaixo da coluna de botões
 	log_button.pressed.connect(open_log)
 	refresh()
 

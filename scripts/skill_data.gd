@@ -39,6 +39,13 @@ const RENAMED := {
 	"dru_ira": "dru_venenoso", "dru_agil": "dru_bencao",
 }
 
+# Experiência dos heróis (salva): cada nível novo dá 1 ponto. Do 1 ao 11 são os 10 pontos
+# que faltam entre START_POINTS e MAX_POINTS.
+const HERO_LEVEL_XP := [0, 30, 70, 120, 180, 250, 330, 420, 520, 630, 750]
+const HERO_KILL_XP := 10 # para cada herói vivo do jogador, por inimigo derrotado
+const HERO_BOSS_XP := 60
+const END_XP_PER_POINT := 15 # o prêmio do fim (vitória, jornada) vira experiência
+
 const TREES := {
 	"guardiao": [
 		{"name": "Baluarte", "nodes": [

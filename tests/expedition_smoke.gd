@@ -149,7 +149,7 @@ func _run() -> void:
 	await _idle()
 	await _wait_frames(60)
 	_expect(view.town and not view.expedition, "a expedição volta para a cidade")
-	_expect(view.hud.overview_text.contains("Faróis acesos 1"), "a cidade mostra o farol")
+	_expect(view.hud.overview_text.contains("Faróis 1"), "a cidade mostra o farol")
 	await _shot("11_cidade_depois")
 	await _test_growth()
 	print("Expedição: ", "FALHOU" if failed else "OK")

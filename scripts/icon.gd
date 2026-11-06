@@ -91,6 +91,56 @@ func _draw() -> void:
 			var side := dir.orthogonal() * radius * 0.26
 			draw_colored_polygon(PackedVector2Array([center + dir * radius * 0.82, center + side, center - side]), color)
 			draw_colored_polygon(PackedVector2Array([center - dir * radius * 0.6, center + side, center - side]), Color(color, 0.35))
+		"lighthouse":
+			_fill([0.24, 0.96, 0.76, 0.96, 0.64, 0.42, 0.36, 0.42]) # torre
+			draw_colored_polygon(_points([0.31, 0.76, 0.69, 0.76, 0.67, 0.66, 0.33, 0.66]), HOLE) # faixa
+			_fill([0.3, 0.42, 0.7, 0.42, 0.7, 0.36, 0.3, 0.36]) # sacada
+			draw_circle(_p(0.5, 0.27), size.x * 0.11, color) # luz
+			_fill([0.32, 0.2, 0.5, 0.04, 0.68, 0.2]) # telhado
+			_line(0.26, 0.27, 0.04, 0.2, w * 0.9) # facho
+			_line(0.74, 0.27, 0.96, 0.2, w * 0.9)
+		"tent":
+			_fill([0.04, 0.88, 0.5, 0.12, 0.96, 0.88])
+			draw_colored_polygon(_points([0.38, 0.88, 0.5, 0.56, 0.62, 0.88]), HOLE)
+			_line(0.5, 0.12, 0.5, 0.02, w)
+		"house":
+			_fill([0.04, 0.5, 0.5, 0.1, 0.96, 0.5])
+			_fill([0.16, 0.5, 0.84, 0.5, 0.84, 0.92, 0.16, 0.92])
+			draw_colored_polygon(_points([0.42, 0.92, 0.42, 0.66, 0.58, 0.66, 0.58, 0.92]), HOLE)
+		"ruin":
+			_fill([0.08, 0.92, 0.92, 0.92, 0.92, 0.82, 0.08, 0.82])
+			_fill([0.14, 0.82, 0.3, 0.82, 0.3, 0.2, 0.14, 0.2])
+			_fill([0.42, 0.82, 0.58, 0.82, 0.58, 0.44, 0.42, 0.5])
+			_fill([0.7, 0.82, 0.86, 0.82, 0.86, 0.3, 0.7, 0.36])
+			_fill([0.08, 0.2, 0.36, 0.2, 0.36, 0.1, 0.08, 0.1])
+		"chest":
+			_fill([0.08, 0.42, 0.92, 0.42, 0.92, 0.88, 0.08, 0.88])
+			_fill([0.08, 0.36, 0.92, 0.36, 0.84, 0.16, 0.16, 0.16])
+			draw_colored_polygon(_points([0.44, 0.5, 0.56, 0.5, 0.56, 0.64, 0.44, 0.64]), HOLE)
+		"candle":
+			_fill([0.36, 0.92, 0.64, 0.92, 0.64, 0.44, 0.36, 0.44])
+			_fill([0.5, 0.06, 0.62, 0.26, 0.5, 0.38, 0.38, 0.26])
+			_fill([0.2, 0.92, 0.8, 0.92, 0.8, 0.84, 0.2, 0.84])
+		"gear":
+			var hub := _p(0.5, 0.5)
+			for i in 8:
+				var dir := Vector2.from_angle(TAU * i / 8.0)
+				draw_line(hub + dir * size.x * 0.2, hub + dir * size.x * 0.44, color, size.x * 0.16)
+			draw_circle(hub, size.x * 0.3, color)
+			draw_circle(hub, size.x * 0.12, HOLE)
+		"people_plus": # grupo: duas pessoas e um +
+			draw_circle(_p(0.32, 0.32), size.x * 0.14, color)
+			_half_oval(0.32, 0.9, 0.24, 0.36, color)
+			_line(0.66, 0.42, 0.98, 0.42, w * 1.2)
+			_line(0.82, 0.26, 0.82, 0.58, w * 1.2)
+		"file": # heróis em fila
+			for x in [0.18, 0.5, 0.82]:
+				draw_circle(_p(x, 0.36), size.x * 0.11, color)
+				_half_oval(x, 0.82, 0.13, 0.3, color)
+		"spread": # heróis separados
+			for spot in [Vector2(0.2, 0.24), Vector2(0.76, 0.36), Vector2(0.4, 0.66)]:
+				draw_circle(_p(spot.x, spot.y), size.x * 0.1, color)
+				_half_oval(spot.x, spot.y + 0.38, 0.12, 0.24, color)
 		"turn_left", "turn_right":
 			_turn_arrow(kind == "turn_left", w)
 		"zoom_in", "zoom_out":
