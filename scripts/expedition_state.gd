@@ -37,12 +37,15 @@ var brasa_pct := 0 # Destilaria do Laboratório: brasas a mais, em %
 var items := []
 var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0, "chests": 0}
 var town_setup := {} # o que a cidade deu à party; o save refaz a expedição com ele
+var biome := "" # a expedição inteira acontece neste bioma (town["biome"], ou sorteado pela semente)
 
 
 ## `town`: o que a cidade dá à party, de TownProgress.expedition_setup().
+## `town["biome"]`: a região escolhida (chave de Data.BIOMES); sem ela, a semente sorteia.
 func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Dictionary = {}) -> void:
+	town_setup = town.duplicate(true) # antes do super: _prepare_world() precisa do bioma
 	super(heroes, world_seed, builds)
-	town_setup = town.duplicate(true)
+	gen.set_bounds(start_cell, _route_radius())
 	known_residents = town.get("rescued", [])
 	known_memories = town.get("memories", 0)
 	for member in party:
@@ -90,6 +93,19 @@ func _place_ruin_scenes() -> void:
 			break
 
 
+func _prepare_world() -> void:
+	biome = town_setup.get("biome", "")
+	if not Data.BIOMES.has(biome):
+		var dice := RandomNumberGenerator.new()
+		dice.seed = gen.world_seed + 17
+		var keys: Array = Data.BIOMES.keys()
+		keys.sort()
+		biome = keys[dice.randi_range(0, keys.size() - 1)]
+	town_setup["biome"] = biome
+	gen.fixed_biome = biome
+	gen.noise_paths = false # os caminhos da expedição são abertos depois, respeitando as serras
+
+
 # --- Locais especiais ----------------------------------------------------------
 
 func terrain_id_at(cell: Vector2i) -> int:
@@ -112,22 +128,36 @@ func tile_name_at(cell: Vector2i) -> String:
 
 
 func _place_landmarks() -> void:
-	var reachable := _reachable_cells(Exp.BEACON_DISTANCE + Exp.BEACON_SPREAD)
+	var reachable := _reachable_cells(_route_radius() - Exp.EDGE_MARGIN)
 	var candidates: Array = reachable.keys()
 	candidates.sort() # a ordem do dicionário não pode decidir o mapa de uma semente
-	beacon_cell = _pick_beacon(candidates, reachable)
+	var beacon_ring: Array = candidates.filter(func(cell): return Hex.distance(cell, start_cell) <= Exp.BEACON_DISTANCE + Exp.BEACON_SPREAD)
+	beacon_cell = _pick_beacon(beacon_ring, reachable)
 	terrain_override[beacon_cell] = Exp.TERRAIN_BEACON
 	landmarks[beacon_cell] = {"kind": "farol", "state": "idle", "guards": []}
 	gen.carve(gen.route(start_cell, {beacon_cell: true}, start_cell, _route_radius()), true)
-	# Os locais ficam fora da estrada: quem chega a eles entra por uma trilha.
-	var along := candidates.filter(func(cell): return _near_route(cell) and not gen.is_path(cell))
-	_shuffle(along)
+	# Os locais se espalham pelas zonas do mapa e ficam fora da estrada: quem chega entra por uma trilha.
+	var pools := _zone_pools(candidates)
+	var order: Array = pools.keys()
+	order.sort()
+	_shuffle(order)
 	var placed: Array = [beacon_cell]
+	var turn := 0
 	for kind in Exp.LANDMARKS:
 		var data: Dictionary = Exp.LANDMARKS[kind]
 		var hidden: int = data.get("hidden", 0)
+		var spacing: int = Exp.CHEST_SPACING if kind == "bau" else Exp.LANDMARK_SPACING
 		for i in data["count"]:
-			var cell: Variant = _next_landmark_cell(along, placed, Exp.CHEST_SPACING if kind == "bau" else Exp.LANDMARK_SPACING)
+			var cell: Variant = null
+			if i < hidden:
+				cell = _plateau_spot(placed, spacing, reachable) # o baú escondido é o prêmio de quem sobe
+			for tries in order.size():
+				if cell != null:
+					break
+				var zone: int = order[(turn + tries) % order.size()]
+				cell = _next_landmark_cell(pools[zone], placed, spacing)
+				if cell != null:
+					turn += tries + 1
 			if cell == null:
 				continue
 			placed.append(cell)
@@ -136,6 +166,35 @@ func _place_landmarks() -> void:
 				landmarks[cell]["resident"] = _next_resident()
 				terrain_override[cell] = Exp.TERRAIN_VILLAGE
 	_carve_trails()
+
+
+## Casas livres para um local, separadas por zona e embaralhadas. Fora da estrada e longe do início.
+func _zone_pools(candidates: Array) -> Dictionary:
+	var pools := {}
+	for cell in candidates:
+		var zone: int = layout.zone_at(cell)
+		if zone < 0 or gen.is_path(cell) or Hex.distance(cell, start_cell) < Exp.LANDMARK_MIN:
+			continue
+		if not pools.has(zone):
+			pools[zone] = []
+		pools[zone].append(cell)
+	for zone in pools:
+		_shuffle(pools[zone])
+	return pools
+
+
+## O alto de um platô ainda sem local por perto; null se nenhum serve.
+func _plateau_spot(placed: Array, spacing: int, reachable: Dictionary) -> Variant:
+	var tops := []
+	for zone in layout.zones:
+		var disc: Array = zone["plateau"]
+		if disc.is_empty():
+			continue
+		var top: Vector2i = disc[disc.size() / 2]
+		if reachable.has(top) and Hex.distance(top, start_cell) >= Exp.LANDMARK_MIN:
+			tops.append(top)
+	_shuffle(tops)
+	return _next_landmark_cell(tops, placed, spacing)
 
 
 func _route_radius() -> int:
@@ -148,6 +207,15 @@ func _carve_trails() -> void:
 	var blocked := {}
 	for cell in terrain_override:
 		blocked[cell] = true
+	# Primeiro, toda zona ganha uma trilha do seu centro até a rede: atravessa a serra pela passagem.
+	var centers: Array = layout.zones.map(func(zone): return zone["center"])
+	centers.sort_custom(func(a, b):
+		var gap_a: int = Hex.distance(a, start_cell)
+		var gap_b: int = Hex.distance(b, start_cell)
+		return gap_a < gap_b or (gap_a == gap_b and a < b))
+	for center in centers:
+		if center != start_cell and not gen.carved.has(center):
+			gen.carve(gen.route(center, gen.carved, start_cell, _route_radius(), blocked), false)
 	var open: Array = landmarks.keys().filter(func(cell): return cell != beacon_cell and not landmarks[cell]["hidden"])
 	open.sort_custom(func(a, b):
 		var gap_a: int = Hex.distance(a, start_cell)
@@ -185,14 +253,6 @@ func _pick_beacon(candidates: Array, reachable: Dictionary) -> Vector2i:
 	# O início sempre tem caminho longo (find_start), então isto é só uma rede de segurança.
 	candidates.sort_custom(func(a, b): return Hex.distance(a, start_cell) > Hex.distance(b, start_cell))
 	return candidates[0]
-
-
-func _near_route(cell: Vector2i) -> bool:
-	var a := _flat(start_cell)
-	var b := _flat(beacon_cell)
-	var point := _flat(cell)
-	var along: float = clampf((point - a).dot(b - a) / a.distance_squared_to(b), 0.0, 1.0)
-	return point.distance_to(a.lerp(b, along)) <= Exp.ROUTE_WIDTH and Hex.distance(cell, start_cell) >= Exp.LANDMARK_MIN
 
 
 func _next_landmark_cell(pool: Array, placed: Array, spacing: int) -> Variant:

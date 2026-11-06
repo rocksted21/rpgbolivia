@@ -46,6 +46,10 @@ const SITE_DECOR := 0.45
 const SITE_BUILDING := 0.03
 const FIELD_DECOR := 0.012
 const DECOR_DETAIL := 0.1 # abaixo disso a arte põe um enfeite (ver biome_art.gd)
+# Borda do mapa da expedição: depois do raio, uma muralha de serra (ou mata) que não se atravessa.
+# A beira serpenteia até BOUND_WANDER casas para fora, nunca para dentro do raio.
+const BOUND_WANDER := 3.0
+const BOUND_TREE_CHANCE := 0.45 # nos biomas de mata, parte da muralha é árvore
 
 var world_seed: int
 var height_noise := FastNoiseLite.new()
@@ -73,6 +77,13 @@ var cache := {}
 var raw_levels := {}
 var clearing_center := Vector2i.ZERO
 var has_clearing := false
+var fixed_biome := "" # expedição: o mapa todo é deste bioma; vazio usa as fatias em volta do encontro
+var bound_center := Vector2i.ZERO
+var bound_radius := -1 # menor que zero: mundo sem borda
+## Caminhos desenhados pelo ruído. A expedição desliga: lá só existem os abertos por carve(),
+## que contornam as serras e passam pelas passagens, em vez de cortá-las.
+var noise_paths := true
+var walls := {} # casas que nenhum caminho aberto atravessa (a serra da expedição)
 
 
 func _init(p_seed: int) -> void:
@@ -121,6 +132,8 @@ func _generate(cell: Vector2i) -> Dictionary:
 	# Coordenadas reais do hexágono, para o ruído não formar faixas na grade.
 	var x := cell.x + (cell.y & 1) * 0.5
 	var y := cell.y * 0.866
+	if outside_bounds(cell):
+		return _wall(cell)
 	var wx := x + warp_x_noise.get_noise_2d(x, y) * WARP
 	var wy := y + warp_y_noise.get_noise_2d(x, y) * WARP
 	var roll := _roll(cell)
@@ -135,6 +148,42 @@ func _generate(cell: Vector2i) -> Dictionary:
 		if spot["detail"] < DECOR_DETAIL:
 			spot["detail"] = DECOR_DETAIL + spot["detail"] * 9.0
 	return spot
+
+
+## Fecha o mundo em volta de `center`: tudo a mais de `radius` casas vira muralha.
+func set_bounds(center: Vector2i, radius: int) -> void:
+	bound_center = center
+	bound_radius = radius
+	# Dentro do raio nada muda: só esquece o que já foi gerado do lado de fora.
+	for table in [cache, path_cells]:
+		for cell in table.keys():
+			if Hex.distance(cell, center) > radius:
+				table.erase(cell)
+
+
+## A casa fica além da borda? A beira varia entre radius + 1 e radius + 1 + BOUND_WANDER.
+func outside_bounds(cell: Vector2i) -> bool:
+	if bound_radius < 0:
+		return false
+	var gap := Hex.distance(cell, bound_center)
+	if gap <= bound_radius:
+		return false
+	if gap > bound_radius + 1 + int(BOUND_WANDER):
+		return true
+	var x := cell.x + (cell.y & 1) * 0.5
+	var y := cell.y * 0.866
+	var wander := (border_noise.get_noise_2d(x * 2.0, y * 2.0) + 1.0) * 0.5 * BOUND_WANDER
+	return gap > bound_radius + 1 + wander
+
+
+func _wall(cell: Vector2i) -> Dictionary:
+	var roll := _roll(cell)
+	var biome := biome_of(cell)
+	var level := _level(cell)
+	var terrain := MOUNTAIN
+	if biome in ["floresta", "selva"] and fmod(roll * 37.0, 1.0) < BOUND_TREE_CHANCE:
+		terrain = TREE
+	return {"terrain": terrain, "elevation": level, "biome": biome, "detail": DECOR_DETAIL + fmod(roll * 97.0, 1.0) * 0.9, "wall": true}
 
 
 func clear_cache() -> void:
@@ -165,6 +214,8 @@ func _raw_level(cell: Vector2i) -> int:
 ## O bioma é a fatia em que a casa cai. Cada fronteira só depende da distância ao encontro:
 ## por isso é uma linha contínua, e o bioma nunca aparece em dois pedaços.
 func biome_of(cell: Vector2i) -> String:
+	if fixed_biome != "":
+		return fixed_biome
 	var away := Vector2(cell.x + (cell.y & 1) * 0.5, cell.y * 0.866) - biome_center
 	var distance := away.length()
 	var angle := away.angle()
@@ -247,6 +298,7 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 
 ## O caminho é a linha onde o ruído troca de sinal: a borda de uma mancha é contínua e tem
 ## uma casa de largura, então ele nunca vira um borrão nem sobra em pedaços.
+## Além da borda não há caminho: _on_line já confere, e os abertos por carve() ficam no raio.
 func is_path(cell: Vector2i) -> bool:
 	return carved.has(cell) or _on_line(cell)
 
@@ -255,12 +307,12 @@ func is_path(cell: Vector2i) -> bool:
 func is_road(cell: Vector2i) -> bool:
 	if carved.has(cell) and carved[cell].values().has(true):
 		return true
-	return _on_road_line(cell)
+	return noise_paths and _on_road_line(cell)
 
 
 func _on_line(cell: Vector2i) -> bool:
 	if not path_cells.has(cell):
-		path_cells[cell] = _on_road_line(cell) or _on_noise_line(trail_noise, cell)
+		path_cells[cell] = noise_paths and not outside_bounds(cell) and (_on_road_line(cell) or _on_noise_line(trail_noise, cell))
 	return path_cells[cell]
 
 
@@ -320,7 +372,7 @@ func _linked(cell: Vector2i, dir: int) -> bool:
 func _is_road_edge(cell: Vector2i, dir: int) -> bool:
 	if carved.has(cell) and carved[cell].get(dir, false):
 		return true
-	return _on_road_line(cell) and _on_road_line(Hex.neighbor(cell, dir))
+	return noise_paths and _on_road_line(cell) and _on_road_line(Hex.neighbor(cell, dir))
 
 
 func _triangle_cuts(a: Vector2i, b: Vector2i, dir: int) -> bool:
@@ -391,6 +443,8 @@ func route(from: Vector2i, targets: Dictionary, center: Vector2i, radius: int, b
 
 ## Custo de abrir caminho em uma casa; negativo onde não dá. O sorteio deixa o traçado sinuoso.
 func _route_cost(from: Vector2i, to: Vector2i) -> float:
+	if walls.has(to):
+		return -1.0
 	var spot: Dictionary = sample(to)
 	if absi(spot["elevation"] - sample(from)["elevation"]) > 1:
 		return -1.0

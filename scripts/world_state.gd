@@ -31,6 +31,7 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}) -> void:
 	builds_used = builds.duplicate(true)
 	rng.seed = world_seed
 	gen = WorldGen.new(world_seed)
+	_prepare_world()
 	start_cell = gen.find_start()
 	var types: Array = heroes if heroes is Array else [heroes]
 	var spots: Array = [start_cell] + Hex.neighbors(start_cell).filter(func(cell): return gen.walkable(cell))
@@ -42,6 +43,11 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}) -> void:
 	hero = party[0]
 	last_walker = hero
 	steps_until_spawn = float(Data.WORLD["first_spawn_steps"])
+
+
+## Chamado logo depois de criar o gerador, antes de escolher o início (a expedição fixa o bioma aqui).
+func _prepare_world() -> void:
+	pass
 
 
 func add_unit(type_id: String, team: int, pos: Vector2i, build: Array = []):

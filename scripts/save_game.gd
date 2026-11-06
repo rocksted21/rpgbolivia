@@ -8,7 +8,7 @@ const ExpeditionState = preload("res://scripts/expedition_state.gd")
 const TownState = preload("res://scripts/town_state.gd")
 const Unit = preload("res://scripts/unit.gd")
 
-const VERSION := 1
+const VERSION := 2 # 2: expedição de um bioma só e com borda; o mapa de um save 1 seria outro
 
 static var path := "user://savegame.dat"
 

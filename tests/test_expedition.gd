@@ -28,6 +28,7 @@ func check(ok: bool, text: String) -> void:
 func _initialize() -> void:
 	TownProgress.path = "user://test_town.cfg"
 	test_placement()
+	test_region()
 	test_layout()
 	test_visits()
 	test_levels()
@@ -46,6 +47,53 @@ func _new(world_seed: int, town := {}):
 	return ExpeditionState.new(Data.DEFAULT_PARTY, world_seed, {}, town)
 
 
+## Uma expedição acontece num bioma só e tem borda: além do raio, nada se atravessa.
+func test_region() -> void:
+	for biome in Data.BIOMES:
+		var state = _new(41, {"biome": biome})
+		var radius: int = state._route_radius()
+		var others := 0
+		for cell in state.area_of(state.start_cell, radius + 6):
+			if state.biome_at(cell) != biome:
+				others += 1
+		check(others == 0, "%s: o mapa inteiro é deste bioma (%d casas de outro)" % [biome, others])
+		_visit(state, state.beacon_cell)
+		check(state.boss != null and state.boss.type_id == Exp.BOSS_BY_BIOME.get(biome, Exp.BOSS["type"]), "%s: o guardião é o do bioma escolhido" % biome)
+		check(state.town_setup.get("biome") == biome, "%s: o save guarda o bioma" % biome)
+	var chosen := {}
+	for world_seed in 12:
+		var state = _new(world_seed * 31 + 5)
+		var radius: int = state._route_radius()
+		chosen[state.biome] = true
+		var outside := 0
+		var open_edge := 0
+		for cell in state.area_of(state.start_cell, radius + 6):
+			var gap: int = Hex.distance(cell, state.start_cell)
+			if gap > radius + 4 and state.tile_at(cell)["walkable"]:
+				outside += 1
+			if gap == radius + 1 and state.tile_at(cell)["walkable"] and not state.gen.outside_bounds(cell):
+				open_edge += 1 # a beira serpenteia para fora: aqui ainda pode ser chão
+		check(outside == 0, "semente %d: nada andável além da borda (%d)" % [world_seed, outside])
+		var reach: Dictionary = state.layout.walk_area()
+		var leak: bool = reach.keys().any(func(cell): return Hex.distance(cell, state.start_cell) > radius)
+		check(not leak, "semente %d: a área a pé fica dentro do raio" % world_seed)
+		var steps := {state.start_cell: true}
+		var frontier := [state.start_cell]
+		var escaped := false
+		while not frontier.is_empty() and not escaped:
+			var current: Vector2i = frontier.pop_back()
+			for next in Hex.neighbors(current):
+				if steps.has(next) or not state.tile_at(next)["walkable"] or absi(state.elevation_at(next) - state.elevation_at(current)) > 1:
+					continue
+				if Hex.distance(next, state.start_cell) > radius + 4:
+					escaped = true
+					break
+				steps[next] = true
+				frontier.append(next)
+		check(not escaped, "semente %d: a pé não se sai do mapa" % world_seed)
+	check(chosen.size() >= 3, "sem região escolhida, as sementes variam o bioma (%d)" % chosen.size())
+
+
 func test_placement() -> void:
 	_test_chest()
 	for world_seed in 12:
@@ -60,6 +108,7 @@ func test_placement() -> void:
 				var spacing: int = Exp.CHEST_SPACING if "bau" in [state.landmarks[cells[i]]["kind"], state.landmarks[cells[j]]["kind"]] else Exp.LANDMARK_SPACING
 				check(Hex.distance(cells[i], cells[j]) >= spacing, "locais separados")
 		_check_network(state, world_seed)
+		_check_spread(state, world_seed)
 		check(not state.camps.centers.is_empty(), "semente %d: tem acampamento" % world_seed)
 		var reached: Dictionary = state.layout.walk_area()
 		for center in state.camps.centers:
@@ -75,6 +124,20 @@ func test_placement() -> void:
 	check(a.camps.cells == b.camps.cells, "mesma semente, mesmo acampamento")
 	var restored = SaveGame.restore(SaveGame.capture(a))
 	check(a.camps.cells == restored.camps.cells, "save restaura composição e colisão do acampamento")
+
+
+## Os locais se espalham pelo mapa: quase toda zona tem algum, e há prêmio no alto de platô.
+func _check_spread(state, world_seed: int) -> void:
+	var zones := {}
+	var on_plateau := 0
+	for cell in state.landmarks:
+		zones[state.layout.zone_at(cell)] = true
+		for zone in state.layout.zones:
+			if zone["plateau"].has(cell):
+				on_plateau += 1
+	var total: int = state.layout.zones.size()
+	check(zones.size() >= total - 2, "semente %d: locais em quase todas as zonas (%d de %d)" % [world_seed, zones.size(), total])
+	check(on_plateau >= 1, "semente %d: há local no alto de um platô" % world_seed)
 
 
 ## A estrada liga o início ao farol, e todo local que não é escondido tem caminho até ela.
@@ -174,6 +237,14 @@ func test_layout() -> void:
 				_check_passage_width(state, strip, world_seed)
 		for cell in state.landmarks:
 			check(area.has(cell) or Hex.neighbors(cell).any(func(next): return area.has(next)), "semente %d: local %s alcançável" % [world_seed, cell])
+		# A serra fica inteira: nenhum caminho a atravessa, só as passagens e os reparos.
+		var cut := 0
+		for cell in layout.ridge:
+			if state.gen.is_path(cell) or state.tile_at(cell)["walkable"]:
+				cut += 1
+		check(cut == 0, "semente %d: nenhum caminho fura a serra (%d)" % [world_seed, cut])
+		for zone in layout.zones:
+			check(state.gen.is_path(zone["center"]), "semente %d: a trilha chega ao centro da zona %s" % [world_seed, zone["center"]])
 	print("Forma do mapa: %d reparos em 6 mapas" % total_repairs)
 	# Atrás da serra o inimigo não entra na luta.
 	var walled = ExpeditionState.new(Data.DEFAULT_PARTY, 93)

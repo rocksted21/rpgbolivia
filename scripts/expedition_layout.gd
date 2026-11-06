@@ -55,6 +55,7 @@ func _init(p_gen, p_start: Vector2i, p_radius: int) -> void:
 	sorted_border.sort()
 	_link_zones()
 	_raise_ridges()
+	gen.walls = ridge # o mesmo dicionário: o que um reparo tira da serra volta a ser passável
 	for zone in zones:
 		_add_plateau(zone)
 	gen.clear_cache()

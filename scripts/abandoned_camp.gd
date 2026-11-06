@@ -37,6 +37,7 @@ func place(state, center: Vector2i, theme := "camp") -> bool:
 		var terrain: int = gen.sample(cell)["terrain"]
 		if (Hex.distance(cell, center) <= 2 and state.elevation_at(cell) == level
 				and not state.landmarks.has(cell) and not cells.has(cell)
+				and not state.layout.ridge.has(cell) # a clareira não abre a serra
 				and terrain in [gen.FIELD_A, gen.FIELD_B, gen.FOREST, gen.TREE, gen.ROCKS, gen.HILLS]):
 			clearing.append(cell)
 			free[cell] = true
