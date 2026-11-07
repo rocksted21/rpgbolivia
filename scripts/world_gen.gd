@@ -264,11 +264,10 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 		# O caminho vem antes de tudo, para nunca se partir: cruza a água por uma ponte.
 		# Passagem, platô e rampa foram limpos pelo mapa: ali é chão, não há água para ponte.
 		var wet := DRY if layout_levels.has(cell) else _water_kind(cell, x, y, level, biome)
-		# Sobre água, fica na altura dela (a rota foi traçada assim), com ou sem ponte.
+		# Sobre rio, fica na altura da água (a rota foi traçada assim). Sobre lago, fica na
+		# altura da margem, que nunca passa de 1: a ponte é um deque e encosta na beira.
 		if wet == RIVER:
 			spot["elevation"] = maxi(level - 1, 0)
-		elif wet == LAKE:
-			spot["elevation"] = 0
 		if wet != DRY and _water_beside(cell):
 			spot["terrain"] = BRIDGE
 		else:
