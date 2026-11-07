@@ -1,233 +1,233 @@
-[gd_scene format=3]
+[gd_scene format=4 uid="uid://dw2gq87ufwyom"]
 
-[ext_resource type="TileSet" path="res://assets/town/editor/chao_cidade.tres" id="1_r"]
-[ext_resource type="Script" path="res://scripts/cidade/cidade_predio.gd" id="2_r"]
-[ext_resource type="Script" path="res://scripts/cidade/cidade_morador.gd" id="3_r"]
-[ext_resource type="Script" path="res://scripts/cidade/cidade_enfeite.gd" id="4_r"]
-[ext_resource type="Texture2D" path="res://assets/biomes/floresta/floresta_fundo_a.png" id="5_r"]
-[ext_resource type="Texture2D" path="res://assets/biomes/floresta/floresta_fundo_b.png" id="6_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/farol.png" id="7_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/forja.png" id="8_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/tenda.png" id="9_r"]
-[ext_resource type="Texture2D" path="res://assets/town/horta.png" id="10_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/taverna.png" id="11_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/mansao.png" id="12_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/capela.png" id="13_r"]
-[ext_resource type="Texture2D" path="res://assets/town/acampamento.png" id="14_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/forno.png" id="15_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/abrigo.png" id="16_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/torre_madeira.png" id="17_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/fonte.png" id="18_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/casa_c.png" id="19_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/casa_b.png" id="20_r"]
-[ext_resource type="Texture2D" path="res://assets/town/ilustrado/casa_a.png" id="21_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_ferreiro.png" id="22_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_curandeira.png" id="23_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_taverneira.png" id="24_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_b.png" id="25_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_guarda.png" id="26_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_a.png" id="27_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_c.png" id="28_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_d.png" id="29_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_e.png" id="30_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_padeira.png" id="31_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_cartografa.png" id="32_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_arquivista.png" id="33_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_alquimista.png" id="34_r"]
-[ext_resource type="Texture2D" path="res://assets/town/mural.png" id="35_r"]
-[ext_resource type="Texture2D" path="res://assets/town/morador_g.png" id="36_r"]
-[ext_resource type="Texture2D" path="res://assets/town/fogueira_a.png" id="37_r"]
-[ext_resource type="Texture2D" path="res://assets/town/fogueira_b.png" id="38_r"]
-[ext_resource type="Texture2D" path="res://assets/town/caldeirao_grande.png" id="39_r"]
-[ext_resource type="Texture2D" path="res://assets/town/frascos.png" id="40_r"]
-[ext_resource type="Texture2D" path="res://assets/town/bigorna.png" id="41_r"]
-[ext_resource type="Texture2D" path="res://assets/town/bigorna_b.png" id="42_r"]
-[ext_resource type="Texture2D" path="res://assets/town/lenha.png" id="43_r"]
-[ext_resource type="Texture2D" path="res://assets/town/barraca_b.png" id="44_r"]
-[ext_resource type="Texture2D" path="res://assets/town/barraca_c.png" id="45_r"]
-[ext_resource type="Texture2D" path="res://assets/town/barris_b.png" id="46_r"]
-[ext_resource type="Texture2D" path="res://assets/town/tocha.png" id="47_r"]
-[ext_resource type="Texture2D" path="res://assets/town/doca.png" id="48_r"]
-[ext_resource type="Texture2D" path="res://assets/town/barco_a.png" id="49_r"]
-[ext_resource type="Texture2D" path="res://assets/town/barco_b.png" id="50_r"]
+[ext_resource type="TileSet" uid="uid://bncewqred4f26" path="res://assets/town/editor/chao_cidade.tres" id="1_r"]
+[ext_resource type="Script" uid="uid://du26qt0c6r02g" path="res://scripts/cidade/cidade_predio.gd" id="2_r"]
+[ext_resource type="Script" uid="uid://bevrihdw6nxbp" path="res://scripts/cidade/cidade_morador.gd" id="3_r"]
+[ext_resource type="Script" uid="uid://dcfxkqn4c83vx" path="res://scripts/cidade/cidade_enfeite.gd" id="4_r"]
+[ext_resource type="Texture2D" uid="uid://dnteqnl50wxvo" path="res://assets/biomes/floresta/floresta_fundo_a.png" id="5_r"]
+[ext_resource type="Texture2D" uid="uid://cqs5y25yc6un5" path="res://assets/biomes/floresta/floresta_fundo_b.png" id="6_r"]
+[ext_resource type="Texture2D" uid="uid://di4d7ircbgvb7" path="res://assets/town/ilustrado/farol.png" id="7_r"]
+[ext_resource type="Texture2D" uid="uid://y4ldqpab5br7" path="res://assets/town/ilustrado/forja.png" id="8_r"]
+[ext_resource type="Texture2D" uid="uid://c8hrgix8ga25g" path="res://assets/town/ilustrado/tenda.png" id="9_r"]
+[ext_resource type="Texture2D" uid="uid://v7kckl1k7r1r" path="res://assets/town/horta.png" id="10_r"]
+[ext_resource type="Texture2D" uid="uid://by0gayhlk5s24" path="res://assets/town/ilustrado/taverna.png" id="11_r"]
+[ext_resource type="Texture2D" uid="uid://c4t17rsrcru6j" path="res://assets/town/ilustrado/mansao.png" id="12_r"]
+[ext_resource type="Texture2D" uid="uid://dtqcw7tk0wfev" path="res://assets/town/ilustrado/capela.png" id="13_r"]
+[ext_resource type="Texture2D" uid="uid://bdi8mbxwwrtde" path="res://assets/town/acampamento.png" id="14_r"]
+[ext_resource type="Texture2D" uid="uid://7qw1jf5jr87h" path="res://assets/town/ilustrado/forno.png" id="15_r"]
+[ext_resource type="Texture2D" uid="uid://q65y6xxskbpu" path="res://assets/town/ilustrado/abrigo.png" id="16_r"]
+[ext_resource type="Texture2D" uid="uid://dyq6swc0s127c" path="res://assets/town/ilustrado/torre_madeira.png" id="17_r"]
+[ext_resource type="Texture2D" uid="uid://dpqarjslyy4ih" path="res://assets/town/ilustrado/fonte.png" id="18_r"]
+[ext_resource type="Texture2D" uid="uid://cfahfttpf56r5" path="res://assets/town/ilustrado/casa_c.png" id="19_r"]
+[ext_resource type="Texture2D" uid="uid://3f2lkf65rmnk" path="res://assets/town/ilustrado/casa_b.png" id="20_r"]
+[ext_resource type="Texture2D" uid="uid://h1houfv8hxqc" path="res://assets/town/ilustrado/casa_a.png" id="21_r"]
+[ext_resource type="Texture2D" uid="uid://50jhi2pdj8pf" path="res://assets/town/morador_ferreiro.png" id="22_r"]
+[ext_resource type="Texture2D" uid="uid://deebgyfd78tfg" path="res://assets/town/morador_curandeira.png" id="23_r"]
+[ext_resource type="Texture2D" uid="uid://6p516vm8sjw8" path="res://assets/town/morador_taverneira.png" id="24_r"]
+[ext_resource type="Texture2D" uid="uid://cjawo5x7ncfw6" path="res://assets/town/morador_b.png" id="25_r"]
+[ext_resource type="Texture2D" uid="uid://7ybelfmru6xf" path="res://assets/town/morador_guarda.png" id="26_r"]
+[ext_resource type="Texture2D" uid="uid://bvfk6qes4rxyw" path="res://assets/town/morador_a.png" id="27_r"]
+[ext_resource type="Texture2D" uid="uid://bhotucwd66wsj" path="res://assets/town/morador_c.png" id="28_r"]
+[ext_resource type="Texture2D" uid="uid://cxv8y81ft04by" path="res://assets/town/morador_d.png" id="29_r"]
+[ext_resource type="Texture2D" uid="uid://c0ff6e5qls5rv" path="res://assets/town/morador_e.png" id="30_r"]
+[ext_resource type="Texture2D" uid="uid://blawyydkjfl8v" path="res://assets/town/morador_padeira.png" id="31_r"]
+[ext_resource type="Texture2D" uid="uid://33tvgwv7bpi" path="res://assets/town/morador_cartografa.png" id="32_r"]
+[ext_resource type="Texture2D" uid="uid://bfg4ccls6dxt0" path="res://assets/town/morador_arquivista.png" id="33_r"]
+[ext_resource type="Texture2D" uid="uid://r4fxlum5gflq" path="res://assets/town/morador_alquimista.png" id="34_r"]
+[ext_resource type="Texture2D" uid="uid://bi8y8con0tg2l" path="res://assets/town/mural.png" id="35_r"]
+[ext_resource type="Texture2D" uid="uid://ddeuvqr1ym05f" path="res://assets/town/morador_g.png" id="36_r"]
+[ext_resource type="Texture2D" uid="uid://dinr3mq0q40sd" path="res://assets/town/fogueira_a.png" id="37_r"]
+[ext_resource type="Texture2D" uid="uid://btrqiky8dya3w" path="res://assets/town/fogueira_b.png" id="38_r"]
+[ext_resource type="Texture2D" uid="uid://btu84go3mgptf" path="res://assets/town/caldeirao_grande.png" id="39_r"]
+[ext_resource type="Texture2D" uid="uid://bft550w6jhrw" path="res://assets/town/frascos.png" id="40_r"]
+[ext_resource type="Texture2D" uid="uid://n2amwbdd7omh" path="res://assets/town/bigorna.png" id="41_r"]
+[ext_resource type="Texture2D" uid="uid://78i6dtnke132" path="res://assets/town/bigorna_b.png" id="42_r"]
+[ext_resource type="Texture2D" uid="uid://cy8illh7xlphl" path="res://assets/town/lenha.png" id="43_r"]
+[ext_resource type="Texture2D" uid="uid://diwyj2smcckl" path="res://assets/town/barraca_b.png" id="44_r"]
+[ext_resource type="Texture2D" uid="uid://ms5heeicfi6a" path="res://assets/town/barraca_c.png" id="45_r"]
+[ext_resource type="Texture2D" uid="uid://56vqbooewowy" path="res://assets/town/barris_b.png" id="46_r"]
+[ext_resource type="Texture2D" uid="uid://cm512eiml3hti" path="res://assets/town/tocha.png" id="47_r"]
+[ext_resource type="Texture2D" uid="uid://cgbph0p0ndw31" path="res://assets/town/doca.png" id="48_r"]
+[ext_resource type="Texture2D" uid="uid://dpavxnhomcumx" path="res://assets/town/barco_a.png" id="49_r"]
+[ext_resource type="Texture2D" uid="uid://cafmmkyd5gbya" path="res://assets/town/barco_b.png" id="50_r"]
 
-[node name="Cidade" type="Node2D"]
+[node name="Cidade" type="Node2D" unique_id=633509842]
 y_sort_enabled = true
 
-[node name="Chao" type="TileMapLayer" parent="."]
-tile_map_data = PackedByteArray(0, 0, 12, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 14, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 15, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 16, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 17, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 18, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 19, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 20, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 21, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 12, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 14, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 15, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 16, 0, 2, 0, 0, 0, 6, 0, 0, 0, 0, 0, 17, 0, 2, 0, 0, 0, 6, 0, 0, 0, 0, 0, 18, 0, 2, 0, 0, 0, 6, 0, 0, 0, 0, 0, 19, 0, 2, 0, 0, 0, 6, 0, 0, 0, 0, 0, 20, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 21, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 22, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 11, 0, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 12, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0, 14, 0, 3, 0, 0, 0, 6, 0, 0, 0, 0, 0, 15, 0, 3, 0, 0, 0, 6, 0, 0, 0, 0, 0, 16, 0, 3, 0, 0, 0, 6, 0, 0, 0, 0, 0, 17, 0, 3, 0, 0, 0, 6, 0, 0, 0, 0, 0, 18, 0, 3, 0, 0, 0, 6, 0, 0, 0, 0, 0, 19, 0, 3, 0, 0, 0, 6, 0, 0, 0, 0, 0, 20, 0, 3, 0, 0, 0, 6, 0, 0, 0, 0, 0, 21, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0, 22, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 10, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 11, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 12, 0, 4, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 4, 0, 0, 0, 5, 0, 0, 0, 0, 0, 14, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 15, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 16, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 17, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 18, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 19, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 20, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 21, 0, 4, 0, 0, 0, 6, 0, 0, 0, 0, 0, 22, 0, 4, 0, 0, 0, 5, 0, 0, 0, 0, 0, 23, 0, 4, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 11, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 12, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 14, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 15, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 16, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 17, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 18, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 19, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 20, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 21, 0, 5, 0, 0, 0, 6, 0, 0, 0, 0, 0, 22, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 23, 0, 5, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 11, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 12, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 14, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 15, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 16, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 17, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 18, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 19, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 20, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 21, 0, 6, 0, 0, 0, 6, 0, 0, 0, 0, 0, 22, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 23, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 24, 0, 6, 0, 0, 0, 5, 0, 0, 0, 0, 0, 5, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 11, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 12, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 14, 0, 7, 0, 0, 0, 6, 0, 0, 0, 0, 0, 15, 0, 7, 0, 0, 0, 6, 0, 0, 0, 0, 0, 16, 0, 7, 0, 0, 0, 6, 0, 0, 0, 0, 0, 17, 0, 7, 0, 0, 0, 6, 0, 0, 0, 0, 0, 18, 0, 7, 0, 0, 0, 6, 0, 0, 0, 0, 0, 19, 0, 7, 0, 0, 0, 6, 0, 0, 0, 0, 0, 20, 0, 7, 0, 0, 0, 6, 0, 0, 0, 0, 0, 21, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 22, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 23, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 24, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 5, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 11, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 12, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 14, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 15, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 16, 0, 8, 0, 0, 0, 6, 0, 0, 0, 0, 0, 17, 0, 8, 0, 0, 0, 6, 0, 0, 0, 0, 0, 18, 0, 8, 0, 0, 0, 6, 0, 0, 0, 0, 0, 19, 0, 8, 0, 0, 0, 6, 0, 0, 0, 0, 0, 20, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 21, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 22, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 23, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 24, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 8, 0, 0, 0, 5, 0, 0, 0, 0, 0, 5, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 11, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 12, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 13, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 16, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 17, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 18, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 19, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 20, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 21, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 22, 0, 9, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 24, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 9, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 16, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 17, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 18, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 19, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 21, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 10, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 30, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 31, 0, 10, 0, 0, 0, 5, 0, 0, 0, 0, 0, 5, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 16, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 17, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 18, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 19, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 21, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 11, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 24, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 30, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 31, 0, 11, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 10, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 16, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 17, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 18, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 19, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 20, 0, 12, 0, 0, 0, 2, 0, 0, 0, 0, 0, 21, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 12, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 30, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 31, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 32, 0, 12, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 7, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 8, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 13, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 13, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 13, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 13, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 13, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 13, 0, 0, 0, 2, 0, 0, 0, 0, 0, 15, 0, 13, 0, 0, 0, 2, 0, 0, 0, 0, 0, 16, 0, 13, 0, 0, 0, 2, 0, 0, 0, 0, 0, 17, 0, 13, 0, 0, 0, 2, 0, 0, 0, 0, 0, 18, 0, 13, 0, 0, 0, 2, 0, 0, 0, 0, 0, 19, 0, 13, 0, 0, 0, 2, 0, 0, 0, 0, 0, 20, 0, 13, 0, 0, 0, 2, 0, 0, 0, 0, 0, 21, 0, 13, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 13, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 24, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 30, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 31, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 32, 0, 13, 0, 0, 0, 5, 0, 0, 0, 0, 0, 6, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 15, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 16, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 17, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 18, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 19, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 20, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 21, 0, 14, 0, 0, 0, 2, 0, 0, 0, 0, 0, 22, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 14, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 30, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 31, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 32, 0, 14, 0, 0, 0, 5, 0, 0, 0, 0, 0, 5, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 14, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 15, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 16, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 17, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 18, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 19, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 20, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 21, 0, 15, 0, 0, 0, 2, 0, 0, 0, 0, 0, 22, 0, 15, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 24, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 25, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 26, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 27, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 28, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 29, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 30, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 31, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 32, 0, 15, 0, 0, 0, 5, 0, 0, 0, 0, 0, 5, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 15, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 16, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 17, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 18, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 19, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 20, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 21, 0, 16, 0, 0, 0, 2, 0, 0, 0, 0, 0, 22, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 28, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 29, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 30, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 31, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 32, 0, 16, 0, 0, 0, 4, 0, 0, 0, 0, 0, 4, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 5, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 17, 0, 0, 0, 2, 0, 0, 0, 0, 0, 15, 0, 17, 0, 0, 0, 2, 0, 0, 0, 0, 0, 16, 0, 17, 0, 0, 0, 2, 0, 0, 0, 0, 0, 17, 0, 17, 0, 0, 0, 2, 0, 0, 0, 0, 0, 18, 0, 17, 0, 0, 0, 2, 0, 0, 0, 0, 0, 19, 0, 17, 0, 0, 0, 2, 0, 0, 0, 0, 0, 20, 0, 17, 0, 0, 0, 2, 0, 0, 0, 0, 0, 21, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 28, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 29, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 30, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 31, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 32, 0, 17, 0, 0, 0, 4, 0, 0, 0, 0, 0, 5, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 18, 0, 0, 0, 2, 0, 0, 0, 0, 0, 16, 0, 18, 0, 0, 0, 2, 0, 0, 0, 0, 0, 17, 0, 18, 0, 0, 0, 2, 0, 0, 0, 0, 0, 18, 0, 18, 0, 0, 0, 2, 0, 0, 0, 0, 0, 19, 0, 18, 0, 0, 0, 2, 0, 0, 0, 0, 0, 20, 0, 18, 0, 0, 0, 2, 0, 0, 0, 0, 0, 21, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 28, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 29, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 30, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 31, 0, 18, 0, 0, 0, 4, 0, 0, 0, 0, 0, 4, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 5, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 16, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 17, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 18, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 19, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 21, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 28, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 29, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 30, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 31, 0, 19, 0, 0, 0, 4, 0, 0, 0, 0, 0, 5, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 16, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 17, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 18, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 19, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 21, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 28, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 29, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 30, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 31, 0, 20, 0, 0, 0, 4, 0, 0, 0, 0, 0, 5, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 16, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 17, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 18, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 19, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 21, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 28, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 29, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 30, 0, 21, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 16, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 17, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 18, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 19, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 21, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 28, 0, 22, 0, 0, 0, 4, 0, 0, 0, 0, 0, 5, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 7, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 8, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 9, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 10, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 12, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 13, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 14, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 15, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 16, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 17, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 18, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 19, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 20, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 21, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 22, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 23, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 24, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 25, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 26, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 27, 0, 23, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 7, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 8, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 9, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 10, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 12, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 13, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 14, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 15, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 16, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 17, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 18, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 19, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 20, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 21, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 22, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 23, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 24, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 25, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 26, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 27, 0, 24, 0, 0, 0, 3, 0, 0, 0, 0, 0, 6, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 7, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 8, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 9, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 10, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 12, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 13, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 14, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 15, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 16, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 17, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 18, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 19, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 20, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 21, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 22, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 23, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 24, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 25, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 26, 0, 25, 0, 0, 0, 3, 0, 0, 0, 0, 0, 6, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 7, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 8, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 9, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 10, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 12, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 13, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 14, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 15, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 22, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 23, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 24, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 25, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 26, 0, 26, 0, 0, 0, 3, 0, 0, 0, 0, 0, 6, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 7, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 8, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 9, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 10, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 12, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 13, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 14, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 15, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 21, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 22, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 23, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 24, 0, 27, 0, 0, 0, 3, 0, 0, 0, 0, 0, 7, 0, 28, 0, 0, 0, 3, 0, 0, 0, 0, 0, 8, 0, 28, 0, 0, 0, 3, 0, 0, 0, 0, 0, 9, 0, 28, 0, 0, 0, 3, 0, 0, 0, 0, 0, 10, 0, 28, 0, 0, 0, 3, 0, 0, 0, 0, 0, 11, 0, 28, 0, 0, 0, 3, 0, 0, 0, 0, 0, 12, 0, 28, 0, 0, 0, 3, 0, 0, 0, 0, 0)
+[node name="Chao" type="TileMapLayer" parent="." unique_id=1858245808]
+tile_map_data = PackedByteArray("AAAMAAEAAAAFAAAAAAANAAEAAAAFAAAAAAAOAAEAAAAFAAAAAAAPAAEAAAAFAAAAAAAQAAEAAAAFAAAAAAARAAEAAAAFAAAAAAASAAEAAAAFAAAAAAATAAEAAAAFAAAAAAAUAAEAAAAFAAAAAAAVAAEAAAAFAAAAAAAMAAIAAAAFAAAAAAANAAIAAAAFAAAAAAAOAAIAAAAFAAAAAAAPAAIAAAAFAAAAAAAQAAIAAAAGAAAAAAARAAIAAAAGAAAAAAASAAIAAAAGAAAAAAATAAIAAAAGAAAAAAAUAAIAAAAFAAAAAAAVAAIAAAAFAAAAAAAWAAIAAAAFAAAAAAAKAAMAAAABAAAAAAALAAMAAAABAAAAAAAMAAMAAAAFAAAAAAANAAMAAAAFAAAAAAAOAAMAAAAGAAAAAAAPAAMAAAAGAAAAAAAQAAMAAAAGAAAAAAARAAMAAAAGAAAAAAASAAMAAAAGAAAAAAATAAMAAAAGAAAAAAAUAAMAAAAGAAAAAAAVAAMAAAAFAAAAAAAWAAMAAAAFAAAAAAAJAAQAAAABAAAAAAAKAAQAAAABAAAAAAALAAQAAAABAAAAAAAMAAQAAAAFAAAAAAANAAQAAAAFAAAAAAAOAAQAAAAGAAAAAAAPAAQAAAAGAAAAAAAQAAQAAAAGAAAAAAARAAQAAAAGAAAAAAASAAQAAAAGAAAAAAATAAQAAAAGAAAAAAAUAAQAAAAGAAAAAAAVAAQAAAAGAAAAAAAWAAQAAAAFAAAAAAAXAAQAAAAFAAAAAAAGAAUAAAAFAAAAAAAHAAUAAAAFAAAAAAAIAAUAAAAFAAAAAAAJAAUAAAAFAAAAAAAKAAUAAAAFAAAAAAALAAUAAAAFAAAAAAAMAAUAAAAFAAAAAAANAAUAAAAGAAAAAAAOAAUAAAAGAAAAAAAPAAUAAAAGAAAAAAAQAAUAAAAGAAAAAAARAAUAAAAGAAAAAAASAAUAAAAGAAAAAAATAAUAAAAGAAAAAAAUAAUAAAAGAAAAAAAVAAUAAAAGAAAAAAAWAAUAAAAFAAAAAAAXAAUAAAAFAAAAAAAGAAYAAAAFAAAAAAAHAAYAAAAFAAAAAAAIAAYAAAAFAAAAAAAJAAYAAAAFAAAAAAAKAAYAAAAFAAAAAAALAAYAAAAFAAAAAAAMAAYAAAAFAAAAAAANAAYAAAAFAAAAAAAOAAYAAAAGAAAAAAAPAAYAAAAGAAAAAAAQAAYAAAAGAAAAAAARAAYAAAAGAAAAAAASAAYAAAAGAAAAAAATAAYAAAAGAAAAAAAUAAYAAAAGAAAAAAAVAAYAAAAGAAAAAAAWAAYAAAAFAAAAAAAXAAYAAAAFAAAAAAAYAAYAAAAFAAAAAAAFAAcAAAAFAAAAAAAGAAcAAAAFAAAAAAAHAAcAAAAFAAAAAAAIAAcAAAAFAAAAAAAJAAcAAAAFAAAAAAAKAAcAAAAFAAAAAAALAAcAAAAFAAAAAAAMAAcAAAAFAAAAAAANAAcAAAAFAAAAAAAOAAcAAAAGAAAAAAAPAAcAAAAGAAAAAAAQAAcAAAAGAAAAAAARAAcAAAAGAAAAAAASAAcAAAAGAAAAAAATAAcAAAAGAAAAAAAUAAcAAAAGAAAAAAAVAAcAAAAFAAAAAAAWAAcAAAAFAAAAAAAXAAcAAAAFAAAAAAAYAAcAAAAFAAAAAAAZAAcAAAAFAAAAAAAaAAcAAAAFAAAAAAAbAAcAAAAFAAAAAAAFAAgAAAAFAAAAAAAGAAgAAAAFAAAAAAAHAAgAAAAFAAAAAAAIAAgAAAAFAAAAAAAJAAgAAAAFAAAAAAAKAAgAAAAFAAAAAAALAAgAAAAFAAAAAAAMAAgAAAAFAAAAAAANAAgAAAAFAAAAAAAOAAgAAAAFAAAAAAAPAAgAAAAFAAAAAAAQAAgAAAAGAAAAAAARAAgAAAAGAAAAAAASAAgAAAAGAAAAAAATAAgAAAAGAAAAAAAUAAgAAAAFAAAAAAAVAAgAAAAFAAAAAAAWAAgAAAAFAAAAAAAXAAgAAAAFAAAAAAAYAAgAAAAFAAAAAAAZAAgAAAAFAAAAAAAaAAgAAAAFAAAAAAAbAAgAAAAFAAAAAAAcAAgAAAAFAAAAAAAdAAgAAAAFAAAAAAAFAAkAAAAFAAAAAAAGAAkAAAAFAAAAAAAHAAkAAAAFAAAAAAAIAAkAAAAFAAAAAAAJAAkAAAAFAAAAAAAKAAkAAAAFAAAAAAALAAkAAAAFAAAAAAAMAAkAAAAFAAAAAAANAAkAAAAEAAAAAAAOAAkAAAAEAAAAAAAPAAkAAAAFAAAAAAAQAAkAAAAFAAAAAAARAAkAAAAFAAAAAAASAAkAAAAFAAAAAAATAAkAAAAFAAAAAAAUAAkAAAAFAAAAAAAVAAkAAAAFAAAAAAAWAAkAAAAEAAAAAAAXAAkAAAAFAAAAAAAYAAkAAAAFAAAAAAAZAAkAAAAFAAAAAAAaAAkAAAAFAAAAAAAbAAkAAAAFAAAAAAAcAAkAAAAFAAAAAAAdAAkAAAAFAAAAAAAGAAoAAAAFAAAAAAAHAAoAAAAFAAAAAAAIAAoAAAAFAAAAAAAJAAoAAAAFAAAAAAAKAAoAAAAEAAAAAAALAAoAAAAEAAAAAAAMAAoAAAAEAAAAAAANAAoAAAAEAAAAAAAOAAoAAAAEAAAAAAAPAAoAAAAEAAAAAAAQAAoAAAAEAAAAAAARAAoAAAAEAAAAAAASAAoAAAAEAAAAAAATAAoAAAAEAAAAAAAUAAoAAAAEAAAAAAAVAAoAAAAEAAAAAAAWAAoAAAAEAAAAAAAXAAoAAAAEAAAAAAAYAAoAAAAFAAAAAAAZAAoAAAAFAAAAAAAaAAoAAAAFAAAAAAAbAAoAAAAFAAAAAAAcAAoAAAAFAAAAAAAdAAoAAAAFAAAAAAAeAAoAAAAFAAAAAAAfAAoAAAAFAAAAAAAFAAsAAAAFAAAAAAAGAAsAAAAFAAAAAAAHAAsAAAAFAAAAAAAIAAsAAAAFAAAAAAAJAAsAAAAEAAAAAAAKAAsAAAAEAAAAAAALAAsAAAAEAAAAAAAMAAsAAAAEAAAAAAANAAsAAAAEAAAAAAAOAAsAAAAEAAAAAAAPAAsAAAAEAAAAAAAQAAsAAAAEAAAAAAARAAsAAAAEAAAAAAASAAsAAAAEAAAAAAATAAsAAAAEAAAAAAAUAAsAAAAEAAAAAAAVAAsAAAAEAAAAAAAWAAsAAAAEAAAAAAAXAAsAAAAFAAAAAAAYAAsAAAAFAAAAAAAZAAsAAAAFAAAAAAAaAAsAAAAFAAAAAAAbAAsAAAAFAAAAAAAcAAsAAAAFAAAAAAAdAAsAAAAFAAAAAAAeAAsAAAAFAAAAAAAfAAsAAAAFAAAAAAAGAAwAAAAFAAAAAAAHAAwAAAAFAAAAAAAIAAwAAAAFAAAAAAAJAAwAAAAFAAAAAAAKAAwAAAAEAAAAAAALAAwAAAAEAAAAAAAMAAwAAAAEAAAAAAANAAwAAAAEAAAAAAAOAAwAAAAEAAAAAAAPAAwAAAACAAAAAAAQAAwAAAACAAAAAAARAAwAAAACAAAAAAASAAwAAAACAAAAAAATAAwAAAACAAAAAAAUAAwAAAACAAAAAAAVAAwAAAAEAAAAAAAWAAwAAAAEAAAAAAAXAAwAAAAEAAAAAAAYAAwAAAAFAAAAAAAZAAwAAAAFAAAAAAAaAAwAAAAFAAAAAAAbAAwAAAAFAAAAAAAcAAwAAAAFAAAAAAAdAAwAAAAFAAAAAAAeAAwAAAAFAAAAAAAfAAwAAAAFAAAAAAAgAAwAAAAFAAAAAAAGAA0AAAAFAAAAAAAHAA0AAAAFAAAAAAAIAA0AAAAFAAAAAAAJAA0AAAAEAAAAAAAKAA0AAAAEAAAAAAALAA0AAAAEAAAAAAAMAA0AAAAEAAAAAAANAA0AAAAEAAAAAAAOAA0AAAACAAAAAAAPAA0AAAACAAAAAAAQAA0AAAACAAAAAAARAA0AAAACAAAAAAASAA0AAAACAAAAAAATAA0AAAACAAAAAAAUAA0AAAACAAAAAAAVAA0AAAAEAAAAAAAWAA0AAAAEAAAAAAAXAA0AAAAFAAAAAAAYAA0AAAAFAAAAAAAZAA0AAAAFAAAAAAAaAA0AAAAFAAAAAAAbAA0AAAAFAAAAAAAcAA0AAAAFAAAAAAAdAA0AAAAFAAAAAAAeAA0AAAAFAAAAAAAfAA0AAAAFAAAAAAAgAA0AAAAFAAAAAAAGAA4AAAAEAAAAAAAHAA4AAAAEAAAAAAAIAA4AAAAEAAAAAAAJAA4AAAAEAAAAAAAKAA4AAAAEAAAAAAALAA4AAAAEAAAAAAAMAA4AAAAEAAAAAAANAA4AAAAEAAAAAAAOAA4AAAACAAAAAAAPAA4AAAACAAAAAAAQAA4AAAACAAAAAAARAA4AAAACAAAAAAASAA4AAAACAAAAAAATAA4AAAACAAAAAAAUAA4AAAACAAAAAAAVAA4AAAACAAAAAAAWAA4AAAAEAAAAAAAXAA4AAAAEAAAAAAAYAA4AAAAFAAAAAAAZAA4AAAAFAAAAAAAaAA4AAAAFAAAAAAAbAA4AAAAFAAAAAAAcAA4AAAAFAAAAAAAdAA4AAAAFAAAAAAAeAA4AAAAFAAAAAAAfAA4AAAAFAAAAAAAgAA4AAAAFAAAAAAAFAA8AAAAEAAAAAAAGAA8AAAAEAAAAAAAHAA8AAAAEAAAAAAAIAA8AAAAEAAAAAAAJAA8AAAAEAAAAAAAKAA8AAAAEAAAAAAALAA8AAAAEAAAAAAAMAA8AAAAEAAAAAAANAA8AAAACAAAAAAAOAA8AAAACAAAAAAAPAA8AAAACAAAAAAAQAA8AAAACAAAAAAARAA8AAAACAAAAAAASAA8AAAACAAAAAAATAA8AAAACAAAAAAAUAA8AAAACAAAAAAAVAA8AAAACAAAAAAAWAA8AAAAEAAAAAAAXAA8AAAAFAAAAAAAYAA8AAAAFAAAAAAAZAA8AAAAFAAAAAAAaAA8AAAAFAAAAAAAbAA8AAAAFAAAAAAAcAA8AAAAFAAAAAAAdAA8AAAAFAAAAAAAeAA8AAAAFAAAAAAAfAA8AAAAFAAAAAAAgAA8AAAAFAAAAAAAFABAAAAAEAAAAAAAGABAAAAAEAAAAAAAHABAAAAAEAAAAAAAIABAAAAAEAAAAAAAJABAAAAAEAAAAAAAKABAAAAAEAAAAAAALABAAAAAEAAAAAAAMABAAAAAEAAAAAAANABAAAAAEAAAAAAAOABAAAAACAAAAAAAPABAAAAACAAAAAAAQABAAAAACAAAAAAARABAAAAACAAAAAAASABAAAAACAAAAAAATABAAAAACAAAAAAAUABAAAAACAAAAAAAVABAAAAACAAAAAAAWABAAAAAEAAAAAAAXABAAAAAEAAAAAAAYABAAAAAEAAAAAAAZABAAAAAEAAAAAAAaABAAAAAEAAAAAAAbABAAAAAEAAAAAAAcABAAAAAEAAAAAAAdABAAAAAEAAAAAAAeABAAAAAEAAAAAAAfABAAAAAEAAAAAAAgABAAAAAEAAAAAAAEABEAAAAEAAAAAAAFABEAAAAEAAAAAAAGABEAAAAEAAAAAAAHABEAAAAEAAAAAAAIABEAAAAEAAAAAAAJABEAAAAEAAAAAAAKABEAAAAEAAAAAAALABEAAAAEAAAAAAAMABEAAAAEAAAAAAANABEAAAAEAAAAAAAOABEAAAACAAAAAAAPABEAAAACAAAAAAAQABEAAAACAAAAAAARABEAAAACAAAAAAASABEAAAACAAAAAAATABEAAAACAAAAAAAUABEAAAACAAAAAAAVABEAAAAEAAAAAAAWABEAAAAEAAAAAAAXABEAAAAEAAAAAAAYABEAAAAEAAAAAAAZABEAAAAEAAAAAAAaABEAAAAEAAAAAAAbABEAAAAEAAAAAAAcABEAAAAEAAAAAAAdABEAAAAEAAAAAAAeABEAAAAEAAAAAAAfABEAAAAEAAAAAAAgABEAAAAEAAAAAAAFABIAAAAEAAAAAAAGABIAAAAEAAAAAAAHABIAAAAEAAAAAAAIABIAAAAEAAAAAAAJABIAAAAEAAAAAAAKABIAAAAEAAAAAAALABIAAAAEAAAAAAAMABIAAAAEAAAAAAANABIAAAAEAAAAAAAOABIAAAAEAAAAAAAPABIAAAACAAAAAAAQABIAAAACAAAAAAARABIAAAACAAAAAAASABIAAAACAAAAAAAUABIAAAACAAAAAAAVABIAAAAEAAAAAAAWABIAAAAEAAAAAAAXABIAAAAEAAAAAAAYABIAAAAEAAAAAAAZABIAAAAEAAAAAAAaABIAAAAEAAAAAAAbABIAAAAEAAAAAAAcABIAAAAEAAAAAAAdABIAAAAEAAAAAAAeABIAAAAEAAAAAAAfABIAAAAEAAAAAAAEABMAAAAEAAAAAAAFABMAAAAEAAAAAAAGABMAAAAEAAAAAAAHABMAAAAEAAAAAAAIABMAAAAEAAAAAAAJABMAAAAEAAAAAAAKABMAAAAEAAAAAAALABMAAAAEAAAAAAAMABMAAAAEAAAAAAANABMAAAAEAAAAAAAOABMAAAAEAAAAAAAPABMAAAAEAAAAAAAQABMAAAAEAAAAAAARABMAAAAEAAAAAAASABMAAAAEAAAAAAATABMAAAAEAAAAAAAUABMAAAAEAAAAAAAVABMAAAAEAAAAAAAWABMAAAAEAAAAAAAXABMAAAAEAAAAAAAYABMAAAAEAAAAAAAZABMAAAAEAAAAAAAaABMAAAAEAAAAAAAbABMAAAAEAAAAAAAcABMAAAAEAAAAAAAdABMAAAAEAAAAAAAeABMAAAAEAAAAAAAfABMAAAAEAAAAAAAFABQAAAAEAAAAAAAGABQAAAAEAAAAAAAHABQAAAAEAAAAAAAIABQAAAAEAAAAAAAJABQAAAAEAAAAAAAKABQAAAAEAAAAAAALABQAAAAEAAAAAAAMABQAAAAEAAAAAAANABQAAAAEAAAAAAAPABQAAAAEAAAAAAAQABQAAAAEAAAAAAARABQAAAAEAAAAAAASABQAAAAEAAAAAAATABQAAAAEAAAAAAAUABQAAAAEAAAAAAAVABQAAAAEAAAAAAAWABQAAAAEAAAAAAAXABQAAAAEAAAAAAAYABQAAAAEAAAAAAAZABQAAAAEAAAAAAAaABQAAAAEAAAAAAAbABQAAAAEAAAAAAAcABQAAAAEAAAAAAAdABQAAAAEAAAAAAAeABQAAAAEAAAAAAAfABQAAAAEAAAAAAAFABUAAAAEAAAAAAAGABUAAAAEAAAAAAAHABUAAAAEAAAAAAAIABUAAAAEAAAAAAAJABUAAAAEAAAAAAAKABUAAAAEAAAAAAALABUAAAAEAAAAAAAMABUAAAAEAAAAAAANABUAAAAEAAAAAAAOABUAAAAEAAAAAAAPABUAAAAEAAAAAAAQABUAAAAEAAAAAAARABUAAAAEAAAAAAASABUAAAAEAAAAAAATABUAAAAEAAAAAAAUABUAAAAEAAAAAAAVABUAAAAEAAAAAAAWABUAAAAEAAAAAAAXABUAAAAEAAAAAAAYABUAAAAEAAAAAAAZABUAAAAEAAAAAAAaABUAAAAEAAAAAAAbABUAAAAEAAAAAAAcABUAAAAEAAAAAAAdABUAAAAEAAAAAAAeABUAAAAEAAAAAAAGABYAAAAEAAAAAAAHABYAAAAEAAAAAAAIABYAAAAEAAAAAAAJABYAAAAEAAAAAAAKABYAAAAEAAAAAAALABYAAAAEAAAAAAAMABYAAAAEAAAAAAANABYAAAAEAAAAAAAOABYAAAAEAAAAAAAPABYAAAAEAAAAAAAQABYAAAAEAAAAAAARABYAAAAEAAAAAAASABYAAAAEAAAAAAATABYAAAAEAAAAAAAUABYAAAAEAAAAAAAVABYAAAAEAAAAAAAWABYAAAAEAAAAAAAXABYAAAAEAAAAAAAYABYAAAAEAAAAAAAZABYAAAAEAAAAAAAaABYAAAAEAAAAAAAbABYAAAAEAAAAAAAcABYAAAAEAAAAAAAFABcAAAAEAAAAAAAGABcAAAAEAAAAAAAHABcAAAAEAAAAAAAIABcAAAAEAAAAAAAJABcAAAAEAAAAAAAKABcAAAAEAAAAAAALABcAAAAEAAAAAAAMABcAAAAEAAAAAAANABcAAAAEAAAAAAAOABcAAAAEAAAAAAAPABcAAAAEAAAAAAAQABcAAAAEAAAAAAARABcAAAAEAAAAAAASABcAAAAEAAAAAAATABcAAAAEAAAAAAAUABcAAAAEAAAAAAAVABcAAAAEAAAAAAAWABcAAAAEAAAAAAAXABcAAAAEAAAAAAAYABcAAAAEAAAAAAAZABcAAAAEAAAAAAAaABcAAAAEAAAAAAAbABcAAAAEAAAAAAAGABgAAAADAAAAAAAHABgAAAADAAAAAAAIABgAAAADAAAAAAAJABgAAAADAAAAAAAKABgAAAADAAAAAAALABgAAAADAAAAAAAMABgAAAADAAAAAAANABgAAAADAAAAAAAOABgAAAADAAAAAAAPABgAAAADAAAAAAAQABgAAAADAAAAAAARABgAAAADAAAAAAASABgAAAADAAAAAAATABgAAAADAAAAAAAUABgAAAADAAAAAAAVABgAAAADAAAAAAAWABgAAAADAAAAAAAXABgAAAADAAAAAAAYABgAAAADAAAAAAAZABgAAAADAAAAAAAaABgAAAADAAAAAAAbABgAAAADAAAAAAAGABkAAAADAAAAAAAHABkAAAADAAAAAAAIABkAAAADAAAAAAAJABkAAAADAAAAAAAKABkAAAADAAAAAAALABkAAAADAAAAAAAMABkAAAADAAAAAAANABkAAAADAAAAAAAOABkAAAADAAAAAAAPABkAAAADAAAAAAAQABkAAAADAAAAAAARABkAAAADAAAAAAASABkAAAADAAAAAAATABkAAAADAAAAAAAUABkAAAADAAAAAAAVABkAAAADAAAAAAAWABkAAAADAAAAAAAXABkAAAADAAAAAAAYABkAAAADAAAAAAAZABkAAAADAAAAAAAaABkAAAADAAAAAAAGABoAAAADAAAAAAAHABoAAAADAAAAAAAIABoAAAADAAAAAAAJABoAAAADAAAAAAAKABoAAAADAAAAAAALABoAAAADAAAAAAAMABoAAAADAAAAAAANABoAAAADAAAAAAAOABoAAAADAAAAAAAPABoAAAADAAAAAAAWABoAAAADAAAAAAAXABoAAAADAAAAAAAYABoAAAADAAAAAAAZABoAAAADAAAAAAAaABoAAAADAAAAAAAGABsAAAADAAAAAAAHABsAAAADAAAAAAAIABsAAAADAAAAAAAJABsAAAADAAAAAAAKABsAAAADAAAAAAALABsAAAADAAAAAAAMABsAAAADAAAAAAANABsAAAADAAAAAAAOABsAAAADAAAAAAAPABsAAAADAAAAAAAVABsAAAADAAAAAAAWABsAAAADAAAAAAAXABsAAAADAAAAAAAYABsAAAADAAAAAAAHABwAAAADAAAAAAAIABwAAAADAAAAAAAJABwAAAADAAAAAAAKABwAAAADAAAAAAALABwAAAADAAAAAAAMABwAAAADAAAAAAAOABQAAAAEAAAAAAATABIAAAACAAAAAAA=")
 tile_set = ExtResource("1_r")
 
-[node name="Ruas" type="TileMapLayer" parent="."]
-tile_map_data = PackedByteArray(0, 0, 17, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 11, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 10, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 9, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 8, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 7, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 18, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 19, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 20, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 21, 0, 0, 0, 7, 0, 0, 0, 0, 0, 18, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 18, 0, 23, 0, 0, 0, 7, 0, 0, 0, 0, 0, 18, 0, 24, 0, 0, 0, 7, 0, 0, 0, 0, 0, 18, 0, 25, 0, 0, 0, 7, 0, 0, 0, 0, 0, 13, 0, 15, 0, 0, 0, 7, 0, 0, 0, 0, 0, 12, 0, 15, 0, 0, 0, 7, 0, 0, 0, 0, 0, 11, 0, 15, 0, 0, 0, 7, 0, 0, 0, 0, 0, 10, 0, 15, 0, 0, 0, 7, 0, 0, 0, 0, 0, 9, 0, 15, 0, 0, 0, 7, 0, 0, 0, 0, 0, 9, 0, 16, 0, 0, 0, 7, 0, 0, 0, 0, 0, 8, 0, 17, 0, 0, 0, 7, 0, 0, 0, 0, 0, 7, 0, 17, 0, 0, 0, 7, 0, 0, 0, 0, 0, 7, 0, 18, 0, 0, 0, 7, 0, 0, 0, 0, 0, 21, 0, 15, 0, 0, 0, 7, 0, 0, 0, 0, 0, 22, 0, 15, 0, 0, 0, 7, 0, 0, 0, 0, 0, 23, 0, 14, 0, 0, 0, 7, 0, 0, 0, 0, 0, 24, 0, 14, 0, 0, 0, 7, 0, 0, 0, 0, 0, 25, 0, 14, 0, 0, 0, 7, 0, 0, 0, 0, 0, 25, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 26, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 27, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 28, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 29, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 14, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 13, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 12, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 12, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0, 11, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0, 20, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 21, 0, 13, 0, 0, 0, 7, 0, 0, 0, 0, 0, 22, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0, 23, 0, 12, 0, 0, 0, 7, 0, 0, 0, 0, 0, 23, 0, 11, 0, 0, 0, 7, 0, 0, 0, 0, 0, 24, 0, 11, 0, 0, 0, 7, 0, 0, 0, 0, 0, 9, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 10, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 11, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 12, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 13, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 14, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 15, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 16, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 17, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 19, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 20, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 21, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 22, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 23, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 24, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 25, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 26, 0, 22, 0, 0, 0, 7, 0, 0, 0, 0, 0, 14, 0, 18, 0, 0, 0, 7, 0, 0, 0, 0, 0, 13, 0, 19, 0, 0, 0, 7, 0, 0, 0, 0, 0, 13, 0, 20, 0, 0, 0, 7, 0, 0, 0, 0, 0, 12, 0, 21, 0, 0, 0, 7, 0, 0, 0, 0, 0, 21, 0, 18, 0, 0, 0, 7, 0, 0, 0, 0, 0, 21, 0, 19, 0, 0, 0, 7, 0, 0, 0, 0, 0, 22, 0, 20, 0, 0, 0, 7, 0, 0, 0, 0, 0, 22, 0, 21, 0, 0, 0, 7, 0, 0, 0, 0, 0)
+[node name="Ruas" type="TileMapLayer" parent="." unique_id=1883381452]
+tile_map_data = PackedByteArray("AAARAAwAAAAHAAAAAAARAAsAAAAHAAAAAAARAAoAAAAHAAAAAAARAAkAAAAHAAAAAAARAAgAAAAHAAAAAAARAAcAAAAHAAAAAAARABIAAAAHAAAAAAARABMAAAAHAAAAAAARABQAAAAHAAAAAAARABUAAAAHAAAAAAASABYAAAAHAAAAAAASABcAAAAHAAAAAAASABgAAAAHAAAAAAASABkAAAAHAAAAAAANAA8AAAAHAAAAAAAMAA8AAAAHAAAAAAALAA8AAAAHAAAAAAAKAA8AAAAHAAAAAAAJAA8AAAAHAAAAAAAJABAAAAAHAAAAAAAIABEAAAAHAAAAAAAHABEAAAAHAAAAAAAHABIAAAAHAAAAAAAVAA8AAAAHAAAAAAAWAA8AAAAHAAAAAAAXAA4AAAAHAAAAAAAYAA4AAAAHAAAAAAAZAA4AAAAHAAAAAAAZAA0AAAAHAAAAAAAaAA0AAAAHAAAAAAAbAA0AAAAHAAAAAAAcAA0AAAAHAAAAAAAdAA0AAAAHAAAAAAAOAA0AAAAHAAAAAAANAA0AAAAHAAAAAAAMAA0AAAAHAAAAAAAMAAwAAAAHAAAAAAALAAwAAAAHAAAAAAAUAA0AAAAHAAAAAAAVAA0AAAAHAAAAAAAWAAwAAAAHAAAAAAAXAAwAAAAHAAAAAAAXAAsAAAAHAAAAAAAYAAsAAAAHAAAAAAAJABYAAAAHAAAAAAAKABYAAAAHAAAAAAALABYAAAAHAAAAAAAMABYAAAAHAAAAAAANABYAAAAHAAAAAAAOABYAAAAHAAAAAAAPABYAAAAHAAAAAAAQABYAAAAHAAAAAAARABYAAAAHAAAAAAATABYAAAAHAAAAAAAUABYAAAAHAAAAAAAVABYAAAAHAAAAAAAWABYAAAAHAAAAAAAXABYAAAAHAAAAAAAYABYAAAAHAAAAAAAZABYAAAAHAAAAAAAaABYAAAAHAAAAAAAOABIAAAAHAAAAAAANABMAAAAHAAAAAAANABQAAAAHAAAAAAAMABUAAAAHAAAAAAAVABIAAAAHAAAAAAAVABMAAAAHAAAAAAAWABQAAAAHAAAAAAAWABUAAAAHAAAAAAA=")
 tile_set = ExtResource("1_r")
 
-[node name="Arvores" type="Node2D" parent="."]
+[node name="Arvores" type="Node2D" parent="." unique_id=1547644184]
 y_sort_enabled = true
 
-[node name="Arvore 1" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 1" type="Sprite2D" parent="Arvores" unique_id=1048840770]
 position = Vector2(1116, 1224.75)
 texture = ExtResource("5_r")
 flip_h = true
 
-[node name="Arvore 2" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 2" type="Sprite2D" parent="Arvores" unique_id=202701063]
 position = Vector2(1116, 1863.75)
 texture = ExtResource("6_r")
 
-[node name="Arvore 3" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 3" type="Sprite2D" parent="Arvores" unique_id=1325514598]
 position = Vector2(1023, 2662.5)
 texture = ExtResource("5_r")
 
-[node name="Arvore 4" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 4" type="Sprite2D" parent="Arvores" unique_id=498150206]
 position = Vector2(1116, 3141.75)
 texture = ExtResource("6_r")
 flip_h = true
 
-[node name="Arvore 5" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 5" type="Sprite2D" parent="Arvores" unique_id=1434683673]
 position = Vector2(1116, 3780.75)
 texture = ExtResource("5_r")
 
-[node name="Arvore 6" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 6" type="Sprite2D" parent="Arvores" unique_id=1006146448]
 position = Vector2(1302, 905.25)
 texture = ExtResource("6_r")
 
-[node name="Arvore 7" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 7" type="Sprite2D" parent="Arvores" unique_id=782149112]
 position = Vector2(1302, 4100.25)
 texture = ExtResource("5_r")
 flip_h = true
 
-[node name="Arvore 8" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 8" type="Sprite2D" parent="Arvores" unique_id=1530988684]
 position = Vector2(1488, 1544.25)
 texture = ExtResource("6_r")
 
-[node name="Arvore 9" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 9" type="Sprite2D" parent="Arvores" unique_id=696592036]
 position = Vector2(1395, 4579.5)
 texture = ExtResource("5_r")
 
-[node name="Arvore 10" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 10" type="Sprite2D" parent="Arvores" unique_id=1463656430]
 position = Vector2(1674, 905.25)
 texture = ExtResource("6_r")
 flip_h = true
 
-[node name="Arvore 11" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 11" type="Sprite2D" parent="Arvores" unique_id=4568636]
 position = Vector2(1860, 1224.75)
 texture = ExtResource("5_r")
 
-[node name="Arvore 12" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 12" type="Sprite2D" parent="Arvores" unique_id=1861468888]
 position = Vector2(1767, 4579.5)
 texture = ExtResource("6_r")
 
-[node name="Arvore 13" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 13" type="Sprite2D" parent="Arvores" unique_id=767936116]
 position = Vector2(2232, 905.25)
 texture = ExtResource("5_r")
 flip_h = true
 
-[node name="Arvore 14" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 14" type="Sprite2D" parent="Arvores" unique_id=1403570017]
 position = Vector2(2139, 4260)
 texture = ExtResource("6_r")
 
-[node name="Arvore 15" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 15" type="Sprite2D" parent="Arvores" unique_id=980750820]
 position = Vector2(2325, 426)
 texture = ExtResource("5_r")
 
-[node name="Arvore 16" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 16" type="Sprite2D" parent="Arvores" unique_id=701977987]
 position = Vector2(2325, 4579.5)
 texture = ExtResource("6_r")
 flip_h = true
 
-[node name="Arvore 17" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 17" type="Sprite2D" parent="Arvores" unique_id=2117293335]
 position = Vector2(2697, 4260)
 texture = ExtResource("5_r")
 
-[node name="Arvore 18" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 18" type="Sprite2D" parent="Arvores" unique_id=1662730545]
 position = Vector2(2976, 266.25)
 texture = ExtResource("6_r")
 
-[node name="Arvore 19" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 19" type="Sprite2D" parent="Arvores" unique_id=51858276]
 position = Vector2(3162, 4100.25)
 texture = ExtResource("5_r")
 flip_h = true
 
-[node name="Arvore 20" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 20" type="Sprite2D" parent="Arvores" unique_id=1917198637]
 position = Vector2(3348, 266.25)
 texture = ExtResource("6_r")
 
-[node name="Arvore 21" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 21" type="Sprite2D" parent="Arvores" unique_id=2074744135]
 position = Vector2(3999, 426)
 texture = ExtResource("5_r")
 
-[node name="Arvore 22" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 22" type="Sprite2D" parent="Arvores" unique_id=1297933350]
 position = Vector2(4092, 1224.75)
 texture = ExtResource("6_r")
 flip_h = true
 
-[node name="Arvore 23" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 23" type="Sprite2D" parent="Arvores" unique_id=160486485]
 position = Vector2(4371, 745.5)
 texture = ExtResource("5_r")
 
-[node name="Arvore 24" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 24" type="Sprite2D" parent="Arvores" unique_id=1625799943]
 position = Vector2(4464, 4419.75)
 texture = ExtResource("6_r")
 
-[node name="Arvore 25" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 25" type="Sprite2D" parent="Arvores" unique_id=2061190150]
 position = Vector2(4557, 1065)
 texture = ExtResource("5_r")
 flip_h = true
 
-[node name="Arvore 26" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 26" type="Sprite2D" parent="Arvores" unique_id=620548595]
 position = Vector2(5208, 1224.75)
 texture = ExtResource("6_r")
 
-[node name="Arvore 27" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 27" type="Sprite2D" parent="Arvores" unique_id=29725612]
 position = Vector2(5115, 3940.5)
 texture = ExtResource("5_r")
 
-[node name="Arvore 28" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 28" type="Sprite2D" parent="Arvores" unique_id=1695683673]
 position = Vector2(5394, 2822.25)
 texture = ExtResource("6_r")
 flip_h = true
 
-[node name="Arvore 29" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 29" type="Sprite2D" parent="Arvores" unique_id=221126599]
 position = Vector2(5301, 3621)
 texture = ExtResource("5_r")
 
-[node name="Arvore 30" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 30" type="Sprite2D" parent="Arvores" unique_id=56166780]
 position = Vector2(5766, 2502.75)
 texture = ExtResource("6_r")
 
-[node name="Arvore 31" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 31" type="Sprite2D" parent="Arvores" unique_id=1041248979]
 position = Vector2(5766, 3461.25)
 texture = ExtResource("5_r")
 flip_h = true
 
-[node name="Arvore 32" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 32" type="Sprite2D" parent="Arvores" unique_id=677269932]
 position = Vector2(5859, 1704)
 texture = ExtResource("6_r")
 
-[node name="Arvore 33" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 33" type="Sprite2D" parent="Arvores" unique_id=1234859219]
 position = Vector2(5859, 2982)
 texture = ExtResource("5_r")
 
-[node name="Arvore 34" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 34" type="Sprite2D" parent="Arvores" unique_id=1306838033]
 position = Vector2(6045, 2023.5)
 texture = ExtResource("6_r")
 flip_h = true
 
-[node name="Arvore 35" type="Sprite2D" parent="Arvores"]
+[node name="Arvore 35" type="Sprite2D" parent="Arvores" unique_id=1524831757]
 position = Vector2(6138, 2502.75)
 texture = ExtResource("5_r")
 
-[node name="Predios" type="Node2D" parent="."]
+[node name="Predios" type="Node2D" parent="." unique_id=447076552]
 y_sort_enabled = true
 
-[node name="Farol" type="Sprite2D" parent="Predios"]
+[node name="Farol" type="Sprite2D" parent="Predios" unique_id=1609025661]
 position = Vector2(3255, 745.5)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("7_r")
 script = ExtResource("2_r")
 raio = 1
 
-[node name="Forja (Ferreiro)" type="Sprite2D" parent="Predios"]
+[node name="Forja (Ferreiro)" type="Sprite2D" parent="Predios" unique_id=794860032]
 position = Vector2(1581, 2023.5)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("8_r")
@@ -235,26 +235,26 @@ script = ExtResource("2_r")
 raio = 1
 precisa_de = "ferreiro"
 
-[node name="Tenda (Curandeira)" type="Sprite2D" parent="Predios"]
+[node name="Tenda (Curandeira)" type="Sprite2D" parent="Predios" unique_id=1743009416]
 position = Vector2(2046, 3141.75)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("9_r")
 script = ExtResource("2_r")
 precisa_de = "curandeira"
 
-[node name="Horta" type="Sprite2D" parent="Predios"]
+[node name="Horta" type="Sprite2D" parent="Predios" unique_id=1905358296]
 position = Vector2(1395, 3301.5)
 texture = ExtResource("10_r")
 script = ExtResource("2_r")
 
-[node name="Taverna" type="Sprite2D" parent="Predios"]
+[node name="Taverna" type="Sprite2D" parent="Predios" unique_id=2052190406]
 position = Vector2(4836, 2822.25)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("11_r")
 script = ExtResource("2_r")
 raio = 1
 
-[node name="Mansão (Arquivista)" type="Sprite2D" parent="Predios"]
+[node name="Mansão (Arquivista)" type="Sprite2D" parent="Predios" unique_id=390327555]
 position = Vector2(5115, 1704)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("12_r")
@@ -262,68 +262,68 @@ script = ExtResource("2_r")
 raio = 1
 precisa_de = "arquivista"
 
-[node name="Capela" type="Sprite2D" parent="Predios"]
+[node name="Capela" type="Sprite2D" parent="Predios" unique_id=1407951687]
 position = Vector2(2232, 1544.25)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("13_r")
 script = ExtResource("2_r")
 raio = 1
 
-[node name="Acampamento (Viajante)" type="Sprite2D" parent="Predios"]
+[node name="Acampamento (Viajante)" type="Sprite2D" parent="Predios" unique_id=553456623]
 position = Vector2(1302, 2822.25)
 scale = Vector2(1.5, 1.5)
 texture = ExtResource("14_r")
 script = ExtResource("2_r")
 
-[node name="Forno (Padeira)" type="Sprite2D" parent="Predios"]
+[node name="Forno (Padeira)" type="Sprite2D" parent="Predios" unique_id=545676526]
 position = Vector2(1116, 2183.25)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("15_r")
 script = ExtResource("2_r")
 precisa_de = "padeira"
 
-[node name="Abrigo (Alquimista)" type="Sprite2D" parent="Predios"]
+[node name="Abrigo (Alquimista)" type="Sprite2D" parent="Predios" unique_id=1207287497]
 position = Vector2(2883, 3940.5)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("16_r")
 script = ExtResource("2_r")
 precisa_de = "alquimista"
 
-[node name="Torre (Cartógrafa)" type="Sprite2D" parent="Predios"]
+[node name="Torre (Cartógrafa)" type="Sprite2D" parent="Predios" unique_id=1216042849]
 position = Vector2(4836, 4100.25)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("17_r")
 script = ExtResource("2_r")
 precisa_de = "cartografa"
 
-[node name="Fonte" type="Sprite2D" parent="Predios"]
+[node name="Fonte" type="Sprite2D" parent="Predios" unique_id=679164857]
 position = Vector2(3255, 2343)
 scale = Vector2(1.5, 1.5)
 texture = ExtResource("18_r")
 script = ExtResource("2_r")
 
-[node name="Casa do Mestre de Armas" type="Sprite2D" parent="Predios"]
+[node name="Casa do Mestre de Armas" type="Sprite2D" parent="Predios" unique_id=1277676953]
 position = Vector2(4557, 1704)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("19_r")
 script = ExtResource("2_r")
 
-[node name="Casa do Pavio" type="Sprite2D" parent="Predios"]
+[node name="Casa do Pavio" type="Sprite2D" parent="Predios" unique_id=1865519094]
 position = Vector2(3162, 1863.75)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("20_r")
 script = ExtResource("2_r")
 
-[node name="Casa do Pescador" type="Sprite2D" parent="Predios"]
+[node name="Casa do Pescador" type="Sprite2D" parent="Predios" unique_id=973109033]
 position = Vector2(3906, 3780.75)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("21_r")
 script = ExtResource("2_r")
 
-[node name="Moradores" type="Node2D" parent="."]
+[node name="Moradores" type="Node2D" parent="." unique_id=1511749504]
 y_sort_enabled = true
 
-[node name="Ferreiro" type="Sprite2D" parent="Moradores"]
+[node name="Ferreiro" type="Sprite2D" parent="Moradores" unique_id=848614258]
 position = Vector2(1953, 2023.5)
 texture = ExtResource("22_r")
 script = ExtResource("3_r")
@@ -332,7 +332,7 @@ nome = "Ferreiro"
 servico = "resident"
 precisa_de = "ferreiro"
 
-[node name="Curandeira" type="Sprite2D" parent="Moradores"]
+[node name="Curandeira" type="Sprite2D" parent="Moradores" unique_id=523507637]
 position = Vector2(2325, 3301.5)
 texture = ExtResource("23_r")
 script = ExtResource("3_r")
@@ -341,7 +341,7 @@ nome = "Curandeira"
 servico = "resident"
 precisa_de = "curandeira"
 
-[node name="Taverneira" type="Sprite2D" parent="Moradores"]
+[node name="Taverneira" type="Sprite2D" parent="Moradores" unique_id=880373591]
 position = Vector2(4464, 2822.25)
 texture = ExtResource("24_r")
 script = ExtResource("3_r")
@@ -349,7 +349,7 @@ id = "taverneira"
 nome = "Taverneira"
 servico = "memories"
 
-[node name="Mestre de Armas" type="Sprite2D" parent="Moradores"]
+[node name="Mestre de Armas" type="Sprite2D" parent="Moradores" unique_id=685606648]
 position = Vector2(4836, 1863.75)
 texture = ExtResource("25_r")
 script = ExtResource("3_r")
@@ -357,7 +357,7 @@ id = "mestre"
 nome = "Mestre de Armas"
 servico = "skills"
 
-[node name="Faroleiro" type="Sprite2D" parent="Moradores"]
+[node name="Faroleiro" type="Sprite2D" parent="Moradores" unique_id=52300674]
 position = Vector2(3813, 1065)
 texture = ExtResource("26_r")
 script = ExtResource("3_r")
@@ -365,23 +365,21 @@ id = "guarda"
 nome = "Faroleiro"
 servico = "beacon"
 
-[node name="Pescador" type="Sprite2D" parent="Moradores"]
+[node name="Pescador" type="Sprite2D" parent="Moradores" unique_id=2060186827]
 position = Vector2(3906, 4100.25)
 texture = ExtResource("27_r")
 script = ExtResource("3_r")
 id = "pescador"
 nome = "Pescador"
-servico = "talk"
 
-[node name="Viajante" type="Sprite2D" parent="Moradores"]
+[node name="Viajante" type="Sprite2D" parent="Moradores" unique_id=30761257]
 position = Vector2(1581, 2982)
 texture = ExtResource("28_r")
 script = ExtResource("3_r")
 id = "viajante"
 nome = "Viajante"
-servico = "talk"
 
-[node name="Mercadora" type="Sprite2D" parent="Moradores"]
+[node name="Mercadora" type="Sprite2D" parent="Moradores" unique_id=2111578884]
 position = Vector2(2883, 2982)
 texture = ExtResource("29_r")
 script = ExtResource("3_r")
@@ -389,7 +387,7 @@ id = "mercadora"
 nome = "Mercadora"
 servico = "shop"
 
-[node name="Sacerdotisa" type="Sprite2D" parent="Moradores"]
+[node name="Sacerdotisa" type="Sprite2D" parent="Moradores" unique_id=1873612826]
 position = Vector2(2604, 1863.75)
 texture = ExtResource("30_r")
 script = ExtResource("3_r")
@@ -397,7 +395,7 @@ id = "sacerdotisa"
 nome = "Sacerdotisa"
 servico = "shop"
 
-[node name="Padeira" type="Sprite2D" parent="Moradores"]
+[node name="Padeira" type="Sprite2D" parent="Moradores" unique_id=1735704237]
 position = Vector2(1302, 2183.25)
 texture = ExtResource("31_r")
 script = ExtResource("3_r")
@@ -406,7 +404,7 @@ nome = "Padeira"
 servico = "resident"
 precisa_de = "padeira"
 
-[node name="Cartógrafa" type="Sprite2D" parent="Moradores"]
+[node name="Cartógrafa" type="Sprite2D" parent="Moradores" unique_id=1789981967]
 position = Vector2(4650, 4100.25)
 texture = ExtResource("32_r")
 script = ExtResource("3_r")
@@ -415,7 +413,7 @@ nome = "Cartógrafa"
 servico = "resident"
 precisa_de = "cartografa"
 
-[node name="Arquivista" type="Sprite2D" parent="Moradores"]
+[node name="Arquivista" type="Sprite2D" parent="Moradores" unique_id=582255597]
 position = Vector2(5115, 2023.5)
 texture = ExtResource("33_r")
 script = ExtResource("3_r")
@@ -424,7 +422,7 @@ nome = "Arquivista"
 servico = "resident"
 precisa_de = "arquivista"
 
-[node name="Alquimista" type="Sprite2D" parent="Moradores"]
+[node name="Alquimista" type="Sprite2D" parent="Moradores" unique_id=477262539]
 position = Vector2(3255, 3940.5)
 texture = ExtResource("34_r")
 script = ExtResource("3_r")
@@ -433,7 +431,7 @@ nome = "Alquimista"
 servico = "resident"
 precisa_de = "alquimista"
 
-[node name="Mural de Missões" type="Sprite2D" parent="Moradores"]
+[node name="Mural de Missões" type="Sprite2D" parent="Moradores" unique_id=1861311216]
 position = Vector2(3627, 2023.5)
 texture = ExtResource("35_r")
 script = ExtResource("3_r")
@@ -441,7 +439,7 @@ id = "mural"
 nome = "Mural de Missões"
 servico = "board"
 
-[node name="Pavio" type="Sprite2D" parent="Moradores"]
+[node name="Pavio" type="Sprite2D" parent="Moradores" unique_id=1551954211]
 position = Vector2(3441, 2343)
 texture = ExtResource("36_r")
 script = ExtResource("3_r")
@@ -449,205 +447,204 @@ id = "guia"
 nome = "Pavio"
 servico = "guide"
 
-[node name="Enfeites" type="Node2D" parent="."]
+[node name="Enfeites" type="Node2D" parent="." unique_id=180160095]
 y_sort_enabled = true
 
-[node name="Fogueira 1" type="Sprite2D" parent="Enfeites"]
+[node name="Fogueira 1" type="Sprite2D" parent="Enfeites" unique_id=436090657]
 position = Vector2(2325, 2982)
 texture = ExtResource("37_r")
 script = ExtResource("4_r")
 
-[node name="Fogueira 2" type="Sprite2D" parent="Enfeites"]
+[node name="Fogueira 2" type="Sprite2D" parent="Enfeites" unique_id=878441331]
 position = Vector2(3627, 3940.5)
 texture = ExtResource("38_r")
 script = ExtResource("4_r")
 
-[node name="Fogueira 3" type="Sprite2D" parent="Enfeites"]
+[node name="Fogueira 3" type="Sprite2D" parent="Enfeites" unique_id=571420597]
 position = Vector2(1674, 2822.25)
 texture = ExtResource("37_r")
 script = ExtResource("4_r")
 
-[node name="Caldeirão" type="Sprite2D" parent="Enfeites"]
+[node name="Caldeirão" type="Sprite2D" parent="Enfeites" unique_id=1896880258]
 position = Vector2(1767, 3301.5)
 texture = ExtResource("39_r")
 script = ExtResource("4_r")
 
-[node name="Frascos" type="Sprite2D" parent="Enfeites"]
+[node name="Frascos" type="Sprite2D" parent="Enfeites" unique_id=1830256729]
 position = Vector2(2195, 3301.5)
 texture = ExtResource("40_r")
 script = ExtResource("4_r")
 
-[node name="Bigorna 1" type="Sprite2D" parent="Enfeites"]
+[node name="Bigorna 1" type="Sprite2D" parent="Enfeites" unique_id=341794674]
 position = Vector2(2066, 2183.25)
 texture = ExtResource("41_r")
 script = ExtResource("4_r")
 
-[node name="Bigorna 2" type="Sprite2D" parent="Enfeites"]
+[node name="Bigorna 2" type="Sprite2D" parent="Enfeites" unique_id=1478985167]
 position = Vector2(1302, 2502.75)
 texture = ExtResource("42_r")
 script = ExtResource("4_r")
 
-[node name="Lenha" type="Sprite2D" parent="Enfeites"]
+[node name="Lenha" type="Sprite2D" parent="Enfeites" unique_id=369918727]
 position = Vector2(837, 2343)
 texture = ExtResource("43_r")
 script = ExtResource("4_r")
 
-[node name="Barraca 1" type="Sprite2D" parent="Enfeites"]
+[node name="Barraca 1" type="Sprite2D" parent="Enfeites" unique_id=906116464]
 position = Vector2(2790, 2822.25)
 texture = ExtResource("44_r")
 script = ExtResource("4_r")
 
-[node name="Barraca 2" type="Sprite2D" parent="Enfeites"]
+[node name="Barraca 2" type="Sprite2D" parent="Enfeites" unique_id=1318935712]
 position = Vector2(2976, 3141.75)
 texture = ExtResource("45_r")
 script = ExtResource("4_r")
 
-[node name="Barraca 3" type="Sprite2D" parent="Enfeites"]
+[node name="Barraca 3" type="Sprite2D" parent="Enfeites" unique_id=1340978391]
 position = Vector2(3813, 2982)
 texture = ExtResource("44_r")
 script = ExtResource("4_r")
 
-[node name="Barris 1" type="Sprite2D" parent="Enfeites"]
+[node name="Barris 1" type="Sprite2D" parent="Enfeites" unique_id=1778351295]
 position = Vector2(4464, 4100.25)
 texture = ExtResource("46_r")
 script = ExtResource("4_r")
 
-[node name="Barris 2" type="Sprite2D" parent="Enfeites"]
+[node name="Barris 2" type="Sprite2D" parent="Enfeites" unique_id=93233315]
 position = Vector2(4371, 2662.5)
 texture = ExtResource("46_r")
 script = ExtResource("4_r")
 
-[node name="Tocha 1" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 1" type="Sprite2D" parent="Enfeites" unique_id=1065787733]
 position = Vector2(3119, 1704)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 2" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 2" type="Sprite2D" parent="Enfeites" unique_id=229283894]
 position = Vector2(3391, 1384.5)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 3" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 3" type="Sprite2D" parent="Enfeites" unique_id=1635292870]
 position = Vector2(2564, 2183.25)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 4" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 4" type="Sprite2D" parent="Enfeites" unique_id=867465386]
 position = Vector2(4132, 2183.25)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 5" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 5" type="Sprite2D" parent="Enfeites" unique_id=1973732943]
 position = Vector2(2551, 2982)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 6" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 6" type="Sprite2D" parent="Enfeites" unique_id=1211551022]
 position = Vector2(4052, 3141.75)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 7" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 7" type="Sprite2D" parent="Enfeites" unique_id=281697796]
 position = Vector2(3212, 3461.25)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 8" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 8" type="Sprite2D" parent="Enfeites" unique_id=432680414]
 position = Vector2(3670, 3780.75)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 9" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 9" type="Sprite2D" parent="Enfeites" unique_id=807833950]
 position = Vector2(1807, 2343)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Tocha 10" type="Sprite2D" parent="Enfeites"]
+[node name="Tocha 10" type="Sprite2D" parent="Enfeites" unique_id=1201588602]
 position = Vector2(4969, 2023.5)
 texture = ExtResource("47_r")
 script = ExtResource("4_r")
 solido = false
 
-[node name="Doca" type="Sprite2D" parent="Enfeites"]
+[node name="Doca" type="Sprite2D" parent="Enfeites" unique_id=1193305060]
 position = Vector2(3441, 4260)
 texture = ExtResource("48_r")
 script = ExtResource("4_r")
 
-[node name="Barco 1" type="Sprite2D" parent="Enfeites"]
+[node name="Barco 1" type="Sprite2D" parent="Enfeites" unique_id=647869293]
 position = Vector2(3906, 4419.75)
 texture = ExtResource("49_r")
 script = ExtResource("4_r")
 
-[node name="Barco 2" type="Sprite2D" parent="Enfeites"]
+[node name="Barco 2" type="Sprite2D" parent="Enfeites" unique_id=114461523]
 position = Vector2(2976, 4419.75)
 texture = ExtResource("50_r")
 script = ExtResource("4_r")
 
-[node name="Barco 3" type="Sprite2D" parent="Enfeites"]
+[node name="Barco 3" type="Sprite2D" parent="Enfeites" unique_id=168580326]
 position = Vector2(4185, 4579.5)
 texture = ExtResource("49_r")
 script = ExtResource("4_r")
 
-[node name="Rota" type="Node2D" parent="."]
+[node name="Rota" type="Node2D" parent="." unique_id=1348443151]
 
-
-[node name="Ponto 1" type="Marker2D" parent="Rota"]
+[node name="Ponto 1" type="Marker2D" parent="Rota" unique_id=657266559]
 position = Vector2(2976, 2502.75)
 gizmo_extents = 40.0
 
-[node name="Ponto 2" type="Marker2D" parent="Rota"]
+[node name="Ponto 2" type="Marker2D" parent="Rota" unique_id=1797720252]
 position = Vector2(3627, 2662.5)
 gizmo_extents = 40.0
 
-[node name="Ponto 3" type="Marker2D" parent="Rota"]
+[node name="Ponto 3" type="Marker2D" parent="Rota" unique_id=529496968]
 position = Vector2(3348, 3141.75)
 gizmo_extents = 40.0
 
-[node name="Ponto 4" type="Marker2D" parent="Rota"]
+[node name="Ponto 4" type="Marker2D" parent="Rota" unique_id=1189647060]
 position = Vector2(2325, 3621)
 gizmo_extents = 40.0
 
-[node name="Ponto 5" type="Marker2D" parent="Rota"]
+[node name="Ponto 5" type="Marker2D" parent="Rota" unique_id=1720479232]
 position = Vector2(4371, 3621)
 gizmo_extents = 40.0
 
-[node name="Ponto 6" type="Marker2D" parent="Rota"]
+[node name="Ponto 6" type="Marker2D" parent="Rota" unique_id=1453609108]
 position = Vector2(3441, 3940.5)
 gizmo_extents = 40.0
 
-[node name="Ponto 7" type="Marker2D" parent="Rota"]
+[node name="Ponto 7" type="Marker2D" parent="Rota" unique_id=102295211]
 position = Vector2(1860, 2502.75)
 gizmo_extents = 40.0
 
-[node name="Ponto 8" type="Marker2D" parent="Rota"]
+[node name="Ponto 8" type="Marker2D" parent="Rota" unique_id=124019331]
 position = Vector2(2325, 2023.5)
 gizmo_extents = 40.0
 
-[node name="Ponto 9" type="Marker2D" parent="Rota"]
+[node name="Ponto 9" type="Marker2D" parent="Rota" unique_id=1226622350]
 position = Vector2(3255, 1704)
 gizmo_extents = 40.0
 
-[node name="Ponto 10" type="Marker2D" parent="Rota"]
+[node name="Ponto 10" type="Marker2D" parent="Rota" unique_id=521852335]
 position = Vector2(3255, 1384.5)
 gizmo_extents = 40.0
 
-[node name="Ponto 11" type="Marker2D" parent="Rota"]
+[node name="Ponto 11" type="Marker2D" parent="Rota" unique_id=1113865607]
 position = Vector2(4371, 2023.5)
 gizmo_extents = 40.0
 
-[node name="Ponto 12" type="Marker2D" parent="Rota"]
+[node name="Ponto 12" type="Marker2D" parent="Rota" unique_id=87971292]
 position = Vector2(5208, 2183.25)
 gizmo_extents = 40.0
 
-[node name="Praca" type="Marker2D" parent="."]
+[node name="Praca" type="Marker2D" parent="." unique_id=745566665]
 position = Vector2(3255, 2662.5)
 gizmo_extents = 80.0
