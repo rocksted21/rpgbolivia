@@ -32,6 +32,7 @@ func _initialize() -> void:
 	test_spawning()
 	test_party()
 	test_split_fights()
+	test_reinforcements()
 	test_network()
 	test_combat_flow()
 	test_full_runs()
@@ -320,6 +321,7 @@ func test_split_fights() -> void:
 	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, near.pos + Vector2i(Data.WORLD["sight_radius"], 0))
 	var events: Array = state.tick()
 	check(_kinds(events).has("combat_start"), "online: ver um herói inicia o combate")
+	state.reinforce_left = 0 # luta montada à mão: aqui não interessa o bando (ver test_reinforcements)
 	check(state.is_fighting(near), "online: quem foi visto luta")
 	check(not state.is_fighting(far), "online: herói longe fica fora da luta")
 	check(not state.turn_order().has(far), "online: herói longe fora da fila")
@@ -337,6 +339,39 @@ func test_split_fights() -> void:
 	foe.hp = 0
 	events = state.tick()
 	check(not state.in_combat() and state.fighting.is_empty(), "online: fim da luta libera os heróis")
+
+
+## Luta pequena é isca: matar a isca chama o resto do bando, uma vez só, e aí a luta acaba.
+func test_reinforcements() -> void:
+	var state = WorldState.new(Data.DEFAULT_PARTY, 31)
+	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, state.party[0].pos + Vector2i(Data.WORLD["sight_radius"], 0))
+	var events: Array = state.tick()
+	check(_kinds(events).has("combat_start"), "isca: a luta começa")
+	var expected: int = Data.WORLD["group_min"] - 1 + (state.party.size() - 1) * Data.WORLD["party_group"]
+	check(state.reinforce_left == expected, "isca: o bando vai chegar (%d)" % state.reinforce_left)
+	var spots: Array = state.party.map(func(member): return member.pos) # antes dos heróis se reposicionarem
+	foe.hp = 0
+	events = state.tick()
+	var arrived: Array = []
+	for event in events:
+		if event["type"] == "ambush":
+			arrived = event["units"]
+	check(not arrived.is_empty(), "isca: matar a isca traz o bando")
+	check(state.in_combat() and not _kinds(events).has("combat_end"), "isca: a luta continua com o bando")
+	check(arrived.all(func(unit): return state._distance_to_any_hero(unit.pos) >= 2), "isca: ninguém começa colado num herói")
+	check(state.reinforce_left == 0, "isca: o bando chega uma vez só")
+	var dist: Array = Data.WORLD["reinforce_dist"]
+	for unit in arrived:
+		var gap: int = 999
+		for spot in spots:
+			gap = mini(gap, Hex.distance(spot, unit.pos))
+		check(gap >= dist[0] and gap <= dist[1], "isca: o bando surge a %d-%d casas da party (%d)" % [dist[0], dist[1], gap])
+		check(state.tile_at(unit.pos)["walkable"], "isca: o bando surge em casa caminhável")
+	for unit in state.foes():
+		unit.hp = 0
+	events = state.tick()
+	check(_kinds(events).has("combat_end") and not state.in_combat(), "isca: sem bando, a luta acaba")
+	check(not _kinds(events).has("ambush"), "isca: não chega outra leva")
 
 
 func test_party() -> void:
@@ -360,6 +395,7 @@ func test_party() -> void:
 	var foe = state.add_unit("esqueleto", Data.Team.ENEMY, state.party[3].pos + Vector2i(Data.WORLD["sight_radius"], 0))
 	var events: Array = state.tick()
 	check(_kinds(events).has("combat_start"), "ver qualquer herói inicia o combate")
+	state.reinforce_left = 0 # luta montada à mão: aqui não interessa o bando (ver test_reinforcements)
 	check(state.turn_order().size() == 5, "toda a party entra na fila (%d)" % state.turn_order().size())
 	# Queda e fim.
 	state.party[1].hp = 0
