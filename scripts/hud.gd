@@ -72,17 +72,18 @@ const SHOW_ORDER_TEXT := "Mostrar ordem"
 const HIDE_ORDER_TEXT := "Esconder ordem"
 const HP_ENEMY := Color(0.89, 0.29, 0.23)
 const ANIM_IDLE := 0
-# Painel do topo (exploração): mesmas cores das janelas da Cidade-Farol.
-const PANEL_FILL := Color(0.098, 0.118, 0.165, 0.93)
+# Painel do topo (exploração): latão e vinho, como a tela inicial (scripts/hud/brass.gd).
+const Brass = preload("res://scripts/hud/brass.gd")
+const PANEL_FILL := Color(0.165, 0.075, 0.098, 0.94)
 const PANEL_EDGE := Color("f2ca76")
-const PANEL_TEXT := Color("f5efdf")
-const PANEL_MUTED := Color("aab2c2")
-const RADAR_SIZE := 164.0
-const RADAR_TOP := 10.0
-const WING_HEIGHT := 100.0
-const WING_MARGIN := 16.0
-const STAT_WIDTH := 112.0
+const PANEL_TEXT := Color("f4dcb8")
+const PANEL_MUTED := Color("cdb596")
+const RADAR_SIZE := 106.0 # bússola, pendurada à esquerda da faixa do topo
+const RADAR_TOP := 6.0
+const RADAR_LEFT := 14.0
+const STRIP_HEIGHT := 44.0
 const DOCK_BUTTON := 64.0 # botões da coluna da direita: do tamanho de um dedo
+const STRIP_WIDTH := SCREEN.x - MARGIN - DOCK_BUTTON - 16 # faixa do topo: até a coluna de botões
 const DOCK_GAP := 8
 const PARTY_CARD := Vector2(228, 92)
 const HudOptions = preload("res://scripts/hud/options_menu.gd")
@@ -116,13 +117,15 @@ var cast_preview := {} # {mago: tempo da magia} enquanto o menu oferece uma magi
 
 
 var overview: Control
-var overview_left: PanelContainer
-var overview_right: PanelContainer
+var overview_left: PanelContainer # a faixa do topo
+var overview_numbers: HBoxContainer
 var overview_radar
 var overview_title: Label
 var overview_key := ""
 var overview_cells := [] # {value, icon} na ordem dos números
 var overview_text := "" # o painel em uma linha (testes)
+var overview_stats := [] # os números do topo, repetidos no Diário
+var party_info := {} # herói -> {level, fraction, points, mine}, para o Diário
 var group_button: Button
 var group_layer: CanvasLayer
 var dock: VBoxContainer # coluna de botões à direita, espelhando a fila de turnos à esquerda
@@ -205,31 +208,32 @@ func setup(p_meta: Dictionary) -> void:
 	end_panel = PanelContainer.new()
 	end_panel.position = Vector2(480, 290)
 	end_panel.custom_minimum_size = Vector2(320, 140)
-	end_panel.add_theme_stylebox_override("panel", _box(Color(0.1, 0.11, 0.14, 0.97), Color(1.0, 0.85, 0.4), 2, 6, 8))
+	end_panel.add_theme_stylebox_override("panel", Brass.panel(Brass.WINE, Brass.BRASS, 2, 4, 14))
 	end_panel.visible = false
 	add_child(end_panel)
 	var end_column := VBoxContainer.new()
 	end_column.alignment = BoxContainer.ALIGNMENT_CENTER
 	end_panel.add_child(end_column)
-	end_label = Label.new()
-	end_label.add_theme_font_size_override("font_size", 32)
+	end_label = Brass.label("", 30, Brass.GOLD, 700)
 	end_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_column.add_child(end_label)
-	end_note = Label.new()
-	end_note.add_theme_font_size_override("font_size", 20)
-	end_note.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	end_note = Brass.label("", 18, Brass.TEXT)
 	end_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_note.visible = false
 	end_column.add_child(end_note)
 	var restart := Button.new()
 	restart.text = "Lutar de novo"
 	restart.custom_minimum_size.y = 56
+	Brass.style_button(restart, true)
+	restart.add_theme_font_size_override("font_size", 20)
 	sound_manager.bind_button(restart, &"click3")
 	restart.pressed.connect(func(): restart_pressed.emit())
 	end_column.add_child(restart)
 	skills_button = Button.new()
 	skills_button.text = "Árvore de skills"
 	skills_button.custom_minimum_size.y = 48
+	Brass.style_button(skills_button)
+	skills_button.add_theme_font_size_override("font_size", 18)
 	sound_manager.bind_button(skills_button)
 	skills_button.pressed.connect(func(): skills_pressed.emit())
 	end_column.add_child(skills_button)
@@ -371,6 +375,8 @@ func setup_exploration() -> void:
 	end_menu_button = menu_button
 	menu_button.text = "Menu principal"
 	menu_button.custom_minimum_size.y = 56
+	Brass.style_button(menu_button)
+	menu_button.add_theme_font_size_override("font_size", 18)
 	sound_manager.bind_button(menu_button, &"click3")
 	menu_button.pressed.connect(func(): menu_pressed.emit())
 	end_column.add_child(menu_button)
@@ -393,6 +399,7 @@ func _icon_button(kind: String) -> Button:
 	var button := party_ui._corner_button("", Vector2.ZERO, DOCK_BUTTON)
 	button.custom_minimum_size.y = DOCK_BUTTON
 	button.reparent(dock)
+	Brass.style_button(button, false, true)
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -545,6 +552,7 @@ func set_party_progress(unit, info: Dictionary, points: int, mine := true) -> vo
 	if not party_cards.has(unit):
 		return
 	var card: Dictionary = party_cards[unit]
+	party_info[unit] = {"level": info["level"], "fraction": info["fraction"], "points": points, "mine": mine}
 	card.level.text = "Nv %d" % info["level"]
 	card.level.get_parent().visible = true
 	card.xp.get_parent().visible = true
@@ -554,51 +562,67 @@ func set_party_progress(unit, info: Dictionary, points: int, mine := true) -> vo
 	card.level_up.visible = mine and points > 0
 
 
-## Painel do topo, simétrico no meio da tela: duas asas de números e, entre elas, o radar
-## com o farol e o local mais perto (só ícones: sem nome nem distância, nada de spoiler).
-## O anel dourado do radar é a experiência até o próximo nível.
+## Faixa do topo (exploração e cidade): uma tira fina de latão e vinho com o nome do lugar,
+## a missão e os números em linha. A bússola é um medalhão pequeno pendurado à esquerda, com
+## o farol e o local mais perto (só ícones: sem nome nem distância, nada de spoiler).
+## O anel dourado da bússola é a experiência até o próximo nível.
 func _build_overview() -> void:
 	overview = Control.new()
 	overview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(overview)
-	overview_left = _wing()
-	overview_right = _wing()
+	overview_left = PanelContainer.new()
+	var strip := StyleBoxFlat.new()
+	strip.bg_color = PANEL_FILL
+	strip.border_color = Brass.BRASS
+	strip.border_width_bottom = 2
+	strip.shadow_color = Brass.WINE_DEEP
+	strip.shadow_size = 1
+	strip.shadow_offset = Vector2(0, 2)
+	overview_left.add_theme_stylebox_override("panel", strip)
+	overview_left.position = Vector2.ZERO
+	overview_left.custom_minimum_size = Vector2(STRIP_WIDTH, STRIP_HEIGHT)
+	overview_left.size = overview_left.custom_minimum_size
+	overview.add_child(overview_left)
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_right", 18)
+	overview_left.add_child(margin)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 22)
+	margin.add_child(row)
+	overview_title = Brass.label("", 16, PANEL_EDGE, 700)
+	overview_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(overview_title)
+	quest_chip = PanelContainer.new() # a missão, logo depois do nome do lugar
+	quest_chip.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	quest_chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	quest_chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	quest_chip.clip_contents = true
+	quest_chip.visible = false
+	row.add_child(quest_chip)
+	var quest_row := HBoxContainer.new()
+	quest_row.add_theme_constant_override("separation", 6)
+	quest_chip.add_child(quest_row)
+	quest_row.add_child(_icon("star", Brass.GOLD, 14))
+	tracker = Brass.label("", 13, PANEL_MUTED)
+	quest_row.add_child(tracker)
+	var gap := Control.new() # sem missão, os números continuam encostados à direita
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.name = "Gap"
+	row.add_child(gap)
+	quest_chip.visibility_changed.connect(func(): gap.visible = not quest_chip.visible)
+	overview_numbers = HBoxContainer.new()
+	overview_numbers.add_theme_constant_override("separation", 18)
+	row.add_child(overview_numbers)
 	overview_radar = Radar.new()
 	overview_radar.size = Vector2.ONE * RADAR_SIZE
-	overview_radar.position = Vector2(SCREEN.x / 2 - RADAR_SIZE / 2, RADAR_TOP)
+	overview_radar.position = Vector2(RADAR_LEFT, RADAR_TOP)
 	overview.add_child(overview_radar)
-	overview_title = _title("", 26, PANEL_EDGE)
-	overview_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	overview_title.add_theme_color_override("font_outline_color", Color.BLACK)
-	overview_title.add_theme_constant_override("outline_size", 8)
-	overview_title.size = Vector2(SCREEN.x, 0)
-	overview.add_child(overview_title)
-	quest_chip = _chip_box(Color(0.55, 0.72, 0.95, 0.7))
-	quest_chip.visible = false
-	overview.add_child(quest_chip)
-	var quest_row := HBoxContainer.new()
-	quest_row.add_theme_constant_override("separation", 8)
-	quest_chip.add_child(quest_row)
-	quest_row.add_child(_icon("star", Color(0.78, 0.86, 0.95), 20))
-	tracker = _label("", 20, Color(0.88, 0.92, 0.98))
-	quest_row.add_child(tracker)
-	quest_chip.resized.connect(func(): quest_chip.position.x = (SCREEN.x - quest_chip.size.x) / 2)
 	_ignore_mouse(overview)
-
-
-func _wing() -> PanelContainer:
-	var wing := PanelContainer.new()
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 0)
-	wing.add_child(row)
-	overview.add_child(wing)
-	return wing
 
 
 func _chip_box(edge: Color) -> PanelContainer:
 	var chip := PanelContainer.new()
-	var style := _box(PANEL_FILL, edge, 2, 18, 0)
+	var style := Brass.panel(PANEL_FILL, edge, 2, 4, 0)
 	style.content_margin_left = 14
 	style.content_margin_right = 16
 	style.content_margin_top = 4
@@ -639,58 +663,30 @@ func set_overview(title: String, stats: Array, level := {}, targets := []) -> vo
 		line.append(target["label"])
 	overview_title.text = title
 	overview_text = "   ·   ".join(line)
+	overview_stats = stats.duplicate()
 
 
-## Asas do mesmo tamanho, coladas no radar; sem radar, encostam no meio.
+## Os números em linha: ícone, valor e o nome pequeno. Com a bússola, a faixa começa depois dela.
 func _layout_overview(stats: Array, medallion: bool) -> void:
 	overview_cells = []
-	var half := ceili(stats.size() / 2.0)
-	var inner := RADAR_SIZE / 2 + 14 if medallion else 22.0
-	var width := half * STAT_WIDTH + WING_MARGIN + inner
-	for side in 2:
-		var wing: PanelContainer = overview_left if side == 0 else overview_right
-		var row: HBoxContainer = wing.get_child(0)
-		for child in row.get_children():
-			row.remove_child(child)
-			child.queue_free()
-		var style := _box(PANEL_FILL, Color(PANEL_EDGE, 0.75), 2, 18, 0)
-		style.content_margin_top = 8
-		style.content_margin_bottom = 8
-		style.content_margin_left = WING_MARGIN if side == 0 else inner
-		style.content_margin_right = inner if side == 0 else WING_MARGIN
-		wing.add_theme_stylebox_override("panel", style)
-		wing.size = Vector2(width, WING_HEIGHT)
-		var gap := 0.0 if medallion else 6.0
-		wing.position = Vector2(SCREEN.x / 2 - width - gap if side == 0 else SCREEN.x / 2 + gap, RADAR_TOP + (RADAR_SIZE - WING_HEIGHT) / 2)
-		var picked: Array = stats.slice(0, half) if side == 0 else stats.slice(half)
-		for i in picked.size():
-			if i > 0:
-				var bar := ColorRect.new()
-				bar.color = Color(PANEL_EDGE, 0.2)
-				bar.custom_minimum_size = Vector2(2, 44)
-				bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-				row.add_child(bar)
-			var cell := VBoxContainer.new()
-			cell.custom_minimum_size.x = STAT_WIDTH - (2 if i > 0 else 0)
-			cell.alignment = BoxContainer.ALIGNMENT_CENTER
-			cell.add_theme_constant_override("separation", -4)
-			row.add_child(cell)
-			var line := HBoxContainer.new()
-			line.alignment = BoxContainer.ALIGNMENT_CENTER
-			line.add_theme_constant_override("separation", 8)
-			cell.add_child(line)
-			var icon := _icon(picked[i]["icon"], PANEL_TEXT, 28)
-			line.add_child(icon)
-			var value := _title("", 32, PANEL_TEXT)
-			line.add_child(value)
-			var caption := _label(picked[i]["label"], 17, PANEL_MUTED)
-			caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			cell.add_child(caption)
-			overview_cells.append({"value": value, "icon": icon})
-	# O nome do lugar fica embaixo do radar (ou das asas), e a missão logo abaixo.
-	var bottom := RADAR_TOP + (RADAR_SIZE if medallion else (RADAR_SIZE + WING_HEIGHT) / 2)
-	overview_title.position = Vector2(0, bottom + 2)
-	quest_chip.position.y = bottom + 44
+	for child in overview_numbers.get_children():
+		overview_numbers.remove_child(child)
+		child.queue_free()
+	for stat in stats:
+		var cell := HBoxContainer.new()
+		cell.add_theme_constant_override("separation", 6)
+		overview_numbers.add_child(cell)
+		var icon := _icon(stat["icon"], PANEL_TEXT, 17)
+		cell.add_child(icon)
+		var value := Brass.label("", 15, PANEL_TEXT, 700)
+		value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		cell.add_child(value)
+		var caption := Brass.label(stat["label"], 11, Brass.DIM)
+		caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		cell.add_child(caption)
+		overview_cells.append({"value": value, "icon": icon})
+	var margin: MarginContainer = overview_left.get_child(0)
+	margin.add_theme_constant_override("margin_left", int(RADAR_LEFT + RADAR_SIZE + 14) if medallion else 18)
 	_ignore_mouse(overview)
 
 
@@ -747,9 +743,11 @@ class HpBar extends Control:
 
 class Radar extends Control:
 	const IconScript = preload("res://scripts/icon.gd")
-	const FILL := Color(0.098, 0.118, 0.165, 0.95)
+	const FILL := Color(0.165, 0.075, 0.098, 0.96)
 	const EDGE := Color("f2ca76")
-	const TEXT := Color("f5efdf")
+	const RIM := Color("c9a36a") # moldura de latão
+	const DEEP := Color("16090c")
+	const TEXT := Color("f4dcb8")
 	const ORBIT := 0.52 # onde os ícones ficam, em fração do raio
 	const ICON := 0.24 # tamanho do ícone, em fração do radar
 	const MIN_APART := 0.8 # radianos: ícones na mesma direção se afastam um pouco (a ponta na borda continua exata)
@@ -761,8 +759,7 @@ class Radar extends Control:
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if ResourceLoader.exists("res://assets/fonts/LilitaOne-Regular.ttf"):
-			title_font = load("res://assets/fonts/LilitaOne-Regular.ttf")
+		title_font = preload("res://scripts/hud/brass.gd").font(700)
 
 	func set_targets(targets: Array) -> void:
 		var kinds := targets.map(func(t): return t["icon"])
@@ -808,8 +805,12 @@ class Radar extends Control:
 	func _draw() -> void:
 		var mid := size / 2
 		var radius := size.x / 2 - 3
-		draw_circle(mid, radius, FILL)
-		draw_arc(mid, radius, 0.0, TAU, 72, Color(EDGE, 0.75), 3.0, true)
+		draw_circle(mid, radius + 1, DEEP)
+		draw_circle(mid, radius - 2, FILL)
+		draw_arc(mid, radius - 2, 0.0, TAU, 72, RIM, 4.0, true)
+		for quarter in 4: # cruz fina de bússola
+			var dir := Vector2.from_angle(quarter * PI / 2)
+			draw_line(mid + dir * 10, mid + dir * (radius - 24), Color(RIM, 0.22), 1.0)
 		if xp >= 0.0: # trilho e progresso da experiência, por dentro da borda
 			draw_arc(mid, radius - 7, 0.0, TAU, 72, Color(EDGE, 0.15), 6.0, true)
 			draw_arc(mid, radius - 7, -PI / 2, -PI / 2 + TAU * clampf(xp, 0.0, 1.0), 72, EDGE, 6.0, true)
@@ -827,8 +828,8 @@ class Radar extends Control:
 				draw_circle(pin["spot"], disc, Color(0.03, 0.04, 0.06, 0.85))
 				draw_arc(pin["spot"], disc, 0.0, TAU, 32, Color(pin["color"], 0.8), 2.0, true)
 		if center_text != "" and title_font != null:
-			draw_string(title_font, mid + Vector2(-size.x / 2, 16), center_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 48, TEXT)
-			draw_string(get_theme_default_font(), mid + Vector2(-size.x / 2, 44), center_note, HORIZONTAL_ALIGNMENT_CENTER, size.x, 17, Color(EDGE, 0.9))
+			draw_string(title_font, mid + Vector2(-size.x / 2, size.x * 0.1), center_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(size.x * 0.3), TEXT)
+			draw_string(title_font, mid + Vector2(-size.x / 2, size.x * 0.28), center_note, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(size.x * 0.11), Color(EDGE, 0.9))
 
 
 ## Aviso grande no meio da tela, que some sozinho: início e fim de combate.
@@ -874,8 +875,8 @@ func set_potions(count: int) -> void:
 		potion_button = _icon_button("drop")
 		potion_button.tooltip_text = "Poção de Luz"
 		potion_button.pressed.connect(func(): potion_pressed.emit())
-		var count_label := _title("", 20, Color.WHITE)
-		count_label.add_theme_color_override("font_outline_color", Color.BLACK)
+		var count_label := Brass.label("", 18, Brass.TEXT_LIT, 700)
+		count_label.add_theme_color_override("font_outline_color", Brass.WINE_DEEP)
 		count_label.add_theme_constant_override("outline_size", 6)
 		count_label.position = Vector2(DOCK_BUTTON - 22, DOCK_BUTTON - 30)
 		count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE

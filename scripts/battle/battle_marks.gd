@@ -22,6 +22,7 @@ const JUMP_HOVER := Color(0.55, 1.0, 0.35, 0.75)
 const REACH_FILL := Color(1.0, 0.55, 0.1, 0.3)
 const TARGET_COLOR := Color(0.92, 0.24, 0.24, 0.55)
 const NEXT_ENEMY_ARROW := Color(0.95, 0.3, 0.25)
+const TOWN_HINT := "Clique para andar  ·  Q/E ou dois dedos giram  ·  Z aproxima  ·  Toque num companheiro para ver o que ele faz"
 const ROAM_HINT := "Clique para andar  ·  Q/E ou dois dedos giram  ·  Z aproxima  ·  Tab troca de herói  ·  G alterna fila"
 const SIGHT_COLOR := Color(0.95, 0.25, 0.2, 0.28)
 const ROAM_FIGHT_HINT := "Fora do combate: ande livre  ·  chegue perto ou ataque para entrar  ·  clique num herói da luta na barra para voltar"
@@ -313,7 +314,10 @@ func _update_hint() -> void:
 		return
 	var shown = _shown_unit()
 	if battle._free_roam() and (shown == null or shown == unit):
-		battle.hud.set_hint(ROAM_FIGHT_HINT if battle.state.in_combat() and not battle.online_session.playing else ROAM_HINT)
+		if battle.town_crew != null:
+			battle.hud.set_hint(TOWN_HINT)
+		else:
+			battle.hud.set_hint(ROAM_FIGHT_HINT if battle.state.in_combat() and not battle.online_session.playing else ROAM_HINT)
 		return
 	if shown != null:
 		var text := "%s: %s" % [shown.display_name, battle.input_ctl._menu_info(shown).to_lower()]

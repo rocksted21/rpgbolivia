@@ -191,5 +191,25 @@ func tick() -> Array:
 	return [] # na cidade não aparece inimigo
 
 
+## Na cidade não há limite de distância: o líder anda sozinho e os outros cuidam da vida.
+func may_roam(_unit, _to: Vector2i) -> bool:
+	return true
+
+
+## Põe o líder numa casa (volta da janela da party) e os outros em volta dele.
+func place_party_at(cell: Vector2i) -> void:
+	if not tile_at(cell)["walkable"]:
+		return
+	var spots: Array = [cell] + Hex.neighbors(cell) + area_of(cell, 2)
+	spots = spots.filter(func(spot): return tile_at(spot)["walkable"])
+	var used := []
+	for member in party:
+		for spot in spots:
+			if spot not in used:
+				member.pos = spot
+				used.append(spot)
+				break
+
+
 func danger() -> int:
 	return 0

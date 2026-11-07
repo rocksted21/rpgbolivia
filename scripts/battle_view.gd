@@ -72,8 +72,12 @@ const PAN_LIMIT := 380.0 # quanto a câmera solta pode se afastar do foco
 const XP_INK := Color(0.55, 0.9, 1.0)
 const LEVEL_INK := Color(1.0, 0.85, 0.3)
 const SkillTreeScene = preload("res://scenes/skill_tree.tscn")
-const TURN_SPEED := 1.9 # radianos por segundo com a tecla apertada
-const TURN_EASE := 9.0 # quão rápido o giro acelera e freia
+# Giro em passos fixos (estilo FFT): parada a câmera está sempre num ângulo "bonito".
+# 90° casa com as folhas de 16 vistas (4 quadros por passo) e com a arte chapada de frente.
+const TURN_STEP := TAU / 4.0
+const TURN_SNAP := 11.0 # quão rápido a câmera chega no próximo ângulo (~0,3 s)
+const TURN_REPEAT := 0.45 # segurando Q/E: segundos entre um passo e outro
+const TURN_DRAG_STEP := 0.35 # fração de um passo que o arrasto/torção precisa para girar
 const MAP_REFRESH := 0.12 # segundos entre revisões do mapa enquanto gira
 const DEPLOY_TIME := 0.45
 const CAMERA_SPEED := 7.0
@@ -227,6 +231,7 @@ var expedition := false # solo: cidade, locais especiais e chefe (ver expedition
 var town := false # a Cidade-Farol: mapa fixo, moradores e nada de inimigos
 var town_panels
 var town_life
+var town_crew # na cidade (solo): os heróis que não são o líder cuidam da vida (ver battle/town_crew.gd)
 var models := {} # construções em 3D à vista: {sprite: {views, turn}}
 var model_meta := {}
 var natural := false # chão contínuo: expedições e jornada, sem a cidade
@@ -252,7 +257,11 @@ var camera_unit # quem a câmera acompanha
 var camera_cell := NO_CELL
 var camera_look = null # enquanto mostra quem apareceu, a câmera olha para este ponto
 var view_angle := 0.0 # giro da câmera; as regras não sabem dele
-var turn_speed := 0.0
+var view_target := 0.0 # ângulo fixo para onde a câmera está indo (múltiplo de TURN_STEP)
+var turn_last := 0 # direção apertada no quadro anterior: o passo sai ao apertar, não a cada quadro
+var turn_repeat := 0.0 # segurando, outro passo sai quando zera
+var turn_drag := 0.0 # arrasto/torção acumulado até valer um passo
+var tall_props := {} # construções grandes: {sprite: pé no tabuleiro}; ficam transparentes quando cobrem alguém
 var turn_hold := 0 # botão da tela apertado: -1, 1 ou 0
 var map_refresh := 0.0
 var cell_rows := {} # casa -> linha de desenho atual, para só mexer no que mudou de ordem
@@ -420,6 +429,7 @@ func _start_battle() -> void:
 		expedition = not town and get_tree().root.get_meta(EXPEDITION_META, false)
 		if town:
 			state = TownState.new(party_types, randi(), builds, TownProgress.expedition_setup())
+			town_mode._restore_spot()
 		elif expedition:
 			state = ExpeditionState.new(party_types, randi(), builds, TownProgress.expedition_setup())
 		else:
@@ -453,6 +463,7 @@ func _start_battle() -> void:
 	touches.clear()
 	gesture = {}
 	roam_from = NO_CELL
+	together = true # a cidade desliga a fila (só o líder anda); fora dela volta ao padrão do botão
 	selected = _first_mine() if exploring else null
 	camera_unit = selected
 	views.clear()
@@ -464,6 +475,7 @@ func _start_battle() -> void:
 	move_shown.clear()
 	forests.clear()
 	trees.clear()
+	tall_props.clear()
 	hover = NO_CELL
 	menu_cell = NO_CELL
 	menu_options = []
@@ -477,6 +489,7 @@ func _start_battle() -> void:
 	if town_life != null:
 		town_life.queue_free()
 		town_life = null
+	town_crew = null
 	person_labels.clear()
 
 	board = Node2D.new()
@@ -566,6 +579,8 @@ func _start_battle() -> void:
 		hud.level_up_pressed.connect(input_ctl._on_level_up_pick)
 		hud.rotate_held.connect(func(direction): turn_hold = direction)
 		hud.together_toggled.connect(func(on): together = on)
+		if town:
+			town_mode._start_crew()
 	if online_session.playing:
 		hud.skills_button.visible = false
 		for child in hud.end_label.get_parent().get_children():
@@ -853,8 +868,11 @@ func _process(delta: float) -> void:
 	roam_ctl._update_walks(delta)
 	if town and selected != null:
 		town_panels.set_nearby(state.person_near(selected.pos))
+	if town_crew != null:
+		town_crew.tick(delta)
 	var goal: Vector2 = camera_look if camera_look != null else BattleCamera.FOCUS - _camera_point() * BOARD_SCALE + pan
 	board.position = board.position.lerp(goal, 1.0 - exp(-delta * CAMERA_SPEED))
+	board_art._fade_tall_props(delta)
 	board_art._work_on_map(BUILD_BUDGET_USEC)
 	roam_ctl._roam_tick(delta)
 	if overlays_dirty:
@@ -887,19 +905,41 @@ func _focus_turn(unit) -> void:
 		_follow(unit)
 
 
-## Gira enquanto Q/E ou o botão da tela estão apertados: acelera e freia suave, e para onde soltar.
+## Q/E ou o botão da tela: cada toque gira um passo; segurando, repete. A câmera
+## desliza rápido até o ângulo fixo e para exatamente nele.
 func _update_turn(delta: float) -> void:
 	var direction := turn_hold
 	if Input.is_key_pressed(KEY_Q):
 		direction -= 1
 	if Input.is_key_pressed(KEY_E):
 		direction += 1
-	turn_speed = lerpf(turn_speed, clampi(direction, -1, 1) * TURN_SPEED, 1.0 - exp(-delta * TURN_EASE))
-	if direction == 0 and absf(turn_speed) < 0.01:
-		turn_speed = 0.0
-	if turn_speed != 0.0:
-		_set_view_angle(view_angle + turn_speed * delta)
+	direction = clampi(direction, -1, 1)
+	turn_repeat -= delta
+	if direction != 0 and (direction != turn_last or turn_repeat <= 0.0):
+		turn_step(direction)
+		turn_repeat = TURN_REPEAT
+	turn_last = direction
+	var gap := angle_difference(view_angle, view_target)
+	if gap != 0.0:
+		if absf(gap) < 0.002:
+			_set_view_angle(view_target)
+			marks_ctl._refresh_overlays() # chegou: árvores e casas revisam quem escondem
+		else:
+			_set_view_angle(view_angle + gap * (1.0 - exp(-delta * TURN_SNAP)))
 	map_refresh -= delta
+
+
+## Um passo de giro para a esquerda (-1) ou direita (1), a partir do ângulo de destino.
+func turn_step(direction: int) -> void:
+	view_target = fposmod(snappedf(view_target, TURN_STEP) + direction * TURN_STEP, TAU)
+
+
+## Arrasto do mouse ou torção de dois dedos: soma até valer um passo e então gira.
+func drag_turn(amount: float) -> void:
+	turn_drag += amount
+	if absf(turn_drag) >= TURN_STEP * TURN_DRAG_STEP:
+		turn_step(1 if turn_drag > 0.0 else -1)
+		turn_drag = 0.0
 
 
 func _set_view_angle(angle: float) -> void:
@@ -1075,7 +1115,7 @@ func _save_game() -> void:
 	if SaveGame.save(state):
 		hud.show_options_note("Jogo salvo!")
 		hud.load_button.disabled = false
-		hud.load_button.text = "Carregar jogo (%s)" % SaveGame.summary()
+		hud.load_button.text = "Carregar jogo\n%s" % SaveGame.summary()
 	else:
 		hud.show_options_note("Não foi possível salvar.")
 

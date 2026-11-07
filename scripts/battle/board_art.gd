@@ -24,6 +24,12 @@ const WALL_SIDE_MARGIN := 0.4
 const MODEL_META := "res://assets/town/modelos/meta.json"
 const MODEL_SCALE := 2.0 # como os personagens: 1 pixel de arte vale 2 no tabuleiro
 const MODEL_NIGHT_LIFT := Color(1.3, 1.26, 1.05) # desfaz parte do tom de noite: janelas acesas continuam vivas
+# Construções grandes ficam transparentes quando escondem alguém atrás delas.
+const TALL_PROP_HEIGHT := 200.0 # altura no tabuleiro a partir da qual a arte conta como "grande" (herói ~170)
+const TALL_SEE_THROUGH := 0.4 # opacidade enquanto cobre alguém
+const TALL_FADE_SPEED := 10.0 # quão rápido some e volta
+const TALL_INSET := 0.12 # a arte tem margem transparente: ignora essa fração de cada lado
+const UNIT_BOX := Vector2(70, 160) # corpo de um personagem no tabuleiro, a partir dos pés
 # Chão natural das expedições: as casas continuam nas regras, mas não aparecem no desenho.
 const CORNER_WOBBLE := Vector2(38, 26) # quanto cada canto sai do lugar: some o desenho da colmeia
 const PROP_WOBBLE := Vector2(74, 50) # árvores e pedras fora do centro da casa
@@ -47,6 +53,7 @@ const AREA_DOT_RADIUS := Vector2(30, 22)
 var battle: BattleView # a tela dona deste módulo
 var area_key := "" # qual área de lanterna está desenhada no chão
 var area_marks := {} # casa: marca da borda da área
+var used_art := {} # caminho da imagem: retângulo sem a margem transparente
 
 
 func _init(host: Node) -> void:
@@ -579,6 +586,7 @@ func _model_prop(prop: Dictionary, cell: Vector2i) -> Sprite2D:
 	sprite.self_modulate = MODEL_NIGHT_LIFT
 	battle.models[sprite] = {"views": int(info["views"]), "turn": float(prop.get("turn", 0.0))}
 	_set_model_frame(sprite)
+	_mark_if_tall(sprite, foot)
 	return sprite
 
 
@@ -612,7 +620,77 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	battle.board.add_child(sprite)
 	battle.building.append(sprite)
 	battle.battle_camera.add_billboard(sprite, foot, battle._cell_elevation(cell))
+	_mark_if_tall(sprite, foot)
 	return sprite
+
+
+func _mark_if_tall(sprite: Sprite2D, foot: Vector2) -> void:
+	if _art_rect(sprite).size.y * sprite.scale.y >= TALL_PROP_HEIGHT:
+		battle.tall_props[sprite] = foot
+
+
+## Parte desenhada da arte, sem a margem transparente (as imagens soltas têm muita sobra
+## em volta, porque o pé fica no centro). Folhas de vários quadros usam o quadro inteiro.
+func _art_rect(sprite: Sprite2D) -> Rect2:
+	var frame := sprite.get_rect()
+	if sprite.hframes > 1 or sprite.vframes > 1:
+		return frame
+	var path := sprite.texture.resource_path
+	if not used_art.has(path):
+		var image := sprite.texture.get_image()
+		if image == null:
+			used_art[path] = Rect2(Vector2.ZERO, frame.size)
+		else:
+			if image.is_compressed():
+				image.decompress()
+			used_art[path] = Rect2(image.get_used_rect())
+	var used: Rect2 = used_art[path]
+	if sprite.flip_h:
+		used.position.x = frame.size.x - used.end.x
+	return Rect2(frame.position + used.position, used.size)
+
+
+## Cada quadro: construção grande que cobre um personagem atrás dela fica meio transparente.
+## A conta é feita na tela, já com giro, perspectiva e zoom, então vale para qualquer ângulo.
+func _fade_tall_props(delta: float) -> void:
+	if battle.tall_props.is_empty():
+		return
+	var cam = battle.battle_camera
+	var to_global: Transform2D = battle.board.global_transform
+	var bodies := []
+	for unit in battle.views:
+		var view = battle.views[unit]
+		if not is_instance_valid(view) or not view.visible or not unit.alive():
+			continue
+		var feet: Vector2 = to_global * view.position
+		var height: float = cam.elevation_of(view)
+		var size: Vector2 = UNIT_BOX * to_global.get_scale() * cam.depth_at(feet, height)
+		var spot: Vector2 = cam.project(feet, height)
+		bodies.append({"z": view.z_index, "rect": Rect2(spot - Vector2(size.x / 2.0, size.y), size)})
+	var blend := 1.0 - exp(-delta * TALL_FADE_SPEED)
+	for sprite in battle.tall_props.keys():
+		if not is_instance_valid(sprite):
+			battle.tall_props.erase(sprite)
+			continue
+		var goal := 1.0
+		if not bodies.is_empty():
+			var area := _screen_rect(sprite, battle.tall_props[sprite], to_global)
+			for body in bodies:
+				if body["z"] < sprite.z_index and area.intersects(body["rect"]):
+					goal = TALL_SEE_THROUGH
+					break
+		sprite.modulate.a = lerpf(sprite.modulate.a, goal, blend)
+
+
+## Retângulo da arte na tela: o pé vai para onde a câmera projeta e o resto escala com a profundidade.
+func _screen_rect(sprite: Sprite2D, foot: Vector2, to_global: Transform2D) -> Rect2:
+	var cam = battle.battle_camera
+	var anchor: Vector2 = to_global * (sprite.position + foot)
+	var height: float = cam.elevation_of(sprite)
+	var depth: float = cam.depth_at(anchor, height)
+	var drawn: Rect2 = sprite.get_global_transform() * _art_rect(sprite)
+	var area := Rect2(cam.project(anchor, height) + (drawn.position - anchor) * depth, drawn.size * depth)
+	return area.grow_individual(-area.size.x * TALL_INSET, -area.size.y * TALL_INSET, -area.size.x * TALL_INSET, 0.0)
 
 
 ## Farol e locais especiais ficam no centro da casa: é onde o jogador espera clicar.

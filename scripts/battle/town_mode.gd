@@ -7,6 +7,8 @@ const TownProgress = preload("res://scripts/town_progress.gd")
 const TownPanels = preload("res://scripts/town_panels.gd")
 const TownLife = preload("res://scripts/town_life.gd")
 const TownData = preload("res://scripts/town_data.gd")
+const TownCrew = preload("res://scripts/battle/town_crew.gd")
+const SPOT_META := "town_spot" # onde o líder estava quando a party mudou: a cidade volta ali
 
 var battle: BattleView # a tela dona deste módulo
 
@@ -25,14 +27,48 @@ func _setup_town() -> void:
 	battle.town_panels = TownPanels.new()
 	battle.town_panels.z_index = battle.TOWN_PANELS_LAYER # por cima das linhas do topo, criadas depois
 	battle.hud.add_child(battle.town_panels)
-	battle.town_panels.setup(_party_types())
+	battle.town_panels.setup(_party_types(), not battle.online_session.playing)
 	battle.town_panels.depart.connect(_depart)
+	battle.town_panels.party_changed.connect(_change_party)
 	battle.town_panels.skills_requested.connect(func(): battle.get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
 	battle.town_panels.menu_requested.connect(battle._back_to_menu)
 	battle.town_panels.changed.connect(_town_changed)
 	battle.town_life = TownLife.new()
 	battle.add_child(battle.town_life)
 	battle.town_life.setup(battle)
+
+
+## Solo: só o líder anda com o jogador; os outros ficam pela cidade (battle/town_crew.gd).
+func _start_crew() -> void:
+	if battle.online_session.playing:
+		return
+	battle.together = false
+	if battle.hud.together_button != null:
+		battle.hud.together_button.visible = false
+	battle.town_crew = TownCrew.new(battle)
+	battle.town_crew.setup()
+
+
+## A party mudou na janela: a cidade é refeita com ela, com o novo líder onde o antigo estava.
+func _change_party(party_types: Array) -> void:
+	if battle.online_session.playing or party_types.is_empty():
+		return
+	var root := battle.get_tree().root
+	var leader = battle.town_crew.leader() if battle.town_crew != null else battle.selected
+	if leader != null:
+		root.set_meta(SPOT_META, leader.pos)
+	root.set_meta(battle.WORLD_META, party_types)
+	_set_return_to_town()
+	battle._start_battle()
+	battle.hud.show_banner("%s lidera a party" % battle.state.party[0].display_name, battle.LEVEL_INK)
+
+
+## Chamado logo depois de criar a cidade: volta o líder para onde ele estava.
+func _restore_spot() -> void:
+	var root := battle.get_tree().root
+	if root.has_meta(SPOT_META):
+		battle.state.place_party_at(root.get_meta(SPOT_META))
+		root.remove_meta(SPOT_META)
 
 
 func _town_changed() -> void:

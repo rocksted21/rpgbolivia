@@ -159,12 +159,13 @@ func _run() -> void:
 	quit(1 if failed else 0)
 
 
-## O giro é livre: cliques certos e ninguém fora do lugar em qualquer ângulo.
+## Giro em passos fixos (e qualquer ângulo por código): cliques certos e ninguém fora do lugar em qualquer ângulo.
 func _test_rotation(state) -> void:
 	var hero = view._actor()
 	var positions: Array = state.party.map(func(u): return u.pos)
 	var angles := [0.0, 0.4, 1.05, 2.1, PI, 4.2, 5.6]
 	for angle in angles:
+		view.view_target = angle # sem isso o giro em passos puxaria de volta
 		view._set_view_angle(angle)
 		view.map_refresh = 0.0
 		view._sync_world(view.camera_cell)
@@ -181,30 +182,33 @@ func _test_rotation(state) -> void:
 	view._set_view_angle(0.0)
 	view._sync_world(view.camera_cell)
 	_expect(state.party.map(func(u): return u.pos) == positions, "girar não move ninguém")
-	# Segurar gira aos poucos; soltar freia sem salto e para onde estiver.
+	# Q/E gira um passo fixo: desliza sem salto e para exatamente no ângulo do passo.
+	view.view_target = 0.0
 	view.turn_hold = 1
+	await process_frame
+	await process_frame # process_frame sai antes do _process: espera um quadro inteiro
+	view.turn_hold = 0
 	var last: float = view.view_angle
 	var largest := 0.0
-	var moved := 0.0
-	for i in 40:
+	for i in 90:
 		await process_frame
 		var step := angle_difference(last, view.view_angle)
 		largest = maxf(largest, absf(step))
-		moved += step
 		last = view.view_angle
-	_expect(moved > 0.0, "segurar gira a câmera")
-	_expect(largest < 0.3, "o giro não dá saltos (%.3f)" % largest)
-	view.turn_hold = 0
-	var coasting := 0
-	while view.turn_speed != 0.0 and coasting < 600:
-		await process_frame
-		coasting += 1
-	_expect(view.turn_speed == 0.0, "o giro para ao soltar")
+	_expect(largest < 0.5, "o giro não dá saltos (%.3f)" % largest) # bem menos que um passo (1,57), mesmo com fps baixo
+	_expect(is_equal_approx(view.view_angle, view.TURN_STEP), "para no ângulo do passo (%.3f)" % view.view_angle)
 	var stopped: float = view.view_angle
 	for i in 10:
 		await process_frame
-	_expect(view.view_angle == stopped, "fica parado no ângulo em que soltou")
+	_expect(view.view_angle == stopped, "fica parado no ângulo do passo")
+	# Arrastar pouco não gira; arrastar o bastante gira um passo.
+	view.drag_turn(view.TURN_STEP * 0.1)
+	_expect(is_equal_approx(view.view_target, view.TURN_STEP), "arrasto curto não gira")
+	view.drag_turn(view.TURN_STEP * 0.3)
+	_expect(is_equal_approx(view.view_target, view.TURN_STEP * 2.0), "arrasto longo gira um passo")
+	view.view_target = 0.0
 	# Andar com a câmera girada.
+	view.view_target = 1.0
 	view._set_view_angle(1.0)
 	view._sync_world(view.camera_cell)
 	var goal = _roam_goal(state, 3)
@@ -214,6 +218,7 @@ func _test_rotation(state) -> void:
 		await _idle()
 		_expect(hero.pos != at or state.in_combat(), "herói anda com a câmera girada")
 		await _shot("2_andou_girado")
+	view.view_target = 0.0
 	view._set_view_angle(0.0)
 	view._sync_world(view.camera_cell)
 

@@ -1,6 +1,10 @@
 extends RefCounted
 
 ## Barra da party, embaixo: vida de cada herói, seleção, fila/separados e encerrar turno.
+## Cada herói é um medalhão de latão com o retrato, numa placa vinho (scripts/hud/brass.gd).
+
+const Brass = preload("res://scripts/hud/brass.gd")
+const MEDAL := 66.0 # diâmetro do retrato
 
 
 const XP_COLOR := Color(0.55, 0.9, 1.0)
@@ -34,18 +38,26 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		hud.party_row.add_child(panel)
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_constant_override("separation", 6)
 		panel.add_child(row)
+		var medal := PanelContainer.new()
+		medal.custom_minimum_size = Vector2(MEDAL, MEDAL)
+		medal.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		medal.clip_children = CanvasItem.CLIP_CHILDREN_AND_DRAW
+		medal.add_theme_stylebox_override("panel", Brass.medal(Brass.WINE_DEEP, Brass.BRASS_DIM, 3))
+		medal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(medal)
 		var portrait := TextureRect.new()
 		var atlas := AtlasTexture.new()
 		atlas.atlas = load("res://assets/units/%s.png" % unit.type_id)
-		atlas.region = Rect2(0, 0, hud.meta[unit.type_id]["cell_w"], hud.meta[unit.type_id]["cell_h"])
+		atlas.region = _bust(atlas.atlas, Rect2(0, 0, hud.meta[unit.type_id]["cell_w"], hud.meta[unit.type_id]["cell_h"]))
 		portrait.texture = atlas
 		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		portrait.custom_minimum_size = Vector2(60, 60)
+		portrait.custom_minimum_size = Vector2(MEDAL, MEDAL)
 		portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(portrait)
+		medal.add_child(portrait)
 		var column := VBoxContainer.new()
 		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		column.add_theme_constant_override("separation", 2)
@@ -58,13 +70,13 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		top.add_theme_constant_override("separation", 6)
 		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		column.add_child(top)
-		var name_label := hud._title(title, 20, Color.WHITE)
+		var name_label := Brass.label(title, 14, Brass.TEXT_LIT, 700)
 		name_label.clip_text = true
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		top.add_child(name_label)
-		var level := hud._title("", 17, hud.MENU_INK)
+		var level := Brass.label("", 13, Brass.WINE_DEEP, 700)
 		var level_box := PanelContainer.new()
-		var level_style := hud._box(hud.PANEL_EDGE, hud.PANEL_EDGE, 0, 8, 0)
+		var level_style := Brass.panel(Brass.BRASS, Brass.BRASS, 0, 4, 0, 0)
 		level_style.content_margin_left = 6
 		level_style.content_margin_right = 6
 		level_box.add_theme_stylebox_override("panel", level_style)
@@ -73,25 +85,25 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		level_box.add_child(level)
 		top.add_child(level_box)
 		var back := ColorRect.new()
-		back.color = Color(0, 0, 0, 0.7)
-		back.custom_minimum_size = Vector2(150, 12)
+		back.color = Brass.WINE_DEEP
+		back.custom_minimum_size = Vector2(150, 10)
 		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		column.add_child(back)
 		var fill := ColorRect.new()
 		fill.color = hud.PLAYER_COLOR
-		fill.size = Vector2(150, 12)
+		fill.size = Vector2(150, 10)
 		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		back.add_child(fill)
 		var middle := HBoxContainer.new()
 		middle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		column.add_child(middle)
-		var status := hud._title("", 17, Color(0.85, 0.87, 0.92))
+		var status := Brass.label("", 13, Brass.MUTED)
 		status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		middle.add_child(status)
 		# Pontos para gastar: selo dourado piscando. A árvore abre pelo LEVEL UP em cima da carta.
-		var points := hud._title("", 17, hud.MENU_INK)
+		var points := Brass.label("", 13, Brass.WINE_DEEP, 700)
 		var points_box := PanelContainer.new()
-		var points_style := hud._box(Color(1.0, 0.8, 0.25), Color.WHITE, 2, 8, 0)
+		var points_style := Brass.panel(Brass.FLAME, Brass.TEXT_LIT, 1, 8, 0, 0)
 		points_style.content_margin_left = 6
 		points_style.content_margin_right = 6
 		points_box.add_theme_stylebox_override("panel", points_style)
@@ -103,7 +115,7 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		pulse.tween_property(points_box, "modulate", Color(1.4, 1.3, 1.0), 0.45)
 		pulse.tween_property(points_box, "modulate", Color.WHITE, 0.45)
 		var xp_back := ColorRect.new()
-		xp_back.color = Color(0, 0, 0, 0.7)
+		xp_back.color = Brass.WINE_DEEP
 		xp_back.custom_minimum_size = Vector2(150, 6)
 		xp_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		xp_back.visible = false
@@ -114,7 +126,7 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		xp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		xp_back.add_child(xp_fill)
 		var level_up := _level_up_badge(unit, index)
-		hud.party_cards[unit] = {"panel": panel, "fill": fill, "status": status, "level": level, "xp": xp_fill, "points": points, "name": name_label, "level_up": level_up}
+		hud.party_cards[unit] = {"panel": panel, "medal": medal, "fill": fill, "status": status, "level": level, "xp": xp_fill, "points": points, "name": name_label, "level_up": level_up}
 	# Coluna da direita: girar, aproximar, girar, fila. No celular, dois dedos também giram
 	# (torcendo) e aproximam (abrindo); no teclado, Q/E, Z e G.
 	var rotate_left := hud._icon_button("turn_left")
@@ -137,6 +149,16 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 	hud.dock.move_child(hud.together_button, 3)
 
 
+## Só a cabeça e o peito do primeiro quadro, para o retrato encher o medalhão.
+func _bust(sheet: Texture2D, cell: Rect2) -> Rect2:
+	var used := sheet.get_image().get_region(Rect2i(cell)).get_used_rect()
+	if used.size.x <= 0:
+		return cell
+	var side := mini(used.size.x, roundi(used.size.y * 0.62))
+	var center_x := used.position.x + used.size.x / 2
+	return Rect2(cell.position + Vector2(center_x - side / 2, used.position.y), Vector2(side, side))
+
+
 ## Selo amarelo "LEVEL UP" em cima da carta do herói: aparece com pontos para gastar e
 ## é o único jeito de abrir a árvore pela party (tocar na carta só seleciona o herói).
 func _level_up_badge(unit, index: int) -> Button:
@@ -145,12 +167,8 @@ func _level_up_badge(unit, index: int) -> Button:
 	badge.focus_mode = Control.FOCUS_NONE
 	badge.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	badge.tooltip_text = "Abrir a árvore de talentos"
-	badge.add_theme_font_size_override("font_size", 18)
-	for color in ["font_color", "font_hover_color", "font_pressed_color"]:
-		badge.add_theme_color_override(color, hud.MENU_INK)
-	badge.add_theme_stylebox_override("normal", hud._box(LEVEL_UP_FILL, Color.WHITE, 2, 10, 4))
-	badge.add_theme_stylebox_override("hover", hud._box(LEVEL_UP_FILL.lightened(0.25), Color.WHITE, 2, 10, 4))
-	badge.add_theme_stylebox_override("pressed", hud._box(LEVEL_UP_FILL.darkened(0.15), Color.WHITE, 2, 10, 4))
+	Brass.style_button(badge, true)
+	badge.add_theme_font_size_override("font_size", 15)
 	badge.custom_minimum_size = LEVEL_UP_SIZE
 	badge.size = LEVEL_UP_SIZE
 	# As cartas têm tamanho fixo: o selo fica centrado em cima da carta `index`.
@@ -181,7 +199,9 @@ func _corner_button(text: String, at: Vector2, width: float) -> Button:
 	var button := Button.new()
 	button.text = text
 	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_size_override("font_size", 22)
+	button.add_theme_font_size_override("font_size", 18)
+	Brass.style_button(button)
+	button.add_theme_stylebox_override("normal", Brass.panel(Brass.WINE, Brass.BRASS, 2, 4, 8))
 	button.position = at
 	button.custom_minimum_size = Vector2(width, 56)
 	hud.sound_manager.bind_button(button, &"switch1")
@@ -204,5 +224,8 @@ func update_party(current) -> void:
 		card.fill.size.x = 150.0 * clampf(float(unit.hp) / unit.max_hp, 0.0, 1.0)
 		card.status.text = "%d/%d" % [unit.hp, unit.max_hp] if unit.alive() else "caído"
 		card.panel.modulate.a = 1.0 if unit.alive() else 0.5
-		var border := hud.ACTIVE_COLOR if unit == current else Color(0.3, 0.33, 0.4)
-		card.panel.add_theme_stylebox_override("panel", hud._box(Color(0.1, 0.11, 0.14, 0.92), border, 3 if unit == current else 1, 8, 6))
+		var chosen: bool = unit == current
+		var plate := Brass.panel(Color(Brass.WINE, 0.94), Brass.GOLD if chosen else Brass.BRASS_DIM, 2, 4, 4)
+		plate.content_margin_left = 6
+		card.panel.add_theme_stylebox_override("panel", plate)
+		card.medal.add_theme_stylebox_override("panel", Brass.medal(Brass.WINE_DEEP, Brass.GOLD if chosen else Brass.BRASS_DIM, 3))

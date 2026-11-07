@@ -288,7 +288,7 @@ func _put_party_near(state, cell: Vector2i) -> void:
 
 func _test_volume() -> void:
 	var hud = view.hud
-	_expect(hud.options_button.text == "Opções", "o canto mostra o botão de opções")
+	_expect(hud.options_button.tooltip_text.begins_with("Diário"), "o canto mostra o botão do Diário")
 	_expect(not hud.options_open(), "o menu começa fechado")
 	hud.options_button.pressed.emit()
 	_expect(hud.options_open() and paused, "o botão abre o menu e pausa o jogo")
@@ -305,8 +305,8 @@ func _test_volume() -> void:
 	_expect(AudioServer.is_bus_mute(0) and hud.volume_label.text == "Volume: sem som", "silenciar funciona")
 	hud.volume_slider.value = 60
 	_expect(not AudioServer.is_bus_mute(0), "mexer no volume tira do silêncio")
-	for child in hud.options_panel.get_child(0).get_children():
-		if child is Button and child.text == "Sair do jogo":
+	for child in hud.options_panel.find_children("*", "Button", true, false):
+		if child.text == "Menu principal":
 			child.pressed.emit()
 	_expect(hud.quit_panel.visible and not hud.options_panel.visible, "sair pede confirmação")
 	await _wait_frames(3)

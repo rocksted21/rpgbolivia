@@ -44,7 +44,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# Arrastar com o botão do meio gira a câmera, inclusive na vez dos inimigos.
 	if battle.exploring and event is InputEventMouseMotion and event.button_mask & MOUSE_BUTTON_MASK_MIDDLE:
-		battle._set_view_angle(battle.view_angle + event.relative.x * TURN_DRAG)
+		battle.drag_turn(event.relative.x * TURN_DRAG)
 		return
 	# Com zoom, arrastar a partir de uma casa sem inimigo move a câmera (mouse e um dedo).
 	if event is InputEventMouseMotion and battle.pressing and battle.drag_ok and battle.gesture.is_empty():
@@ -81,7 +81,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				battle.roam_ctl._stop_selected()
 		elif battle._free_roam() and event.keycode == KEY_TAB:
 			_select_next()
-		elif battle._free_roam() and event.keycode == KEY_G:
+		elif battle._free_roam() and event.keycode == KEY_G and battle.town_crew == null:
 			battle.hud.set_together(not battle.together)
 		elif event.keycode == KEY_SPACE:
 			_end_turn()
@@ -115,7 +115,7 @@ func _handle_touch(event: InputEvent) -> void:
 	if battle.exploring and (battle.gesture["turning"] or absf(twist) > TWIST_START):
 		battle.gesture["turning"] = true
 		battle.gesture["angle"] = angle
-		battle._set_view_angle(battle.view_angle + twist)
+		battle.drag_turn(twist)
 	if not battle.gesture["pinched"]:
 		var ratio: float = points[0].distance_to(points[1]) / battle.gesture["distance"]
 		if ratio > PINCH_IN or ratio < 1.0 / PINCH_IN:
@@ -271,6 +271,8 @@ func _click(cell: Vector2i) -> void:
 		var occupant = battle.state.unit_at(cell)
 		if occupant == null:
 			battle.roam_ctl._travel(cell)
+		elif battle.town_crew != null and battle.town_crew.is_mate(occupant):
+			battle.town_crew.poke(occupant) # na cidade só o líder anda com o jogador
 		elif battle.state.is_hero(occupant) and battle.online_session.can_control(occupant) and occupant != battle.selected:
 			_select(occupant)
 		else:
@@ -503,6 +505,8 @@ func _select(unit) -> void:
 
 
 func _select_next() -> void:
+	if battle.town_crew != null: # na cidade só o líder anda com o jogador
+		return
 	var mine: Array = battle.state.alive_party().filter(func(u): return battle.online_session.can_control(u))
 	if mine.size() > 1:
 		_select(mine[(mine.find(battle.selected) + 1) % mine.size()])
@@ -511,6 +515,9 @@ func _select_next() -> void:
 ## Carta da party: só seleciona o herói (a árvore abre pelo selo LEVEL UP em cima dela).
 ## Solo, em combate: o herói longe da luta anda livre; o da luta volta para a vez dela.
 func _on_party_pick(unit) -> void:
+	if battle.town_crew != null and battle.town_crew.is_mate(unit):
+		battle.town_crew.poke(unit) # na cidade o companheiro só conta o que está fazendo
+		return
 	var solo_fight: bool = battle.exploring and not battle.online_session.playing and battle.state.in_combat() and battle.state.split_fights
 	var roamer: bool = solo_fight and battle.state.is_hero(unit) and not battle.state.is_fighting(unit)
 	if unit.alive() and battle.online_session.can_control(unit) and (battle._free_roam() or roamer):
