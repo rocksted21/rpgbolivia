@@ -447,7 +447,7 @@ func test_boss() -> void:
 	var total: int = state.brasas
 	state._apply_damage(state.boss, 99999, [], {})
 	check(state.winner() == Data.Team.PLAYER, "derrotar o guardião vence a expedição")
-	check(state.brasas == total + Exp.BOSS["brasas"], "o guardião dá brasas")
+	check(state.brasas == total + Exp.BOSS["brasas"] + Exp.DARK_BRASAS * state.dark_lanterns(), "o guardião dá brasas")
 	check(state.result()["won"], "o resultado registra a vitória")
 	var lost = _new(14)
 	lost.brasas = 11

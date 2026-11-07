@@ -27,7 +27,31 @@ const LANDMARKS := {
 	"memoria": {"label": "Memória", "count": 2, "color": Color("d6a6ff"), "xp": 30},
 	# hidden: quantos deles não têm trilha nem aparecem na bússola, para quem sair do caminho.
 	"bau": {"label": "Baú", "count": 6, "hidden": 2, "color": Color("f5b52e"), "brasas": 7, "xp": 5, "potion_chance": 0.35},
+	# count 0: as lanternas têm regras próprias (LANTERNS) e nascem antes dos outros locais.
+	"lanterna": {"label": "Lanterna", "count": 0, "color": Color("ffd36b")},
 }
+
+# Lanternas (ver docs/MAPA_LANTERNAS.md): uma corrente até o farol. Cada uma tem uma elite
+# de guarda; acender uma revela a área da próxima, e a terceira revela o farol.
+const LANTERNS := [
+	{"min": 14, "max": 18, "elite": "mumia", "hp": 1.8, "atk": 1.10, "escort": 1, "brasas": 10, "xp": 40},
+	{"min": 26, "max": 30, "elite": "feiticeira", "hp": 2.2, "atk": 1.15, "escort": 2, "brasas": 14, "xp": 60},
+	{"min": 36, "max": 40, "elite": "cerbero", "hp": 2.8, "atk": 1.20, "escort": 3, "brasas": 18, "xp": 80},
+]
+const LANTERN_GAP := 18 # cada lanterna fica longe da anterior: o caminho vira zigue-zague
+const LANTERN_BEACON_GAP := 12 # a última não fica colada no farol
+const LANTERN_GAP_MAX := 26 # ...mas não tão longe que vire uma caminhada sem fim
+const LANTERN_BEACON_MAX := 24
+const LANTERN_AREA := 6 # a bússola mostra só uma área em volta da lanterna
+const LANTERN_AREA_FAR := 3 # com a Cartógrafa ou o Mapa Rasgado, a área é mais precisa
+const LANTERN_EXACT := 2 # chegando perto, a lanterna (ou o farol) aparece exata
+const LANTERN_LIGHT := 10 # lanterna acesa ilumina em volta: os locais perto entram na bússola
+const LANTERN_HEAL := 0.3
+const ELITE_NAME := "Sentinela da Lanterna"
+# Cada lanterna apagada deixa o guardião mais forte; vencê-lo assim rende brasas a mais.
+const DARK_HP := 0.2
+const DARK_ATK := 0.08
+const DARK_BRASAS := 5
 
 const BOSS := {
 	"type": "mumia",

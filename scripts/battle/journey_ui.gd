@@ -14,7 +14,7 @@ const HeroProgress = preload("res://scripts/hero_progress.gd")
 const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
 const DANGER_HOT := Color(1.0, 0.42, 0.32)
 const CAMP_ICONS := {"camp": "tent", "garden": "ruin", "shrine": "candle", "crossing": "house"}
-const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest"}
+const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest", "lanterna": "candle"}
 const DANGER_CALM := Color(0.62, 0.9, 0.55)
 
 var battle: BattleView # a tela dona deste módulo
@@ -100,15 +100,25 @@ func _level_info() -> Dictionary:
 	return {"level": battle.state.level, "fraction": float(battle.state.xp - floor_xp) / span, "note": "faltam %d XP" % left}
 
 
-## Farol e o local aberto mais perto, no radar: só o ícone e a direção, já girada com a câmera.
+## Farol, a próxima lanterna e o local aberto mais perto, no radar: só o ícone e a direção,
+## já girada com a câmera. O farol só aparece depois da última lanterna (ou se a party o achou).
 func _compass_chips() -> Array:
-	var chips := [_compass("Farol", battle.state.beacon_cell, "lighthouse", battle.BEACON_COLOR)]
+	var chips := []
+	if battle.state.beacon_known():
+		chips.append(_compass("Farol", battle.state.beacon_cell, "lighthouse", battle.BEACON_COLOR))
+	var lantern: Variant = battle.state.next_lantern()
+	if lantern != null:
+		var target: Dictionary = battle.state.lantern_target(lantern)
+		var label: String = battle.state.landmark_label(lantern)
+		if target["radius"] > 0:
+			label += " (área)"
+		chips.append(_compass(label, target["cell"], LANDMARK_ICONS["lanterna"], Exp.LANDMARKS["lanterna"]["color"]))
 	var open: Array = battle.state.open_landmarks(battle.camera_cell)
 	var fort = battle.state.fort
 	if not fort.cells.is_empty() and battle.state.landmarks[fort.center]["state"] != "done":
 		chips.append(_compass("Forte da Vigília", fort.center, "shield", Exp.LANDMARKS["forte"]["color"]))
 		open.erase(fort.center)
-	if not open.is_empty() and (battle.state.far_compass or Hex.distance(open[0], battle.camera_cell) <= Exp.COMPASS_RADIUS):
+	if not open.is_empty() and (battle.state.far_compass or Hex.distance(open[0], battle.camera_cell) <= Exp.COMPASS_RADIUS or battle.state.lit_near(open[0])):
 		var cell: Vector2i = open[0]
 		var icon := "tent"
 		var color := Color(0.85, 0.7, 0.5)
@@ -137,6 +147,9 @@ func _quest_tracker() -> String:
 	var fort = battle.state.fort
 	if not fort.cells.is_empty() and battle.state.landmarks[fort.center]["state"] != "done":
 		return "Escudo vermelho · Domine o Forte da Vigília"
+	var lantern: Variant = battle.state.next_lantern()
+	if lantern != null:
+		return "Objetivo: acenda a lanterna %d de %d" % [battle.state.landmarks[lantern]["order"] + 1, Exp.LANTERNS.size()]
 	return "Objetivo: %s" % TownContent.EXPEDITION_GOAL
 
 

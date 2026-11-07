@@ -36,7 +36,7 @@ var xp_pct := 0 # Arquivo: experiência a mais, em %
 var potion_pct := 0 # Laboratório: cura a mais das poções, em %
 var brasa_pct := 0 # Destilaria do Laboratório: brasas a mais, em %
 var items := []
-var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0, "chests": 0}
+var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0, "chests": 0, "lanterns": 0}
 var town_setup := {} # o que a cidade deu à party; o save refaz a expedição com ele
 var biome := "" # a expedição inteira acontece neste bioma (town["biome"], ou sorteado pela semente)
 
@@ -131,6 +131,8 @@ func tile_name_at(cell: Vector2i) -> String:
 	if cell == beacon_cell:
 		return "Farol"
 	if landmarks.has(cell):
+		if landmarks[cell]["kind"] == "lanterna":
+			return "Lanterna acesa" if landmarks[cell]["state"] == "done" else "Lanterna apagada"
 		return Exp.LANDMARKS[landmarks[cell]["kind"]]["label"]
 	return super(cell)
 
@@ -150,6 +152,7 @@ func _place_landmarks() -> void:
 	order.sort()
 	_shuffle(order)
 	var placed: Array = [beacon_cell]
+	_place_lanterns(candidates, reachable, placed)
 	var turn := 0
 	for kind in Exp.LANDMARKS:
 		var data: Dictionary = Exp.LANDMARKS[kind]
@@ -174,6 +177,136 @@ func _place_landmarks() -> void:
 				landmarks[cell]["resident"] = _next_resident()
 				terrain_override[cell] = Exp.TERRAIN_VILLAGE
 	_carve_trails()
+
+
+## As três lanternas, em faixas de distância do início e longe umas das outras (zigue-zague).
+## Se o mapa não deixa, a exigência afrouxa aos poucos, mas nunca abaixo do espaço normal entre locais.
+func _place_lanterns(candidates: Array, reachable: Dictionary, placed: Array) -> void:
+	var previous := start_cell
+	for order in Exp.LANTERNS.size():
+		var info: Dictionary = Exp.LANTERNS[order]
+		var last: bool = order == Exp.LANTERNS.size() - 1
+		var cell: Variant = null
+		for widen in [0, 3, 6]:
+			var pool: Array = candidates.filter(func(p):
+				var distance := Hex.distance(p, start_cell)
+				return (distance >= info["min"] - widen and distance <= info["max"] + widen
+					and layout.zone_at(p) >= 0 and not gen.is_path(p)
+					and Hex.neighbors(p).filter(func(next): return reachable.has(next)).size() >= Exp.BEACON_MIN_EXITS))
+			_shuffle(pool)
+			for gap in [Exp.LANTERN_GAP, 14, Exp.LANDMARK_SPACING]:
+				var best := 999999 # quanto passa do longe ideal: 0 é perfeito
+				for p in pool:
+					var step := Hex.distance(p, previous)
+					var to_beacon := Hex.distance(p, beacon_cell)
+					if step < gap or (last and to_beacon < mini(gap, Exp.LANTERN_BEACON_GAP)):
+						continue
+					if not placed.all(func(other): return Hex.distance(p, other) >= Exp.LANDMARK_SPACING):
+						continue
+					var excess := maxi(0, step - Exp.LANTERN_GAP_MAX)
+					if last:
+						excess += maxi(0, to_beacon - Exp.LANTERN_BEACON_MAX)
+					if excess < best:
+						best = excess
+						cell = p
+					if best == 0:
+						break
+				if cell != null:
+					break
+			if cell != null:
+				break
+		if cell == null:
+			continue
+		placed.append(cell)
+		landmarks[cell] = {"kind": "lanterna", "state": "idle", "guards": [], "hidden": false,
+			"order": order, "hint": _lantern_hint(cell, order), "found": false}
+		previous = cell
+	landmarks[beacon_cell]["found"] = false
+
+
+## Centro da área que a bússola mostra: perto da lanterna, mas não em cima dela.
+## Dado próprio, para a Cartógrafa não mudar o resto do mapa da semente.
+func _lantern_hint(cell: Vector2i, order: int) -> Vector2i:
+	var dice := RandomNumberGenerator.new()
+	dice.seed = gen.world_seed * 31 + order * 7 + 5
+	var radius: int = Exp.LANTERN_AREA_FAR if far_compass else Exp.LANTERN_AREA
+	var ring: Array = area_of(cell, radius).filter(func(p): return Hex.distance(p, cell) * 2 >= radius)
+	ring.sort()
+	return ring[dice.randi_range(0, ring.size() - 1)] if not ring.is_empty() else cell
+
+
+# --- Lanternas -----------------------------------------------------------------
+
+## Lanternas do mapa, na ordem da corrente.
+func lantern_cells() -> Array:
+	var cells: Array = landmarks.keys().filter(func(cell): return landmarks[cell]["kind"] == "lanterna")
+	cells.sort_custom(func(a, b): return landmarks[a]["order"] < landmarks[b]["order"])
+	return cells
+
+
+func lanterns_lit() -> int:
+	return lantern_cells().filter(func(cell): return landmarks[cell]["state"] == "done").size()
+
+
+## A próxima lanterna da corrente (a de menor ordem ainda apagada); null se todas acesas.
+func next_lantern() -> Variant:
+	for cell in lantern_cells():
+		if landmarks[cell]["state"] != "done":
+			return cell
+	return null
+
+
+## A bússola só mostra o farol depois da última lanterna, ou se a party já o achou explorando.
+## Saves de antes das lanternas não têm nenhuma: o farol aparece como antes.
+func beacon_known() -> bool:
+	return next_lantern() == null or landmarks[beacon_cell].get("found", true)
+
+
+## Onde a bússola aponta para a próxima lanterna e o tamanho da área (0 = exata).
+func lantern_target(cell: Vector2i) -> Dictionary:
+	var entry: Dictionary = landmarks[cell]
+	if entry.get("found", false):
+		return {"cell": cell, "radius": 0}
+	return {"cell": entry["hint"], "radius": Exp.LANTERN_AREA_FAR if far_compass else Exp.LANTERN_AREA}
+
+
+## Perto de uma lanterna acesa, os locais aparecem na bússola (até os baús escondidos).
+func lit_near(cell: Vector2i) -> bool:
+	return lantern_cells().any(func(lantern): return landmarks[lantern]["state"] == "done" and Hex.distance(lantern, cell) <= Exp.LANTERN_LIGHT)
+
+
+## Chegar perto revela a lanterna (ou o farol) exata, mesmo antes da hora.
+func _check_found() -> void:
+	var watch: Array = lantern_cells()
+	watch.append(beacon_cell)
+	for cell in watch:
+		var entry: Dictionary = landmarks[cell]
+		if not entry.get("found", true) and party_distance(cell) <= Exp.LANTERN_EXACT:
+			entry["found"] = true
+
+
+func _wake_lantern(cell: Vector2i, entry: Dictionary, events: Array) -> void:
+	var info: Dictionary = Exp.LANTERNS[entry["order"]]
+	var spots := _spots_around(cell, info["escort"] + 1)
+	if spots.is_empty():
+		return
+	var elite = _spawn_enemy(info["elite"], spots[0])
+	elite.display_name = Exp.ELITE_NAME
+	elite.max_hp = roundi(elite.max_hp * info["hp"])
+	elite.hp = elite.max_hp
+	elite.atk = roundi(elite.atk * info["atk"])
+	events.append({"type": "spawn", "unit": elite})
+	var guards := [elite]
+	var escort := _pack_types(spots.size() - 1)
+	for i in range(1, spots.size()):
+		var unit = _spawn_enemy(escort[i - 1], spots[i])
+		guards.append(unit)
+		events.append({"type": "spawn", "unit": unit})
+	entry["state"] = "fighting"
+	entry["guards"] = guards
+	var title := "Lanterna %d de %d" % [entry["order"] + 1, Exp.LANTERNS.size()]
+	events.append({"type": "landmark", "cell": cell, "title": title, "detail": "A %s guarda a chama. Derrote-a para acender a lanterna." % Exp.ELITE_NAME, "done": false, "color": Color(1.0, 0.45, 0.35)})
+	events.append_array(engage(guards, true))
 
 
 ## Casas livres para um local, separadas por zona e embaralhadas. Fora da estrada e longe do início.
@@ -323,7 +456,9 @@ func _shuffle(list: Array) -> void:
 
 ## Locais que ainda valem uma visita, do mais perto para o mais longe de `from`.
 func open_landmarks(from: Vector2i) -> Array:
-	var open: Array = landmarks.keys().filter(func(cell): return cell != beacon_cell and landmarks[cell]["state"] != "done" and (reveal_hidden or not landmarks[cell].get("hidden", false)))
+	# As lanternas têm a sua própria seta (lantern_target); o farol, a dele.
+	var open: Array = landmarks.keys().filter(func(cell): return (cell != beacon_cell and landmarks[cell]["kind"] != "lanterna"
+		and landmarks[cell]["state"] != "done" and (reveal_hidden or not landmarks[cell].get("hidden", false) or lit_near(cell))))
 	open.sort_custom(func(a, b): return Hex.distance(a, from) < Hex.distance(b, from))
 	return open
 
@@ -331,7 +466,16 @@ func open_landmarks(from: Vector2i) -> Array:
 func landmark_label(cell: Vector2i) -> String:
 	if camps.centers.has(cell):
 		return camps.label_at(cell)
-	return "Farol" if cell == beacon_cell else Exp.LANDMARKS[landmarks[cell]["kind"]]["label"]
+	if cell == beacon_cell:
+		return "Farol"
+	if landmarks[cell]["kind"] == "lanterna":
+		return "Lanterna %d" % (landmarks[cell]["order"] + 1)
+	return Exp.LANDMARKS[landmarks[cell]["kind"]]["label"]
+
+
+## Lanternas que ficaram apagadas: pesam na força do guardião e no prêmio dele.
+func dark_lanterns() -> int:
+	return lantern_cells().size() - lanterns_lit()
 
 
 func is_boss(unit) -> bool:
@@ -399,7 +543,7 @@ func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void
 	if target == boss:
 		defeated_boss = true
 		landmarks[beacon_cell]["state"] = "done"
-		brasas += Exp.BOSS["brasas"]
+		brasas += Exp.BOSS["brasas"] + Exp.DARK_BRASAS * dark_lanterns() # prêmio de quem foi sem acender
 		_gain_xp(Exp.BOSS["xp"], events)
 		return
 	_gain_xp(Exp.KILL_XP, events)
@@ -428,6 +572,7 @@ func tick() -> Array:
 	var events: Array = super()
 	if winner() >= 0:
 		return events
+	_check_found()
 	_check_fights(events)
 	if not in_combat():
 		_check_visits(events)
@@ -461,6 +606,8 @@ func _check_visits(events: Array) -> void:
 			_wake_beacon(cell, entry, events)
 		elif entry["kind"] == "forte":
 			_wake_fort(cell, entry, events)
+		elif entry["kind"] == "lanterna":
+			_wake_lantern(cell, entry, events)
 		elif Exp.LANDMARKS[entry["kind"]].has("guards"):
 			_wake_guards(cell, entry, Exp.LANDMARKS[entry["kind"]]["guards"], events)
 		else:
@@ -509,9 +656,10 @@ func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
 	var own_boss := boss_type != Exp.BOSS["type"]
 	boss = _spawn_enemy(boss_type, spots[0])
 	boss.display_name = Data.UNIT_TYPES[boss_type]["name"] if own_boss else Exp.BOSS["name"]
-	boss.max_hp = roundi(boss.max_hp * Exp.BOSS["hp_mult"])
+	var dark := dark_lanterns() # cada lanterna apagada deixa o guardião mais forte
+	boss.max_hp = roundi(boss.max_hp * Exp.BOSS["hp_mult"] * (1.0 + Exp.DARK_HP * dark))
 	boss.hp = boss.max_hp
-	boss.atk = roundi(boss.atk * Exp.BOSS["atk_mult"])
+	boss.atk = roundi(boss.atk * Exp.BOSS["atk_mult"] * (1.0 + Exp.DARK_ATK * dark))
 	boss.speed = Exp.BOSS["speed"]
 	boss.abilities = (Data.UNIT_TYPES[boss_type]["abilities"] if own_boss else Exp.BOSS["abilities"]).duplicate()
 	events.append({"type": "spawn", "unit": boss})
@@ -524,6 +672,8 @@ func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
 	entry["state"] = "fighting"
 	entry["guards"] = [boss]
 	var detail := "Derrote o guardião para acender o farol."
+	if dark > 0:
+		detail += "\n%d lanterna%s apagada%s: o guardião está mais forte." % [dark, "s" if dark > 1 else "", "s" if dark > 1 else ""]
 	if Exp.BOSS_LINES.has(boss_type):
 		detail = "%s\n%s" % [Exp.BOSS_LINES[boss_type], detail]
 	events.append({"type": "landmark", "cell": cell, "title": boss.display_name, "detail": detail, "done": false, "color": Color(1.0, 0.45, 0.35)})
@@ -556,6 +706,15 @@ func _complete(cell: Vector2i, events: Array) -> void:
 	var title: String = data["label"]
 	var detail := ""
 	match kind:
+		"lanterna":
+			var info: Dictionary = Exp.LANTERNS[entry["order"]]
+			tally["lanterns"] = tally.get("lanterns", 0) + 1
+			title = "Lanterna %d acesa" % (entry["order"] + 1)
+			detail = "A party recupera parte da vida. +%d brasas." % info["brasas"]
+			detail += "\nA próxima lanterna aparece na bússola." if next_lantern() != null else "\nO farol aparece na bússola."
+			brasas += info["brasas"]
+			_heal_party(Exp.LANTERN_HEAL, events)
+			_gain_xp(info["xp"], events)
 		"forte":
 			title = "Forte da Vigília dominado"
 			detail = "Cofre conquistado! +%d brasas e +%d XP." % [data["brasas"], data["xp"]]

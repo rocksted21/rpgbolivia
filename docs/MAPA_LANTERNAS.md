@@ -1,5 +1,7 @@
 # Lanternas do mapa
 
+**Status:** 10a implementada em 07/11/2026 (regras, save e `tests/test_lanterns.gd`). Falta a 10b (visual).
+
 Decidido em 06/11/2026. Primeiro item do "Pacote Vida" do mapa (Tarefa 10 do plano).
 
 ## Ideia
@@ -18,6 +20,7 @@ Dá objetivo à exploração e uma escada de dificuldade até o chefe.
 | Farol | 45 (`BEACON_DISTANCE`, como hoje) |
 
 - Cada lanterna fica a **pelo menos 18 casas da anterior** (força ir para outro lado e cruzar vilas e ruínas).
+- Mas de preferência **no máximo 26** da anterior, e a 3ª entre 12 e 24 casas do farol (para não virar uma caminhada sem fim). Mapas apertados afrouxam essas regras aos poucos, nunca abaixo de 9 casas.
 - Mesmas regras dos outros locais: alcançável, longe da borda, com espaço em volta para a luta (como `BEACON_MIN_EXITS`).
 
 ### 2. Revelação
