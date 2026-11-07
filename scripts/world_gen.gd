@@ -311,7 +311,7 @@ func _shape(cell: Vector2i, x: float, y: float, level: int, biome: Dictionary, r
 		return
 	var in_site := site_noise.get_noise_2d(x, y) > SITE_LIMIT
 	if in_site and roll > 1.0 - SITE_BUILDING:
-		spot["terrain"] = HOUSE if roll > 1.0 - SITE_BUILDING / 3.0 else TOWER
+		spot["terrain"] = MOUNTAIN # A arquitetura pertence aos locais com propósito.
 	elif roll < (SITE_DECOR if in_site else FIELD_DECOR):
 		spot["decor"] = true
 		spot["detail"] = roll / maxf(SITE_DECOR if in_site else FIELD_DECOR, 0.001) * DECOR_DETAIL * 0.99

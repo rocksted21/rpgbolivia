@@ -4,7 +4,13 @@ extends RefCounted
 
 const Skills = preload("res://scripts/skill_data.gd")
 
-static var path := "user://progress.cfg"
+const OWN_PATH := "user://progress.cfg"
+## Online, quem entra na sala de outro joga com o progresso do mundo dele: uma cópia à parte,
+## para o save próprio não mudar.
+const GUEST_PATH := "user://progress_sala.cfg"
+
+static var path := OWN_PATH
+static var own_path := OWN_PATH # o save de antes de entrar na sala (os testes usam outro)
 
 
 static func _load() -> ConfigFile:
@@ -100,6 +106,40 @@ static func all_builds() -> Dictionary:
 	for type_id in Skills.hero_types():
 		out[type_id] = unlocked(type_id)
 	return out
+
+
+## Todo o progresso, como o dono da sala manda: {tipo do herói: {xp, earned, unlocked}}.
+static func export_all() -> Dictionary:
+	var out := {}
+	for type_id in Skills.hero_types():
+		out[type_id] = {xp = xp(type_id), earned = earned(type_id), unlocked = unlocked(type_id)}
+	return out
+
+
+## Quem entrou na sala passa a usar o progresso do dono (em GUEST_PATH, não no save próprio).
+static func use_host(data: Variant) -> void:
+	if path != GUEST_PATH:
+		own_path = path
+	path = GUEST_PATH
+	var config := ConfigFile.new()
+	if data is Dictionary:
+		for type_id in Skills.hero_types():
+			var entry: Variant = data.get(type_id)
+			if not entry is Dictionary:
+				continue
+			var points: int = clampi(int(entry.get("earned", Skills.START_POINTS)) if entry.get("earned") is int else Skills.START_POINTS, 0, Skills.MAX_POINTS)
+			config.set_value(type_id, "xp", maxi(0, int(entry.get("xp", 0)) if entry.get("xp") is int else 0))
+			config.set_value(type_id, "earned", points)
+			config.set_value(type_id, "unlocked", Skills.sanitize(type_id, entry.get("unlocked", []), points))
+	var error := config.save(path)
+	if error != OK:
+		push_error("Não foi possível guardar o progresso da sala: %s" % error)
+
+
+## Saiu da sala: volta para o save próprio.
+static func use_own() -> void:
+	if path == GUEST_PATH:
+		path = own_path
 
 
 static func _write(type_id: String, points: int, nodes: Array) -> void:

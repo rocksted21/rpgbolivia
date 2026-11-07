@@ -70,6 +70,7 @@ func _run() -> void:
 	guest.pick_hero(0)
 	_check(await _until(func(): return guest.picks.get(5) == host_id and not guest.picks.has(0)), "escolher e liberar sincronizam")
 	_check(host.can_start(), "todos escolheram: pode iniciar")
+	HeroProgress.path = "user://test_progress_host.cfg" # quem inicia é o dono: vale o save dele
 	host.start_match()
 	_check(await _until(func(): return guest.playing), "início compartilhado")
 	_check(host.owners == [guest_id, host_id] and host.owners == guest.owners, "só os heróis escolhidos entram na party")
@@ -77,8 +78,9 @@ func _run() -> void:
 	_check(guest.state.start_cell == host.state.start_cell, "mesma semente, mesmo mapa")
 	var host_mage = host.state.party[0]
 	var guest_mage = guest.state.party[0]
-	_check(host_mage.passives.has("cast_mult") and guest_mage.passives.has("cast_mult"), "herói usa a build de quem o controla")
-	_check(not "rajada_calor" in host_mage.abilities, "build do dono não entra no herói do amigo")
+	_check("rajada_calor" in host_mage.abilities and "rajada_calor" in guest_mage.abilities, "herói do amigo usa a build do mundo do dono")
+	_check(not host_mage.passives.has("cast_mult") and not guest_mage.passives.has("cast_mult"), "save do amigo não entra no mundo do dono")
+	_check(HeroProgress.path == HeroProgress.GUEST_PATH and HeroProgress.unlocked("mago") == ["fog_rajada"], "amigo vê o nível e a árvore do dono")
 	_check(host.state.party[1].max_hp == 32 and guest.state.party[1].max_hp == 32, "build do dono chega ao amigo")
 	view = load("res://main.tscn").instantiate()
 	root.add_child(view)
@@ -157,6 +159,7 @@ func _run() -> void:
 	print("ONLINE: " + ("FAIL" if failed else "PASS"))
 	DirAccess.remove_absolute("user://test_progress_host.cfg")
 	DirAccess.remove_absolute("user://test_progress_guest.cfg")
+	DirAccess.remove_absolute(HeroProgress.GUEST_PATH)
 	if config_existed:
 		var file := FileAccess.open("user://online.cfg", FileAccess.WRITE)
 		file.store_string(previous_config)

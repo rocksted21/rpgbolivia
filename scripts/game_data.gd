@@ -278,7 +278,7 @@ const WORLD := {
 	"give_up_radius": 5, # inimigo em combate, sem caminho e mais longe que isso, desiste
 	"group_radius": 3, # quem está perto de quem viu entra na luta junto
 	"flee_radius": 10, # inimigo em combate mais longe que isso perde o herói de vista
-	"fight_radius": 7, # online: herói a até essa distância dos inimigos entra na luta; o resto segue explorando
+	"fight_radius": 7, # herói a até essa distância dos inimigos entra na luta; o resto segue explorando
 	"wander_chance": 0.3, # chance de um inimigo parado dar um passo a cada passo do herói
 	"rest_heal": 2, # fora de combate, andar recupera vida
 	"deploy_steps": 2, # quantas casas cada herói anda para se espalhar quando o combate começa

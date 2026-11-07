@@ -18,8 +18,8 @@ var heading := Vector2.ZERO # direção da caminhada: os grupos surgem preferind
 var last_walker # quem andou por último: os grupos surgem perto dele
 var engaged := {} # inimigos em combate com a party; os outros ainda não a viram
 var known := {} # toda unidade já vista, por uid: eventos podem citar quem já saiu do mapa
-## No online, só os heróis perto da luta entram nela; os outros seguem explorando.
-## Fora do online a party inteira luta junta.
+## Ligado no jogo (solo e online): só os heróis perto da luta entram nela; os outros seguem
+## explorando e entram chegando perto ou atacando. Desligado (testes), a party inteira luta junta.
 var split_fights := false
 var fighting := {} # heróis na fila de turnos agora (só vale com split_fights)
 var reinforce_left := 0 # inimigos que ainda vão chegar de emboscada nesta luta

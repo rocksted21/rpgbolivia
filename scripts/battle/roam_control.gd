@@ -149,7 +149,7 @@ func _travel(target: Vector2i) -> void:
 		return
 	var followers := []
 	if battle.together:
-		followers = battle.state.alive_party().filter(func(u): return u != hero and battle.online_session.can_control(u))
+		followers = battle.state.alive_party().filter(func(u): return u != hero and battle.online_session.can_control(u) and not battle.state.is_fighting(u))
 		followers.sort_custom(func(a, b): return Hex.distance(a.pos, hero.pos) < Hex.distance(b.pos, hero.pos))
 	if battle.online_session.playing:
 		battle.net_bridge._submit_online("travel", target, "", hero, followers)
@@ -304,8 +304,10 @@ func _roam_step(hero) -> void:
 		battle.walk_paths[behind].append(from)
 	events.append_array(battle.state.tick())
 	var fight := events.any(func(e): return e["type"] == "combat_start")
-	if fight:
-		if battle.state.split_fights:
+	# Herói que vinha andando chegou perto da luta e entrou nela: a vez volta para o combate.
+	var joined := events.any(func(e): return e["type"] == "combat_join" and e["units"].any(func(u): return battle.state.is_hero(u)))
+	if fight or joined:
+		if battle.state.split_fights and (battle.online_session.playing or not fight):
 			for walker in battle.walk_paths.keys():
 				if battle.state.is_fighting(walker):
 					_end_walk(walker)
@@ -320,6 +322,8 @@ func _roam_step(hero) -> void:
 	if fight:
 		battle.marks_ctl._refresh_overlays()
 		await battle.get_tree().create_timer(battle.DEPLOY_TIME).timeout
+		battle._advance()
+	elif joined:
 		battle._advance()
 	elif behind != null and battle.walk_paths.has(behind) and battle.step_wait.get(behind, 0.0) <= 0.0:
 		_roam_step(behind) # quem está na fila pisa junto: a distância entre eles não muda

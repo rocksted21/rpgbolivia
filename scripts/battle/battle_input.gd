@@ -486,9 +486,16 @@ func _on_option_pressed(index: int) -> void:
 
 
 func _select(unit) -> void:
+	_close_menu()
+	if battle.jump_mode:
+		battle.jump_mode = false
 	battle.selected = unit
 	battle.roam_from = battle.NO_CELL
-	battle._follow(unit)
+	if battle._free_roam():
+		battle._follow(unit)
+	else: # solo: escolheu um herói da luta, a câmera volta para a vez
+		battle._focus_turn(battle.state.active_unit())
+	battle.active_outline.visible = not battle._free_roam()
 	battle.marks_ctl._refresh_turn_markers()
 	battle.marks_ctl._refresh_overlays()
 	battle.marks_ctl._update_hint()
@@ -502,8 +509,11 @@ func _select_next() -> void:
 
 
 ## Carta da party: só seleciona o herói (a árvore abre pelo selo LEVEL UP em cima dela).
+## Solo, em combate: o herói longe da luta anda livre; o da luta volta para a vez dela.
 func _on_party_pick(unit) -> void:
-	if battle._free_roam() and unit.alive() and battle.online_session.can_control(unit):
+	var solo_fight: bool = battle.exploring and not battle.online_session.playing and battle.state.in_combat() and battle.state.split_fights
+	var roamer: bool = solo_fight and battle.state.is_hero(unit) and not battle.state.is_fighting(unit)
+	if unit.alive() and battle.online_session.can_control(unit) and (battle._free_roam() or roamer):
 		battle.sound_manager.play_ui(&"switch3")
 		_select(unit)
 	else:

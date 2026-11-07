@@ -776,7 +776,17 @@ class Radar extends Control:
 				add_child(icon)
 				pins.append({"icon": icon})
 		var spots := targets.map(func(t): return t["angle"])
-		if spots.size() == 2:
+		if spots.size() > 2:
+			# Três alvos podem estar na mesma direção. Distribui os discos preservando a ordem.
+			for pass_index in 8:
+				for a in spots.size():
+					for b in range(a + 1, spots.size()):
+						var delta := angle_difference(spots[a], spots[b])
+						if absf(delta) < 1.35:
+							var shift := (1.35 - absf(delta)) * (0.5 if delta >= 0 else -0.5)
+							spots[a] -= shift
+							spots[b] += shift
+		elif spots.size() == 2:
 			var gap := angle_difference(spots[0], spots[1])
 			if absf(gap) < MIN_APART:
 				var push := (MIN_APART - absf(gap)) / 2 * (1.0 if gap >= 0.0 else -1.0)

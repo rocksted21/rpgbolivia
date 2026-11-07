@@ -184,6 +184,8 @@ func _mark_alerted(units: Array) -> void:
 
 ## Foi visto: aviso, e a câmera mostra quem apareceu antes de voltar para a party.
 func _play_combat_start(event: Dictionary) -> void:
+	if not battle.online_session.playing and battle._free_roam(): # solo: a luta começa com um herói dela
+		battle.selected = battle._first_mine()
 	battle.my_fight = not battle._free_roam()
 	if not battle.my_fight: # a luta é de outro jogador, longe daqui: só um aviso
 		battle.hud.show_banner("Aliado em combate", Color(1.0, 0.7, 0.4))
@@ -205,6 +207,8 @@ func _play_combat_end(event: Dictionary) -> void:
 		battle.hud.show_banner("Combate do aliado acabou", Color(0.6, 1.0, 0.6))
 		battle.hud.refresh(battle.state)
 		battle.marks_ctl._refresh_turn_markers()
+		if battle.online_session.playing and battle.online_session.relay.is_master:
+			await battle._reward_fight() # o mundo é do dono: a experiência de toda luta vai para o save dele
 		return
 	battle.my_fight = false
 	battle.sound_manager.play_sfx(&"victory")
@@ -264,7 +268,7 @@ func _play_landmark(event: Dictionary) -> void:
 				battle.cell_nodes[event["cell"]].erase(node)
 			node.queue_free()
 		battle.landmark_nodes.erase(event["cell"])
-	if event["done"] and battle.state.landmarks[event["cell"]]["kind"] == "bau":
+	if event["done"] and battle.state.landmarks[event["cell"]]["kind"] in ["bau", "forte"]:
 		battle.board_art._rebuild_cell(event["cell"]) # o baú fica aberto
 	battle.journey_ui._update_journey()
 	await battle.get_tree().create_timer(0.5).timeout

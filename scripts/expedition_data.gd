@@ -19,6 +19,7 @@ const BEACON_VISIT_RADIUS := 2
 const COMPASS_RADIUS := 25 # além disso a bússola só mostra o farol
 
 const LANDMARKS := {
+	"forte": {"label": "Forte da Vigília", "count": 0, "color": Color("ff6858"), "brasas": 24, "xp": 80},
 	"vila": {"label": "Vila", "count": 2, "color": Color("7fb6ff"), "guards": 3, "brasas": 4, "xp": 30},
 	"ruina": {"label": "Ruínas", "count": 3, "color": Color("f2ca76"), "brasas": 6, "xp": 10},
 	"emboscada": {"label": "Ruínas", "count": 2, "color": Color("f2ca76"), "guards": 3, "brasas": 12, "xp": 20},

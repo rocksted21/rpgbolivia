@@ -192,6 +192,9 @@ func _add_natural_ground(cell: Vector2i, row: int, layers: int, biome: String) -
 	_natural_layer(mesh, BiomeArt.solo(biome, "sombra"), shaded, biome, row, layers)
 	var wet := _cover(around, cell, func(spot): return battle.state.floor_id_at(spot) in BiomeArt.WET)
 	_natural_layer(mesh, BiomeArt.solo(biome, "agua"), wet, biome, row, layers)
+	if battle.expedition and (battle.state.fort.cells.has(cell) or around.any(func(c): return battle.state.fort.cells.has(c))):
+		var paving := _cover(around, cell, func(c): return battle.state.fort.cells.has(c))
+		_natural_layer(mesh, BiomeArt.COBBLES, paving, biome, row, layers)
 	if battle.town: # as ruas da cidade são desenhadas pela planta
 		var paved := _cover(around, cell, func(spot): return battle.state.floor_id_at(spot) == TownState.TERRAIN_STONE)
 		_natural_layer(mesh, BiomeArt.COBBLES, paved, biome, row, layers)
@@ -463,6 +466,8 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	var art: Array
 	if battle.town:
 		art = battle.state.art_at(cell)
+	elif battle.expedition and battle.state.fort.cells.has(cell):
+		art = battle.state.fort.art_at(cell, battle.state.landmarks[battle.state.fort.center]["state"] == "done")
 	elif battle.expedition and battle.state.camps.cells.has(cell):
 		art = battle.state.camps.art_at(cell)
 	elif battle.expedition and cell == battle.state.beacon_cell:
@@ -530,7 +535,8 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	sprite.texture = load(prop["path"])
 	sprite.centered = false
 	# O ponto de apoio de cada arte é o centro da imagem.
-	var foot: Vector2 = sprite.texture.get_size() / 2.0
+	sprite.scale = Vector2.ONE * float(prop.get("scale", 1.0))
+	var foot: Vector2 = sprite.texture.get_size() * sprite.scale / 2.0
 	sprite.position = battle.cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"]) - foot
 	if battle.natural and not battle.town and not _is_marked_place(cell) and not prop.get("fixed", false):
 		sprite.position += Vector2(fmod(detail * 53.0, 1.0) - 0.5, fmod(detail * 71.0, 1.0) - 0.5) * PROP_WOBBLE * (1.0 if prop["layer"] != "front" else 0.6)

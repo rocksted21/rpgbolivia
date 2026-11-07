@@ -69,7 +69,7 @@ static func buy(resident: String) -> bool:
 static func expedition_setup() -> Dictionary:
 	var setup := {"hp": 0, "atk": 0, "def": 0, "potions": 0, "free_potions": 0, "far_compass": 0, "brasa_bonus": 0,
 		"rest_heal": 0, "maps": 0, "xp_pct": 0, "potion_pct": 0, "brasa_pct": 0,
-		"rescued": rescued(), "memories": memories(), "items": []}
+		"first_stage": beacons() == 0, "rescued": rescued(), "memories": memories(), "items": []}
 	for id in setup["rescued"]:
 		var data: Dictionary = Exp.RESIDENTS[id]
 		setup[data["stat"]] += service_level(id) * data["per_level"]

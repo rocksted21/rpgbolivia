@@ -315,6 +315,7 @@ func _go_online() -> void:
 		online_session.player_arrived.connect(_on_player_arrived)
 		online_session.progress_received.connect(_on_progress_received)
 		online_session.hero_learned.connect(_on_hero_learned)
+		online_session.world_progress.connect(_update_party_progress)
 	hud.save_allowed = online_session.relay.is_master
 	hud.load_allowed = false
 	net_bridge._room_status()
@@ -361,12 +362,11 @@ func _leave_room() -> void:
 	if not online_session.relay.is_master:
 		net_bridge._leave_online()
 		return
-	for signal_name in ["command_received", "packet_received", "connection_lost", "changed", "player_arrived", "progress_received", "hero_learned"]:
+	for signal_name in ["command_received", "packet_received", "connection_lost", "changed", "player_arrived", "progress_received", "hero_learned", "world_progress"]:
 		for connection in online_session.get_signal_connection_list(signal_name):
 			if connection["callable"].get_object() == self:
 				online_session.disconnect(signal_name, connection["callable"])
 	online_session.leave()
-	state.split_fights = false
 	hud.save_allowed = true
 	hud.load_allowed = true
 	hud.set_party_owners({})
@@ -426,6 +426,12 @@ func _start_battle() -> void:
 			state = WorldState.new(party_types, randi(), builds)
 	else:
 		state = BattleState.from_data(_saved_builds())
+	if exploring and "split_fights" in state:
+		# Só luta quem está perto; herói longe segue livre e entra chegando perto ou atacando.
+		state.split_fights = true
+		if state.in_combat() and state.fighting.is_empty(): # save antigo, de antes das lutas separadas
+			for member in state.alive_party():
+				state.fighting[member] = true
 	rewarded = false
 	walk_paths.clear()
 	walk_goals.clear()
@@ -811,6 +817,9 @@ func _free_roam() -> bool:
 		return exploring
 	if not state.split_fights:
 		return false
+	# Solo: o herói escolhido na barra, se está longe da luta, anda livre enquanto ela espera.
+	if not online_session.playing:
+		return selected != null and selected.alive() and state.is_hero(selected) and not state.is_fighting(selected)
 	# Online: só fico preso aos turnos se algum herói meu estiver nesta luta.
 	return not state.party.any(func(u): return online_session.can_control(u) and state.is_fighting(u))
 
@@ -826,6 +835,8 @@ func _actor():
 
 func _first_mine():
 	var living: Array = state.alive_party()
+	if exploring and state.in_combat(): # com luta, quem está nela vem primeiro
+		living.sort_custom(func(a, b): return state.is_fighting(a) and not state.is_fighting(b))
 	for member in living:
 		if online_session.can_control(member):
 			return member
@@ -912,10 +923,12 @@ func _row(cell: Vector2i) -> int:
 	return roundi(flat.y * 2.0 / ROW_STEP)
 
 
-## Heróis deste jogador que estão de pé: só eles ganham experiência no save daqui.
-## Online, cada um sobe os heróis com que joga; os outros só veem o aviso.
+## Heróis de pé que ganham experiência no save daqui. Online o mundo é do dono da sala:
+## ele sobe todos os heróis no save dele; os outros só veem o aviso.
 func _my_living_heroes() -> Array:
-	return state.units.filter(func(unit): return unit.team == Data.Team.PLAYER and unit.alive() and Skills.has_tree(unit.type_id) and online_session.can_control(unit))
+	if online_session.playing and not online_session.relay.is_master:
+		return []
+	return state.units.filter(func(unit): return unit.team == Data.Team.PLAYER and unit.alive() and Skills.has_tree(unit.type_id))
 
 
 ## Fim de uma luta: "+N XP" sobe da cabeça de cada herói e, se alguém subiu, "LEVEL UP!".
@@ -945,16 +958,12 @@ func _reward_fight(bonus := 0) -> void:
 
 
 ## Nível, barra de experiência e pontos livres nas cartas dos heróis.
-## Os meus vêm do meu save; online, os dos outros vêm do que o dono de cada um informou.
+## Online vêm do save do dono da sala (quem entrou recebe uma cópia dele).
 func _update_party_progress() -> void:
 	if not exploring:
 		return
 	for unit in state.party:
-		if online_session.can_control(unit):
-			hud.set_party_progress(unit, HeroProgress.level_info(unit.type_id), HeroProgress.available(unit.type_id))
-		elif online_session.hero_progress.has(unit.type_id):
-			var entry: Dictionary = online_session.hero_progress[unit.type_id]
-			hud.set_party_progress(unit, entry, entry["points"], false)
+		hud.set_party_progress(unit, HeroProgress.level_info(unit.type_id), HeroProgress.available(unit.type_id), online_session.can_control(unit))
 
 
 ## Online: conta para a sala o nível dos meus heróis. `raised`: quem acabou de subir.

@@ -67,14 +67,15 @@ func _show_result(result: int) -> void:
 			if won:
 				battle.board_art._rebuild_cell(battle.state.beacon_cell) # o farol acende
 		var types := []
+		var awards: bool = not battle.online_session.playing or battle.online_session.relay.is_master # online: tudo no save do dono
 		for unit in battle.state.units:
-			if unit.team == Data.Team.PLAYER and battle.online_session.can_control(unit): # online: cada um no seu save
+			if unit.team == Data.Team.PLAYER and awards:
 				types.append(unit.type_id)
 		battle._reward_fight() # abates da última luta (na arena, a luta toda)
 		var xp_gain: int = gain * Skills.END_XP_PER_POINT
 		var raised := HeroProgress.add_xp(types.filter(func(type_id): return Skills.has_tree(type_id)), xp_gain)
 		battle._report_progress(types, xp_gain, raised)
-		if xp_gain > 0 and not types.is_empty():
+		if xp_gain > 0 and (not types.is_empty() or not awards):
 			note = "+%d XP para cada herói" % xp_gain
 		if not raised.is_empty():
 			note += "\nLevel up: %s" % ", ".join(raised.map(func(type_id): return Data.UNIT_TYPES[type_id]["name"]))
@@ -103,6 +104,10 @@ func _level_info() -> Dictionary:
 func _compass_chips() -> Array:
 	var chips := [_compass("Farol", battle.state.beacon_cell, "lighthouse", battle.BEACON_COLOR)]
 	var open: Array = battle.state.open_landmarks(battle.camera_cell)
+	var fort = battle.state.fort
+	if not fort.cells.is_empty() and battle.state.landmarks[fort.center]["state"] != "done":
+		chips.append(_compass("Forte da Vigília", fort.center, "shield", Exp.LANDMARKS["forte"]["color"]))
+		open.erase(fort.center)
 	if not open.is_empty() and (battle.state.far_compass or Hex.distance(open[0], battle.camera_cell) <= Exp.COMPASS_RADIUS):
 		var cell: Vector2i = open[0]
 		var icon := "tent"
@@ -129,6 +134,9 @@ func _quest_tracker() -> String:
 		var quest: Dictionary = TownContent.QUESTS[id]
 		var done: int = mini(TownProgress.quest_progress(id) + int(result["tally"].get(quest["count"], 0)), quest["target"])
 		return "Missão: %s (%d/%d)" % [quest["title"], done, quest["target"]]
+	var fort = battle.state.fort
+	if not fort.cells.is_empty() and battle.state.landmarks[fort.center]["state"] != "done":
+		return "Escudo vermelho · Domine o Forte da Vigília"
 	return "Objetivo: %s" % TownContent.EXPEDITION_GOAL
 
 

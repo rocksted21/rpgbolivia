@@ -11,6 +11,7 @@ const AbandonedCamp = preload("res://scripts/abandoned_camp.gd")
 const SPOT_WALK := 1200 # pontos de movimento até onde os guardas podem nascer
 
 var layout # zonas, passagens e platôs do mapa
+var fort = preload("res://scripts/expedition_fort.gd").new()
 var camps = AbandonedCamp.new()
 var landmarks := {} # casa: {kind, state ("idle", "fighting" ou "done"), guards, resident}
 var terrain_override := {}
@@ -70,6 +71,9 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 		if landmarks[cell]["kind"] == "emboscada":
 			camps.place(self, cell)
 	_place_ruin_scenes()
+	if town_setup.get("first_stage", true):
+		town_setup["fort_layout"] = town_setup.get("fort_layout", 2)
+		fort.place(self)
 
 
 ## Ruínas continuam com seus prêmios; a travessia usa uma ponte real e alcançável.
@@ -113,10 +117,14 @@ func terrain_id_at(cell: Vector2i) -> int:
 
 
 func floor_id_at(cell: Vector2i) -> int:
+	if fort.cells.has(cell):
+		return 12 # calçamento do pátio
 	return camps.cells[cell]["floor"] if camps.cells.has(cell) else super(cell)
 
 
 func tile_name_at(cell: Vector2i) -> String:
+	if fort.cells.has(cell):
+		return "Forte da Vigília · dominado" if landmarks[fort.center]["state"] == "done" else "Forte da Vigília"
 	var scene_label: String = camps.label_at(cell)
 	if scene_label != "":
 		return scene_label
@@ -452,6 +460,8 @@ func _check_visits(events: Array) -> void:
 			continue
 		if cell == beacon_cell:
 			_wake_beacon(cell, entry, events)
+		elif entry["kind"] == "forte":
+			_wake_fort(cell, entry, events)
 		elif Exp.LANDMARKS[entry["kind"]].has("guards"):
 			_wake_guards(cell, entry, Exp.LANDMARKS[entry["kind"]]["guards"], events)
 		else:
@@ -475,6 +485,21 @@ func _wake_guards(cell: Vector2i, entry: Dictionary, count: int, events: Array) 
 	var title := "Emboscada!" if entry["kind"] == "emboscada" else "%s sob ataque" % Exp.LANDMARKS[entry["kind"]]["label"]
 	events.append({"type": "landmark", "cell": cell, "title": title, "detail": "", "done": false, "color": Color(1.0, 0.45, 0.35)})
 	events.append_array(engage(guards, true))
+
+
+func _wake_fort(cell: Vector2i, entry: Dictionary, events: Array) -> void:
+	var spots := _spots_around(cell, 37).filter(func(p): return Hex.distance(p, cell) <= 2)
+	if spots.is_empty():
+		return
+	var captain = _spawn_enemy("boss_jarl", spots[0])
+	captain.display_name = "Jarl de Gelo Negro · Comandante"
+	captain.max_hp = roundi(captain.max_hp * 1.6)
+	captain.hp = captain.max_hp
+	entry["guards"] = [captain]
+	entry["state"] = "fighting"
+	events.append({"type": "spawn", "unit": captain})
+	events.append({"type": "landmark", "cell": cell, "title": "Forte da Vigília", "detail": "Derrube o Jarl de Gelo Negro para tomar o forte e abrir o cofre.", "done": false, "color": Exp.LANDMARKS["forte"]["color"]})
+	events.append_array(engage([captain], true))
 
 
 func _wake_beacon(cell: Vector2i, entry: Dictionary, events: Array) -> void:
@@ -527,10 +552,14 @@ func _complete(cell: Vector2i, events: Array) -> void:
 	var data: Dictionary = Exp.LANDMARKS[kind]
 	entry["state"] = "done"
 	var counts := {"ruina": "ruins", "emboscada": "ambushes", "vila": "villages", "fonte": "fountains", "memoria": "memories", "bau": "chests"}
-	tally[counts[kind]] += 1
+	if counts.has(kind):
+		tally[counts[kind]] += 1
 	var title: String = data["label"]
 	var detail := ""
 	match kind:
+		"forte":
+			title = "Forte da Vigília dominado"
+			detail = "Cofre conquistado! +%d brasas e +%d XP." % [data["brasas"], data["xp"]]
 		"vila":
 			var resident: String = entry.get("resident", "")
 			if resident != "":

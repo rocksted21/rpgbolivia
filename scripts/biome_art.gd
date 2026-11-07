@@ -23,7 +23,6 @@ const NIGHT_TINT := {
 }
 const LANDMARK_LIFT := 0.45 # locais especiais ficam um pouco mais claros, para serem achados
 const DECOR_CHANCE := 0.1 # abaixo disso a casa de campo ganha um enfeite; world_gen.gd escolhe quais
-const MOUNTAIN_LANDMARK := 0.08
 # Altura da base de cada objeto dentro do hexágono: fundo atrás do personagem, frente diante dele.
 const BACK_Y := 92
 const MIDDLE_Y := 118
@@ -138,9 +137,8 @@ static func props(biome: String, terrain_id: int, detail: float) -> Array:
 		2:
 			return [_prop(biome, "pedras_" + variant, MIDDLE_Y, BEHIND_UNIT)]
 		6:
-			# As serras são de pedra; um monumento aparece de vez em quando.
 			var mountain := "montanha_natural" if biome in ["floresta", "selva"] else "montanha_a"
-			return [_prop(biome, "montanha_b" if detail < MOUNTAIN_LANDMARK else mountain, MIDDLE_Y + 20, BEHIND_UNIT)]
+			return [_prop(biome, mountain, MIDDLE_Y + 20, BEHIND_UNIT)]
 		7:
 			var hills := "colinas_natural_" if biome in ["floresta", "selva"] else "colinas_"
 			return [_prop(biome, hills + variant, MIDDLE_Y, BEHIND_UNIT)]

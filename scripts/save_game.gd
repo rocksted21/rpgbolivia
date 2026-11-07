@@ -119,7 +119,7 @@ static func _unit_row(unit, state) -> Dictionary:
 		abilities = unit.abilities.duplicate(), clock = unit.clock, moved = unit.moved, jumped = unit.jumped, guarding = unit.guarding,
 		pending = unit.pending.duplicate(true), taunt_actions = unit.taunt_actions, statuses = unit.statuses.duplicate(true),
 		taunted_by = unit.taunted_by.uid if unit.taunted_by != null else 0,
-		engaged = "engaged" in state and state.engaged.has(unit), gone = false,
+		engaged = "engaged" in state and state.engaged.has(unit), fighting = "fighting" in state and state.fighting.has(unit), gone = false,
 	}
 
 
@@ -134,7 +134,10 @@ static func restore(data: Dictionary):
 		"world":
 			state = WorldState.new(data.party, data.seed, data.builds)
 		"expedition":
-			state = ExpeditionState.new(data.party, data.seed, data.builds, data.town)
+			var setup: Dictionary = data.town.duplicate()
+			setup["fort_layout"] = setup.get("fort_layout", 1)
+			setup["first_stage"] = data.landmarks.values().any(func(entry): return entry["kind"] == "forte")
+			state = ExpeditionState.new(data.party, data.seed, data.builds, setup)
 		"town":
 			state = TownState.new(data.party, data.seed, data.builds, data.town)
 		_:
@@ -188,6 +191,7 @@ static func _restore_units(state, data: Dictionary) -> Dictionary:
 			keep[data.party_uids[i]] = state.party[i]
 		if "engaged" in state:
 			state.engaged.clear()
+			state.fighting.clear()
 		state.known.clear()
 	state.units.clear()
 	for row in data.units:
@@ -219,6 +223,8 @@ static func _restore_units(state, data: Dictionary) -> Dictionary:
 			state.units.append(unit)
 		if row.engaged:
 			state.engaged[unit] = true
+		if row.get("fighting", false):
+			state.fighting[unit] = true
 	for row in data.units:
 		by_uid[row.uid].taunted_by = by_uid.get(row.taunted_by)
 	return by_uid
