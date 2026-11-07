@@ -29,6 +29,7 @@ const SPOTS := {
 }
 const FLASH_FIRE := Color(1.0, 0.56, 0.2)
 const FLASH_WATER := Color(0.4, 0.82, 1.0)
+const FLASH_BLOOD := Color(1.0, 0.15, 0.18)
 const FLASH_ALPHA := 0.8
 const FLASH_SIZE := 200.0
 const FLASH_TIME := 0.5
@@ -120,8 +121,13 @@ func _remove_spot(cell: Vector2i) -> void:
 
 
 ## Clarão de uma magia, em coordenadas do tabuleiro.
-func flash(point: Vector2, water: bool, power := 1.0) -> void:
-	var color := FLASH_WATER if water else FLASH_FIRE
+## element: a pasta do efeito ("agua/...", "sangue/..."); o resto acende como fogo.
+func flash(point: Vector2, element: String, power := 1.0) -> void:
+	var color := FLASH_FIRE
+	if element.begins_with("agua/"):
+		color = FLASH_WATER
+	elif element.begins_with("sangue/"):
+		color = FLASH_BLOOD
 	flashes.append({"point": point, "glow": _new_glow(color, 1.0), "life": FLASH_TIME, "power": power})
 
 

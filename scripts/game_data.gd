@@ -15,7 +15,7 @@ const TURN_TIME := 150 # quanto a fila supõe que um turno dura, para prever a o
 # Pulo: herói salta por cima de 1 unidade (aliada ou inimiga) em linha reta, gastando 2 passos.
 # Quem pulou age mais devagar no resto do turno: o tempo da ação é multiplicado pela classe.
 const JUMP_TIME := 200
-const JUMP_PENALTY := {"duelista": 1.25, "besteiro": 1.5, "mago": 1.75, "mago_agua": 1.75, "druida": 2.0, "guardiao": 2.0}
+const JUMP_PENALTY := {"duelista": 1.25, "besteiro": 1.5, "mago": 1.75, "mago_agua": 1.75, "druida": 2.0, "guardiao": 2.0, "fumaca": 1.25}
 const JUMP_PENALTY_DEFAULT := 2.0
 const FLANK_MULT := 1.5
 const HEIGHT_MULT_PER_LEVEL := 0.2
@@ -25,6 +25,8 @@ const PUSH_IMPACT := 3 # dano (sem defesa) de quem é empurrado contra algo; que
 const SLOW_MOVE := 100 # pontos de movimento a menos por turno com Lentidão (uma casa plana)
 const MARK_MULT := 1.25 # dano recebido por quem está Marcado
 const MIGHT_MULT := 1.25 # dano causado por quem está Fortalecido
+const BLIND_MULT := 0.6 # dano causado por quem está Cego (fumaça nos olhos)
+const VEIL_MULT := 0.7 # dano recebido por quem está Velado (escondido na fumaça)
 
 # Efeitos que duram alguns turnos de quem os recebe. Contam no fim de cada turno dele.
 # dot: tira `amount` de vida (sem defesa nem Guarda) no fim do turno.
@@ -34,6 +36,8 @@ const STATUS := {
 	"slow": {"name": "lento"},
 	"mark": {"name": "marcado"},
 	"might": {"name": "fortalecido"},
+	"blind": {"name": "cego"},
+	"veil": {"name": "velado"},
 }
 
 # A chave é o número do PNG em assets/tiles.
@@ -143,6 +147,13 @@ const ABILITIES := {
 	"redemoinho": {"name": "Redemoinho", "kind": "charge", "min_range": 2, "range": 4, "radius": 1, "power": 1.3, "time": 260, "cast_time": 150},
 	"kraken": {"name": "Kraken", "kind": "charge", "min_range": 2, "range": 5, "radius": 2, "power": 1.6, "time": 320, "cast_time": 200},
 	"chama": {"name": "Chama", "kind": "charge", "min_range": 2, "range": 4, "radius": 1, "power": 1.2, "time": 240, "cast_time": 140},
+	# Fumaça: controle. Cega (o alvo bate menos) e vela aliados (apanham menos). FX do pack de fumaça.
+	"baforada": {"name": "Baforada", "kind": "attack", "min_range": 1, "range": 2, "power": 0.8, "time": 130},
+	"sufocar": {"name": "Sufocar", "kind": "attack", "min_range": 1, "range": 1, "power": 1.25, "time": 200},
+	"nuvem_cega": {"name": "Nuvem Cegante", "kind": "charge", "min_range": 2, "range": 4, "radius": 1, "power": 0.4, "time": 180, "cast_time": 80, "status": {"id": "blind", "turns": 2}},
+	"veu_fumaca": {"name": "Véu de Fumaça", "kind": "buff", "min_range": 0, "range": 3, "time": 130, "status": {"id": "veil", "turns": 2}},
+	"passo_fumaca": {"name": "Passo de Fumaça", "kind": "attack", "min_range": 2, "range": 4, "power": 0.8, "time": 170, "dash": true, "status": {"id": "blind", "turns": 1}},
+	"cranio_fumaca": {"name": "Crânio de Fumaça", "kind": "charge", "min_range": 2, "range": 5, "radius": 2, "power": 1.4, "time": 300, "cast_time": 180, "status": {"id": "blind", "turns": 2}},
 	"cura": {"name": "Cura", "kind": "heal", "min_range": 0, "range": 3, "heal": 14, "time": 170},
 	"guarda": {"name": "Guarda", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
 	# Ataques iniciais com a animação forte (cada herói tem um normal e um forte).
@@ -166,7 +177,9 @@ const UNIT_TYPES := {
 	"besteiro": {"name": "Besteiro", "role": "Atirador · ataca de longe", "hp": 26, "atk": 13, "def": 1, "speed": 10, "abilities": ["tiro", "virote_pesado"]},
 	"mago": {"name": "Mago de Fogo", "role": "Magia · fogo em área", "hp": 24, "atk": 15, "def": 1, "speed": 9, "move": 2, "abilities": ["faisca", "bola_fogo", "flor_fogo", "escudo_fogo"]},
 	"druida": {"name": "Druida Élfica", "role": "Suporte · cura aliados", "hp": 26, "atk": 10, "def": 1, "speed": 11, "abilities": ["vinha", "cura"]},
-	"mago_agua": {"name": "Mago de Água", "role": "Magia · água e gelo", "hp": 24, "atk": 14, "def": 1, "speed": 10, "move": 2, "abilities": ["gota", "bola_agua", "floco_neve"]},
+	"mago_agua": {"name": "Mago de Sangue", "role": "Magia · sangue", "hp": 24, "atk": 14, "def": 1, "speed": 10, "move": 2, "abilities": ["gota", "bola_agua", "floco_neve"]},
+	# Sprite: Heroi Smoke 3 do PixelLab (pixellab/fumaca, ver tools/build_pixellab.gd).
+	"fumaca": {"name": "Andarilho da Fumaça", "role": "Controle · cega e esconde", "hp": 26, "atk": 12, "def": 1, "speed": 12, "abilities": ["baforada", "sufocar", "nuvem_cega"]},
 	"esqueleto": {"name": "Esqueleto", "role": "Soldado · morto-vivo comum", "hp": 22, "atk": 10, "def": 1, "speed": 10, "abilities": ["golpe"]},
 	"mumia": {"name": "Múmia", "role": "Tanque · lenta e resistente", "hp": 40, "atk": 11, "def": 3, "speed": 7, "abilities": ["golpe"]},
 	"diabrete": {"name": "Diabrete", "role": "Ágil · fraco, mas age muito", "hp": 16, "atk": 8, "def": 0, "speed": 15, "abilities": ["golpe"]},
@@ -248,7 +261,8 @@ const BATTLE_UNITS := [
 
 # --- Exploração (modo solo) ---------------------------------------------------
 
-const WORLD_HEROES := ["guardiao", "duelista", "besteiro", "mago", "mago_agua", "druida"]
+# No fim da lista: a sala online guarda o herói pelo índice aqui.
+const WORLD_HEROES := ["guardiao", "duelista", "besteiro", "mago", "mago_agua", "druida", "fumaca"]
 const PARTY_SIZE := 4
 const DEFAULT_PARTY := ["guardiao", "duelista", "mago", "druida"]
 const WORLD := {

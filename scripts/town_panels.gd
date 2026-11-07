@@ -457,7 +457,10 @@ func open_party() -> void:
 
 func _fill_hero(button: Button, id: String, info: Dictionary) -> void:
 	var data: Dictionary = Data.UNIT_TYPES[id]
-	button.custom_minimum_size = Vector2(340, 92)
+	# A grade de 2 colunas foi pensada para 3 fileiras (6 heróis); com mais, os cartões encolhem.
+	var rows := ceili(Data.WORLD_HEROES.size() / 2.0)
+	var height := minf(92.0, (92.0 * 3 + 20 - 10 * (rows - 1)) / rows)
+	button.custom_minimum_size = Vector2(340, height)
 	var row := HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -470,7 +473,7 @@ func _fill_hero(button: Button, id: String, info: Dictionary) -> void:
 	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	portrait.custom_minimum_size = Vector2(84, 84)
+	portrait.custom_minimum_size = Vector2.ONE * minf(84.0, height - 8)
 	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(portrait)
 	var text := VBoxContainer.new()

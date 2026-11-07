@@ -18,6 +18,7 @@ const ABILITY_ICONS := {
 	"guarda": "shield", "escudo_fogo": "shield", "provocar": "shield", "aparar": "shield", "casca": "shield", "manto_agua": "shield",
 	"escudada": "shield", "interpor": "shield", "carga": "bolt", "marcar": "sword", "investida": "bolt", "sangria": "heart", "chute": "sword",
 	"virote_marcador": "arrow", "tiro_perna": "arrow", "espinhos_venenosos": "star", "bencao": "star",
+	"passo_fumaca": "bolt", "veu_fumaca": "shield",
 } # o resto das magias usa o ícone do elemento
 
 var battle: BattleView # a tela dona deste módulo
@@ -208,11 +209,14 @@ func _show_card(unit) -> void:
 	battle.hud.show_card(info)
 
 
-# Magias sem ícone próprio usam o do elemento: a pasta do efeito (fogo/, agua/).
+# Magias sem ícone próprio usam o do elemento: a pasta do efeito (fogo/, agua/, fumaca/).
 func _spell_icon(id: String) -> String:
 	if not battle.SPELL_FX.has(id):
 		return "star"
-	return "drop" if battle.SPELL_FX[id]["impact"].begins_with("agua/") else "flame"
+	var impact: String = battle.SPELL_FX[id]["impact"]
+	if impact.begins_with("fumaca/"):
+		return "eye_off"
+	return "drop" if impact.begins_with("agua/") or impact.begins_with("sangue/") else "flame"
 
 
 ## Dados de uma habilidade para a ficha: alcance, efeito, tempo e quanto tiraria do herói da vez.

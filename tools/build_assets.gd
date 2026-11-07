@@ -46,13 +46,21 @@ const SPELL_FX := {
 	"agua/geyser": "water-effects-pixel-art-set/PNG/Geyser",
 	"agua/water_hurricane": "water-effects-pixel-art-set/PNG/Water_hurricane",
 	"agua/kraken": "water-effects-pixel-art-set/PNG/Kraken",
+	# assets/fx/sangue = cópia de fx/agua com o matiz girado para vermelho (Mago de Sangue,
+	# 2026-11-06). Não sai daqui: se refizer fx/agua, refaça a cópia vermelha também.
+	"fumaca/horizontal_smoke": "smoke-effects-pixel-art/PNG/Horisontal_smoke",
+	"fumaca/rising_smoke": "smoke-effects-pixel-art/PNG/Rising_smoke",
+	"fumaca/circle_smoke": "smoke-effects-pixel-art/PNG/Circle_smoke",
+	"fumaca/smoke_ring": "smoke-effects-pixel-art/PNG/Smoke_ring/Smoke_ring2",
+	"fumaca/falling_smoke": "smoke-effects-pixel-art/PNG/Falling_smoke",
+	"fumaca/smoke_skull": "smoke-effects-pixel-art/PNG/Smoke_scull",
 }
 
 
 func _initialize() -> void:
 	var kit := ProjectSettings.globalize_path(KIT)
 	var out := ProjectSettings.globalize_path("res://assets")
-	for sub in ["units", "tiles", "fx/kit", "fx/fogo", "fx/agua"]:
+	for sub in ["units", "tiles", "fx/kit", "fx/fogo", "fx/agua", "fx/fumaca"]:
 		DirAccess.make_dir_recursive_absolute(out.path_join(sub))
 
 	# Junta no meta.json existente: os personagens do PixelLab ficam como estão.

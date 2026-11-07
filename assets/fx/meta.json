@@ -118,5 +118,35 @@
 		"frames": 7,
 		"h": 256,
 		"w": 256
+	},
+	"fumaca/circle_smoke": {
+		"frames": 10,
+		"h": 128,
+		"w": 128
+	},
+	"fumaca/falling_smoke": {
+		"frames": 16,
+		"h": 64,
+		"w": 154
+	},
+	"fumaca/horizontal_smoke": {
+		"frames": 12,
+		"h": 128,
+		"w": 128
+	},
+	"fumaca/rising_smoke": {
+		"frames": 14,
+		"h": 64,
+		"w": 64
+	},
+	"fumaca/smoke_ring": {
+		"frames": 7,
+		"h": 64,
+		"w": 64
+	},
+	"fumaca/smoke_skull": {
+		"frames": 20,
+		"h": 128,
+		"w": 128
 	}
 }

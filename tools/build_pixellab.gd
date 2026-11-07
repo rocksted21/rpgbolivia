@@ -26,7 +26,11 @@ const NAMES := {"idle": "idle", "walk": "walking", "hurt": "jerk_backward", "str
 const RENAMES := {"druida": {"cura": "attack", "atack": "strong"}}
 # Chefes dos faróis: canvas grande, então a folha fica em 1x e o jogo amplia 2x.
 const BOSSES := ["boss_cervo", "boss_serpente", "boss_jarl", "boss_farao"]
-const CHARACTERS := ["boss_cervo", "boss_serpente", "boss_jarl", "boss_farao", "guardiao", "duelista", "besteiro", "mago", "druida", "mago_agua", "esqueleto", "mumia", "diabrete", "feiticeira", "cerbero"]
+# Pasta do export quando não é a própria chave (versões dark de 2026-11-06; as antigas ficam
+# intactas em pixellab/guardiao, mago_agua e druida).
+const SOURCES := {"guardiao": "guardiao_dark", "mago_agua": "mago_sangue", "druida": "curandeira_dark"}
+# fumaca = Heroi Smoke 3 do PixelLab (389e7df3-09d9-475b-98b4-da5ce98ee454).
+const CHARACTERS := ["boss_cervo", "boss_serpente", "boss_jarl", "boss_farao", "guardiao", "duelista", "besteiro", "mago", "druida", "mago_agua", "esqueleto", "mumia", "diabrete", "feiticeira", "cerbero", "fumaca"]
 
 
 var pixel_scale := PIXEL_SCALE
@@ -38,10 +42,13 @@ func _initialize() -> void:
 	var out := ProjectSettings.globalize_path("res://assets/units")
 	var meta_path := out.path_join("meta.json")
 	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(meta_path))
+	var only := Array(OS.get_cmdline_user_args()) # "-- fumaca mago": gera só esses
 	for key in CHARACTERS:
+		if not only.is_empty() and key not in only:
+			continue
 		pixel_scale = 1 if key in BOSSES else PIXEL_SCALE
 		renames = RENAMES.get(key, {})
-		meta[key] = _build_sheet(key, src.path_join(key), "%s/%s.png" % [out, key])
+		meta[key] = _build_sheet(key, src.path_join(SOURCES.get(key, key)), "%s/%s.png" % [out, key])
 	var file := FileAccess.open(meta_path, FileAccess.WRITE)
 	file.store_string(JSON.stringify(meta, "\t"))
 	file.close()

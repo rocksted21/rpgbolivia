@@ -580,12 +580,14 @@ func preview_attack(attacker, ability_id: String, target) -> Dictionary:
 	return {"amount": amount, "flank": flank, "height": height, "guard": target.guarding, "cover": tile_at(target.pos)["damage"] < 1.0}
 
 
-## Redução de dano por Guarda própria, por aliado vizinho com Proteção (em Guarda)
-## e por aliado vizinho com Névoa (sempre).
+## Redução de dano por Guarda própria, por Véu de Fumaça, por aliado vizinho com Proteção
+## (em Guarda) e por aliado vizinho com Névoa (sempre).
 func _protection_mult(target) -> float:
 	var mult := 1.0
 	if target.guarding:
 		mult *= target.passive("guard_mult", Data.GUARD_MULT)
+	if target.has_status("veil"):
+		mult *= Data.VEIL_MULT
 	mult *= _neighbor_passive(target, "guard_aura", true)
 	mult *= _neighbor_passive(target, "ward")
 	return mult
@@ -599,13 +601,17 @@ func _neighbor_passive(unit, key: String, needs_guard := false) -> float:
 	return 1.0
 
 
-## Fortalecido bate mais (e quem está ao lado do Estandarte); Marcado apanha mais
-## (e quem está colado em inimigo com Distração).
+## Fortalecido bate mais (e quem está ao lado do Estandarte), Cego bate menos; Marcado apanha
+## mais (e quem está colado em inimigo com Distração, e o Cego para quem tem Golpe no Escuro).
 func _status_mult(attacker, target) -> float:
 	var mult := 1.0
 	if attacker != null:
 		if attacker.has_status("might"):
 			mult *= Data.MIGHT_MULT
+		if attacker.has_status("blind"):
+			mult *= Data.BLIND_MULT
+		if target.has_status("blind"):
+			mult *= attacker.passive("blind_hunter", 1.0) # Golpe no Escuro
 		mult *= _neighbor_passive(attacker, "inspire")
 	for foe in enemies_of(target):
 		if foe.passives.has("expose") and Hex.distance(foe.pos, target.pos) == 1:

@@ -16,6 +16,7 @@ const PUSH_TIME := 0.18 # quem é empurrado desliza até onde parou
 const STATUS_COLOR := {
 	"burn": Color(1.0, 0.55, 0.2), "poison": Color(0.6, 1.0, 0.35), "slow": Color(0.6, 0.85, 1.0),
 	"mark": Color(1.0, 0.85, 0.3), "might": Color(1.0, 0.7, 0.45),
+	"blind": Color(0.62, 0.6, 0.68), "veil": Color(0.78, 0.76, 0.86),
 }
 const STEP_JUMP := 0.55 # pulo por cima de alguém (duas casas)
 const JUMP_ARC := 150.0
@@ -616,8 +617,8 @@ func _play_spell_fx(id: String, from: Vector2, spots: Array, weight := {}) -> vo
 		burst.tween_callback(hit.show).set_delay(delay)
 		burst.tween_property(hit, "frame", frames - 1, frames / FX_FPS).from(0).set_delay(delay)
 		hits.append(hit)
-	if battle.world_light != null:
-		battle.world_light.flash(spots[0], spell["impact"].begins_with("agua/"), 1.0 + 0.2 * (spots.size() - 1))
+	if battle.world_light != null and not spell["impact"].begins_with("fumaca/"): # fumaça não acende
+		battle.world_light.flash(spots[0], spell["impact"], 1.0 + 0.2 * (spots.size() - 1))
 	if not weight.is_empty():
 		burst.finished.connect(func():
 			for hit in hits:

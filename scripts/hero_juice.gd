@@ -1,5 +1,5 @@
 extends RefCounted
-## Quanto peso cada golpe e magia dos 6 heróis tem na tela. Só apresentação.
+## Quanto peso cada golpe e magia dos 7 heróis tem na tela. Só apresentação.
 ##
 ## Campos de cada habilidade (todos opcionais):
 ##   stop: hitstop em segundos · shake: tremor (0 a 1) · knock: empurrão em quem apanha
@@ -13,16 +13,16 @@ extends RefCounted
 ## Camadas (as mesmas de BOSS_FX, com extras): burst, flash e ring; align gira
 ## na direção do golpe, add soma luz, height ergue do chão, delay atrasa.
 
-const HEROES := ["guardiao", "duelista", "besteiro", "mago", "mago_agua", "druida"]
+const HEROES := ["guardiao", "duelista", "besteiro", "mago", "mago_agua", "druida", "fumaca"]
 ## Em que parte da animação o golpe acerta (fração dos frames da linha).
 const ATTACK_HIT := 0.4
-const STRONG_HIT := {"guardiao": 0.55, "duelista": 0.8, "besteiro": 0.42, "mago": 0.4, "mago_agua": 0.46, "druida": 0.68}
+const STRONG_HIT := {"guardiao": 0.55, "duelista": 0.8, "besteiro": 0.42, "mago": 0.4, "mago_agua": 0.46, "druida": 0.68, "fumaca": 0.55}
 
 ## Cada herói tem só duas animações de golpe: a normal e a forte, usadas por
 ## várias habilidades. Ficam com a forte as habilidades pesadas e as magias
 ## carregadas (essas na hora de soltar; ao começar a carregar usam a normal).
 const STRONG_ANIM := ["golpe_pesado", "estocada", "giro", "virote_pesado", "perfurante", "tiro_longo",
-	"golpe_solar", "pilar_fogo", "estaca_gelo", "cristal_gelo", "carga", "investida", "rajada_calor"]
+	"golpe_solar", "pilar_fogo", "estaca_gelo", "cristal_gelo", "carga", "investida", "rajada_calor", "sufocar", "passo_fumaca"]
 ## A Druida ataca sempre com a forte; a normal dela é o gesto de cura.
 const ALWAYS_STRONG := ["druida"]
 
@@ -34,11 +34,15 @@ const FIRE := Color(1.0, 0.48, 0.12)
 const SUN := Color(1.0, 0.8, 0.4)
 const WATER := Color(0.35, 0.75, 1.0)
 const ICE := Color(0.7, 0.95, 1.0)
+const GORE := Color(0.85, 0.08, 0.12) # Mago de Sangue (ex-Água)
+const GORE_PALE := Color(1.0, 0.45, 0.5)
 const NATURE := Color(0.45, 1.0, 0.35)
 const EARTH := Color(0.42, 0.3, 0.18)
 const BLOOD := Color(1.0, 0.86, 0.8)
+const SMOKE := Color(0.72, 0.68, 0.82) # cinza-violeta: o brilho da fumaça
+const ASH := Color(0.2, 0.18, 0.22, 0.5) # fumaça escura (camada sem luz)
 
-const HERO_COLOR := {"guardiao": GOLD, "duelista": DUEL, "besteiro": ARROW, "mago": FIRE, "mago_agua": WATER, "druida": NATURE}
+const HERO_COLOR := {"guardiao": GOLD, "duelista": DUEL, "besteiro": ARROW, "mago": FIRE, "mago_agua": GORE, "druida": NATURE, "fumaca": SMOKE}
 
 static var _table := {}
 static var _guards := {}
@@ -221,18 +225,27 @@ static func _build() -> Dictionary:
 	t["geiser_magma"] = {"peak": 0.22, "stop": 0.15, "shake": 0.82, "knock": 84, "zoom": 0.05, "flash": Color(1.0, 0.5, 0.15, 0.3), "impact": [_glow(FIRE, 1.0, 0.3, "circle_05", 40), _embers(FIRE, 30, 140), _debris(EARTH, 20, 1.5), _ring(FIRE, 1.3)]}
 	t["furacao_fogo"] = {"stop": 0.1, "shake": 0.6, "knock": 50, "flash": Color(1.0, 0.5, 0.2, 0.18), "impact": [_spiral(FIRE, 1.0, 90), _embers(FIRE, 26), _ring(FIRE, 1.6)]}
 	t["fenix"] = {"peak": 0.5, "stop": 0.18, "shake": 1.0, "knock": 96, "zoom": 0.075, "ult": true, "flash": Color(1.0, 0.65, 0.3, 0.5), "impact": [_glow(SUN, 1.8, 0.4, "circle_05", 120), _embers(FIRE, 40, 120), _ring(FIRE, 2.6, 0.6), _ring(SUN, 1.6, 0.4, "circle_05")]}
-	# Mago de Água.
-	t["gota"] = {"stop": 0.03, "shake": 0.12, "knock": 20, "color": WATER, "impact": [_sparks(WATER, 6, 0.8, 40)]}
-	t["chicote_agua"] = {"stop": 0.06, "shake": 0.32, "knock": 46, "color": WATER, "impact": [_sparks(WATER, 12), _ring(WATER, 0.9)]}
-	t["bola_agua"] = {"stop": 0.07, "shake": 0.38, "knock": 44, "trail": WATER, "color": WATER, "flash": Color(0.4, 0.75, 1.0, 0.1), "impact": [_sparks(WATER, 14, 1.1, 40), _ring(WATER, 1.1), _glow(WATER, 0.6, 0.2, "circle_05", 40)]}
-	t["estaca_gelo"] = {"stop": 0.1, "shake": 0.48, "knock": 40, "color": ICE, "flash": Color(0.7, 0.9, 1.0, 0.14), "impact": [_shards(ICE, 16), _ring(ICE, 1.0)]}
-	t["cristal_gelo"] = {"stop": 0.13, "shake": 0.66, "knock": 52, "zoom": 0.04, "color": ICE, "flash": Color(0.75, 0.95, 1.0, 0.28), "impact": [_shards(ICE, 24), _glow(ICE, 1.0, 0.28, "circle_05", 60), _ring(ICE, 1.4, 0.5)]}
-	t["floco_neve"] = {"stop": 0.06, "shake": 0.34, "knock": 36, "color": ICE, "flash": Color(0.7, 0.9, 1.0, 0.12), "impact": [_shards(ICE, 16), _embers(ICE, 12)]}
-	t["estilhaco_gelo"] = {"peak": 0.2, "stop": 0.13, "shake": 0.76, "knock": 70, "zoom": 0.05, "color": ICE, "flash": Color(0.75, 0.95, 1.0, 0.32), "impact": [_shards(ICE, 34), _glow(ICE, 1.3, 0.3, "circle_05"), _ring(ICE, 2.0, 0.5)]}
-	t["onda"] = {"stop": 0.07, "shake": 0.42, "knock": 56, "color": WATER, "flash": Color(0.4, 0.75, 1.0, 0.12), "impact": [_sparks(WATER, 20, 1.2, 30), _ring(WATER, 1.8, 0.5)]}
-	t["geiser"] = {"peak": 0.15, "stop": 0.15, "shake": 0.8, "knock": 84, "zoom": 0.05, "color": WATER, "flash": Color(0.45, 0.8, 1.0, 0.28), "impact": [_sparks(WATER, 28, 1.5, 60), _glow(WATER, 1.0, 0.3, "circle_05", 60), _ring(WATER, 1.3)]}
-	t["redemoinho"] = {"stop": 0.1, "shake": 0.6, "knock": 50, "color": WATER, "flash": Color(0.4, 0.75, 1.0, 0.18), "impact": [_spiral(WATER, 1.0, 90), _sparks(WATER, 20, 1.2, 60), _ring(WATER, 1.6)]}
-	t["kraken"] = {"peak": 0.55, "stop": 0.18, "shake": 1.0, "knock": 96, "zoom": 0.075, "ult": true, "color": WATER, "flash": Color(0.4, 0.75, 1.0, 0.45), "impact": [_glow(WATER, 1.8, 0.4, "circle_05", 120), _sparks(WATER, 40, 1.6, 60), _ring(WATER, 2.6, 0.6), _ring(ICE, 1.6, 0.4, "circle_05")]}
+	# Mago de Água (agora de sangue: as cores viraram vermelho).
+	t["gota"] = {"stop": 0.03, "shake": 0.12, "knock": 20, "color": GORE, "impact": [_sparks(GORE, 6, 0.8, 40)]}
+	t["chicote_agua"] = {"stop": 0.06, "shake": 0.32, "knock": 46, "color": GORE, "impact": [_sparks(GORE, 12), _ring(GORE, 0.9)]}
+	t["bola_agua"] = {"stop": 0.07, "shake": 0.38, "knock": 44, "trail": GORE, "color": GORE, "flash": Color(0.9, 0.12, 0.15, 0.1), "impact": [_sparks(GORE, 14, 1.1, 40), _ring(GORE, 1.1), _glow(GORE, 0.6, 0.2, "circle_05", 40)]}
+	t["estaca_gelo"] = {"stop": 0.1, "shake": 0.48, "knock": 40, "color": GORE_PALE, "flash": Color(1.0, 0.45, 0.5, 0.14), "impact": [_shards(GORE_PALE, 16), _ring(GORE_PALE, 1.0)]}
+	t["cristal_gelo"] = {"stop": 0.13, "shake": 0.66, "knock": 52, "zoom": 0.04, "color": GORE_PALE, "flash": Color(1.0, 0.5, 0.55, 0.28), "impact": [_shards(GORE_PALE, 24), _glow(GORE_PALE, 1.0, 0.28, "circle_05", 60), _ring(GORE_PALE, 1.4, 0.5)]}
+	t["floco_neve"] = {"stop": 0.06, "shake": 0.34, "knock": 36, "color": GORE_PALE, "flash": Color(1.0, 0.45, 0.5, 0.12), "impact": [_shards(GORE_PALE, 16), _embers(GORE_PALE, 12)]}
+	t["estilhaco_gelo"] = {"peak": 0.2, "stop": 0.13, "shake": 0.76, "knock": 70, "zoom": 0.05, "color": GORE_PALE, "flash": Color(1.0, 0.5, 0.55, 0.32), "impact": [_shards(GORE_PALE, 34), _glow(GORE_PALE, 1.3, 0.3, "circle_05"), _ring(GORE_PALE, 2.0, 0.5)]}
+	t["onda"] = {"stop": 0.07, "shake": 0.42, "knock": 56, "color": GORE, "flash": Color(0.9, 0.12, 0.15, 0.12), "impact": [_sparks(GORE, 20, 1.2, 30), _ring(GORE, 1.8, 0.5)]}
+	t["geiser"] = {"peak": 0.15, "stop": 0.15, "shake": 0.8, "knock": 84, "zoom": 0.05, "color": GORE, "flash": Color(0.95, 0.15, 0.18, 0.28), "impact": [_sparks(GORE, 28, 1.5, 60), _glow(GORE, 1.0, 0.3, "circle_05", 60), _ring(GORE, 1.3)]}
+	t["redemoinho"] = {"stop": 0.1, "shake": 0.6, "knock": 50, "color": GORE, "flash": Color(0.9, 0.12, 0.15, 0.18), "impact": [_spiral(GORE, 1.0, 90), _sparks(GORE, 20, 1.2, 60), _ring(GORE, 1.6)]}
+	t["kraken"] = {"peak": 0.55, "stop": 0.18, "shake": 1.0, "knock": 96, "zoom": 0.075, "ult": true, "color": GORE, "flash": Color(0.9, 0.12, 0.15, 0.45), "impact": [_glow(GORE, 1.8, 0.4, "circle_05", 120), _sparks(GORE, 40, 1.6, 60), _ring(GORE, 2.6, 0.6), _ring(GORE_PALE, 1.6, 0.4, "circle_05")]}
+	# Andarilho da Fumaça: pouco clarão, muita fumaça escura; o peso vem do tremor e do escurecer.
+	t["baforada"] = {"stop": 0.04, "shake": 0.16, "knock": 30, "impact": [_smoke(ASH, 6, 0.3, 60), _spiral(SMOKE, 0.35, 70)]}
+	t["sufocar"] = {"stop": 0.12, "shake": 0.46, "knock": 24, "zoom": 0.03, "flash": Color(0.1, 0.08, 0.14, 0.18),
+		"impact": [_smoke(ASH, 10, 0.4, 90), _spiral(SMOKE, 0.55, 90), _ring(SMOKE, 0.8, 0.35)]}
+	t["nuvem_cega"] = {"stop": 0.06, "shake": 0.3, "knock": 18, "flash": Color(0.1, 0.08, 0.14, 0.16), "impact": [_smoke(ASH, 14, 0.45, 30), _ring(SMOKE, 1.4, 0.5)]}
+	t["passo_fumaca"] = {"stop": 0.1, "shake": 0.42, "knock": 50, "ghosts": 5, "zoom": 0.03,
+		"impact": [_smoke(ASH, 12, 0.4, 20), _slash(SMOKE, 0.55, 0.3), _ring(SMOKE, 0.9, 0.3)]}
+	t["cranio_fumaca"] = {"peak": 0.6, "stop": 0.18, "shake": 1.0, "knock": 80, "zoom": 0.075, "ult": true, "flash": Color(0.08, 0.06, 0.12, 0.45),
+		"impact": [_smoke(ASH, 24, 0.6, 80), _spiral(SMOKE, 1.4, 110), _ring(SMOKE, 2.6, 0.6), _embers(SMOKE, 20, 80)]}
 	return t
 
 
@@ -244,7 +257,8 @@ static func _build_guards() -> Dictionary:
 	g["casca"] = {"shake": 0.12, "color": NATURE, "fx": [_ring(Color(0.6, 0.45, 0.25), 1.0, 0.45), _spiral(NATURE, 0.6, 90), _embers(NATURE, 12, 40)]}
 	g["escudo_fogo"] = {"shake": 0.16, "color": FIRE, "fx": [_ring(FIRE, 1.2, 0.45), _embers(FIRE, 16, 60)]}
 	g["interpor"] = {"shake": 0.14, "color": GOLD, "fx": [_ring(GOLD, 1.2, 0.45), {"kind": "flash", "tex": "magic_04", "color": GOLD, "size": 0.55, "life": 0.4, "grow": 0.4, "add": true, "height": 100}]}
-	g["corrente"] = {"shake": 0.1, "color": WATER, "fx": [_spiral(WATER, 0.6, 90), _sparks(WATER, 10, 0.8, 60), _ring(WATER, 1.0, 0.4)]}
+	g["corrente"] = {"shake": 0.1, "color": GORE, "fx": [_spiral(GORE, 0.6, 90), _sparks(GORE, 10, 0.8, 60), _ring(GORE, 1.0, 0.4)]}
 	g["bencao"] = {"shake": 0.1, "color": NATURE, "fx": [_ring(NATURE, 1.1, 0.45), _embers(Color(1.0, 0.8, 0.4), 16, 40), _glow(NATURE, 0.6, 0.35, "circle_05", 90)]}
 	g["manto_agua"] = {"shake": 0.14, "color": WATER, "fx": [_ring(WATER, 1.2, 0.45), _sparks(WATER, 12, 0.8, 60)]}
+	g["veu_fumaca"] = {"shake": 0.1, "color": SMOKE, "fx": [_smoke(ASH, 10, 0.4, 60), _ring(SMOKE, 1.1, 0.45), _spiral(SMOKE, 0.5, 80)]}
 	return g

@@ -34,6 +34,7 @@ extends RefCounted
 ##     heal_self      fração da cura que também volta para quem curou
 ##     heal_guard     quem recebe cura entra em Guarda
 ##     heal_haste     quem recebe cura age esse tanto antes
+##     blind_hunter   multiplicador do dano em quem está Cego
 ## Os nós entram por nível: um nó mais alto pode trocar a regra de um anterior (Fogo Eterno).
 ## Efeitos das habilidades novas (empurrar, investida, efeitos com duração, aliados)
 ## ficam nos campos delas em game_data.ABILITIES.
@@ -191,6 +192,26 @@ const TREES := {
 			{"id": "dru_bencao", "tag": "ativa", "name": "Bênção da Mata", "desc": "Fortalece um aliado (ou ela mesma): +25% de dano por 2 turnos.", "unlock": "bencao"},
 			{"id": "dru_ligeira", "tag": "suporte", "name": "Seiva Ligeira", "desc": "Quem recebe a cura dela age 30 antes.", "passive": {"heal_haste": 30}},
 			{"id": "dru_abrigo", "tag": "defesa", "name": "Abrigo", "desc": "Quem recebe a cura entra em Guarda.", "passive": {"heal_guard": true}},
+		]},
+	],
+	"fumaca": [
+		{"name": "Névoa", "nodes": [
+			{"id": "fum_espessa", "tag": "controle", "name": "Fumaça Espessa", "desc": "Nuvem Cegante alcança 1 casa a mais e sai 20 antes.", "mods": {"nuvem_cega": {"range": 1, "cast_time": -20, "time": -20}}},
+			{"id": "fum_ar_pesado", "tag": "controle", "name": "Ar Pesado", "desc": "Todo ataque e magia dele deixa o alvo cego (causa 40% menos dano) por 1 turno.", "passive": {"hit_status": {"id": "blind", "turns": 1}}},
+			{"id": "fum_nevoeiro", "tag": "controle", "name": "Nevoeiro", "desc": "Nuvem Cegante cobre 1 casa a mais de raio, com preparo um pouco maior.", "mods": {"nuvem_cega": {"radius": 1, "cast_time": 30, "time": 30}}},
+			{"id": "fum_cranio", "tag": "ativa", "name": "Crânio de Fumaça", "desc": "Grande dano em área que cega todos por 2 turnos.", "unlock": "cranio_fumaca"},
+		]},
+		{"name": "Sombra", "nodes": [
+			{"id": "fum_pes", "tag": "movimento", "name": "Pés de Névoa", "desc": "Anda 1 casa a mais por turno.", "passive": {"move_bonus": 1}},
+			{"id": "fum_passo", "tag": "ativa", "name": "Passo de Fumaça", "desc": "Some e reaparece colado num inimigo a 2-4 casas, golpeia e o cega por 1 turno, sem sofrer oportunidade.", "unlock": "passo_fumaca"},
+			{"id": "fum_intangivel", "tag": "movimento", "name": "Intangível", "desc": "Não sofre ataques de oportunidade.", "passive": {"opportunity_immune": true}},
+			{"id": "fum_escuro", "tag": "ataque", "name": "Golpe no Escuro", "desc": "+50% de dano em inimigos cegos.", "passive": {"blind_hunter": 1.5}},
+		]},
+		{"name": "Véu", "nodes": [
+			{"id": "fum_veu", "tag": "ativa", "name": "Véu de Fumaça", "desc": "Esconde um aliado (ou ele mesmo) na fumaça: recebe 30% menos dano por 2 turnos.", "unlock": "veu_fumaca"},
+			{"id": "fum_cortina", "tag": "suporte", "name": "Cortina Longa", "desc": "Véu de Fumaça alcança 1 casa a mais e sai 30 mais rápido.", "mods": {"veu_fumaca": {"range": 1, "time": -30}}},
+			{"id": "fum_bruma", "tag": "suporte", "name": "Bruma", "desc": "Aliados vizinhos recebem 15% menos dano.", "passive": {"ward": 0.85}},
+			{"id": "fum_ligeiro", "tag": "suporte", "name": "Véu Ligeiro", "desc": "Quem recebe o Véu de outro age 40 antes.", "mods": {"veu_fumaca": {"haste": 40}}},
 		]},
 	],
 }

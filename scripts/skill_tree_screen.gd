@@ -136,7 +136,9 @@ func _render() -> void:
 
 func _hero_button(parent: Control, type_id: String) -> void:
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(190, 92)
+	# Até 6 heróis cabem com 92 de altura; com mais, os botões encolhem para a coluna caber.
+	var count := _heroes().size()
+	button.custom_minimum_size = Vector2(190, minf(92.0, (592.0 - 8 * (count - 1)) / count))
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	button.pressed.connect(_select_hero.bind(type_id))
