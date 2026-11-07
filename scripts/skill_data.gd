@@ -204,7 +204,7 @@ const TREES := {
 		{"name": "Sombra", "nodes": [
 			{"id": "fum_pes", "tag": "movimento", "name": "Pés de Névoa", "desc": "Anda 1 casa a mais por turno.", "passive": {"move_bonus": 1}},
 			{"id": "fum_passo", "tag": "ativa", "name": "Passo de Fumaça", "desc": "Some e reaparece colado num inimigo a 2-4 casas, golpeia e o cega por 1 turno, sem sofrer oportunidade.", "unlock": "passo_fumaca"},
-			{"id": "fum_intangivel", "tag": "movimento", "name": "Intangível", "desc": "Não sofre ataques de oportunidade.", "passive": {"opportunity_immune": true}},
+			{"id": "fum_intangivel", "tag": "defesa", "name": "Intangível", "desc": "Não sofre ataques de oportunidade.", "passive": {"opportunity_immune": true}},
 			{"id": "fum_escuro", "tag": "ataque", "name": "Golpe no Escuro", "desc": "+50% de dano em inimigos cegos.", "passive": {"blind_hunter": 1.5}},
 		]},
 		{"name": "Véu", "nodes": [

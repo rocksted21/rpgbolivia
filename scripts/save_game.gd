@@ -73,6 +73,8 @@ static func capture(state) -> Dictionary:
 		data.steps_until_spawn = state.steps_until_spawn
 		data.heading = state.heading
 		data.last_walker = state.last_walker.uid if state.last_walker != null else 0
+		data.reinforce_left = state.reinforce_left # emboscada que ainda vai chegar nesta luta
+		data.reinforce_at = state.reinforce_at
 	if mode == "town":
 		data.town = state.town_setup
 	if mode == "expedition":
@@ -138,6 +140,8 @@ static func restore(data: Dictionary):
 			setup["fort_layout"] = setup.get("fort_layout", 1)
 			setup["first_stage"] = data.landmarks.values().any(func(entry): return entry["kind"] == "forte")
 			state = ExpeditionState.new(data.party, data.seed, data.builds, setup)
+			# As chaves acima só servem para refazer o mapa: o setup guardado volta como estava.
+			state.town_setup = data.town.duplicate(true)
 		"town":
 			state = TownState.new(data.party, data.seed, data.builds, data.town)
 		_:
@@ -152,6 +156,8 @@ static func restore(data: Dictionary):
 		state.steps_until_spawn = data.steps_until_spawn
 		state.heading = data.heading
 		state.last_walker = by_uid.get(data.last_walker, state.party[0])
+		state.reinforce_left = data.get("reinforce_left", 0) # saves antigos não têm
+		state.reinforce_at = data.get("reinforce_at", 0)
 	if data.mode == "expedition":
 		state.landmarks.clear()
 		for cell in data.get("landmark_order", data.landmarks.keys()):

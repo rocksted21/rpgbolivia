@@ -29,6 +29,7 @@ func place(state) -> void:
 	choices.sort_custom(func(a, b): return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
 	for choice in choices:
 		if _build(state, choice[1], reach, radius, legacy):
+			_connect(state)
 			return
 	push_error("Sem espaço acessível para o forte nesta expedição.")
 
@@ -50,7 +51,12 @@ func _build(state, site: Vector2i, before: Dictionary, radius: int, legacy: bool
 			area.append(Hex.neighbor(corner, (dir + 5) % 6))
 			corner = tip
 		corners.append(corner)
-	if area.any(func(c): return state.camps.cells.has(c) or state.layout.ridge.has(c)):
+	var passages := {} # a muralha não pode fechar a passagem da serra
+	for zone in state.layout.zones:
+		for strip in zone["passages"]:
+			for cell in strip:
+				passages[cell] = true
+	if area.any(func(c): return state.camps.cells.has(c) or state.layout.ridge.has(c) or passages.has(c)):
 		return false
 	var perimeter := {}
 	for cell in area:
@@ -83,7 +89,7 @@ func _build(state, site: Vector2i, before: Dictionary, radius: int, legacy: bool
 		cells[cell] = path
 	# Uma muralha não pode cortar um caminho para outro ponto da expedição.
 	var after: Dictionary = state.layout.walk_area()
-	if after.has(site) and (legacy or (cells.values().has(KEEP) and cells.values().count(TOWER) >= 4)) and before.keys().all(func(c): return cells.has(c) or after.has(c)):
+	if after.has(site) and _no_steps(state, area, height) and (legacy or (cells.values().has(KEEP) and cells.values().count(TOWER) >= 4)) and before.keys().all(func(c): return cells.has(c) or after.has(c)):
 		center = site
 		state.landmarks[site] = {"kind": "forte", "state": "idle", "guards": [], "hidden": false}
 		return true
@@ -95,6 +101,33 @@ func _build(state, site: Vector2i, before: Dictionary, radius: int, legacy: bool
 	gen.layout_terrain.merge(original_terrain)
 	cells.clear()
 	return false
+
+
+## O forte nivela o chão: uma trilha que entra nele não pode virar um degrau alto na borda.
+func _no_steps(state, area: Array, height: int) -> bool:
+	var inside := {}
+	for cell in area:
+		inside[cell] = true
+	for cell in area:
+		for dir in state.gen.path_links(cell):
+			var next := Hex.neighbor(cell, dir)
+			if not inside.has(next) and absi(state.elevation_at(next) - height) > 1:
+				return false
+	return true
+
+
+## O forte nasce depois das trilhas: abre uma do pátio até a rede, saindo por um portão.
+func _connect(state) -> void:
+	var gen = state.gen
+	if gen.carved.has(center):
+		return
+	var blocked := {}
+	for cell in cells:
+		if cells[cell] != "":
+			blocked[cell] = true
+	for cell in state.terrain_override:
+		blocked[cell] = true
+	gen.carve(gen.route(center, gen.carved, state.start_cell, state._route_radius(), blocked), false)
 
 
 ## Praça central livre para o combate. A segunda muralha protege a sede ao norte.
