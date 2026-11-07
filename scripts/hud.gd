@@ -609,7 +609,7 @@ func _chip_box(edge: Color) -> PanelContainer:
 
 ## `stats`: [{icon, value, label, color?, ink?}], metade em cada asa. `level`: {} ou
 ## {level, fraction, name}: fraction enche o anel; sem alvos, o radar mostra o nível no meio.
-## `targets`: [{icon, color, angle, label}] no radar. Só troca os números quando o desenho é o
+## `targets`: [{icon, color, angle, label, spread?}] no radar; spread desenha a faixa de uma área. Só troca os números quando o desenho é o
 ## mesmo: o radar acompanha o giro da câmera a cada quadro.
 func set_overview(title: String, stats: Array, level := {}, targets := []) -> void:
 	if overview == null:
@@ -757,7 +757,7 @@ class Radar extends Control:
 	var center_text := ""
 	var center_note := ""
 	var title_font: Font
-	var pins := [] # {icon, angle, spot, color}
+	var pins := [] # {icon, angle, spot, color, spread}
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -798,6 +798,7 @@ class Radar extends Control:
 			pin["angle"] = targets[i]["angle"]
 			pin["spot"] = mid + Vector2.from_angle(spots[i]) * (size.x / 2) * ORBIT
 			pin["color"] = targets[i]["color"]
+			pin["spread"] = float(targets[i].get("spread", 0.0))
 			var icon: Control = pin["icon"]
 			icon.color = targets[i]["color"]
 			icon.position = pin["spot"] - icon.custom_minimum_size / 2
@@ -812,6 +813,12 @@ class Radar extends Control:
 		if xp >= 0.0: # trilho e progresso da experiência, por dentro da borda
 			draw_arc(mid, radius - 7, 0.0, TAU, 72, Color(EDGE, 0.15), 6.0, true)
 			draw_arc(mid, radius - 7, -PI / 2, -PI / 2 + TAU * clampf(xp, 0.0, 1.0), 72, EDGE, 6.0, true)
+		for pin in pins: # área de busca: uma faixa na borda, na direção do alvo
+			if pin.get("spread", 0.0) > 0.0:
+				var spread: float = pin["spread"]
+				if spread >= PI: # dentro da área: o radar todo ganha a cor da lanterna
+					draw_circle(mid, radius - 13, Color(pin["color"], 0.16))
+				draw_arc(mid, radius - 18, pin["angle"] - spread, pin["angle"] + spread, 40, Color(pin["color"], 0.4), 9.0, true)
 		if not pins.is_empty():
 			draw_circle(mid, 6.0, TEXT)
 			for pin in pins:

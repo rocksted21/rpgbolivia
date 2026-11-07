@@ -27,7 +27,7 @@ uniform sampler2D scenery_base : filter_nearest, repeat_disable;
 uniform int scenery_slice = 0;
 uniform float forest_split = 105.0;
 // Luz no chão: xy = lugar no chão já girado, z = raio, w = força. Força 0 desliga.
-uniform vec4 lights[6];
+uniform vec4 lights[8];
 uniform vec3 light_color = vec3(1.0, 0.82, 0.58);
 
 varying float distance_fade;
@@ -71,7 +71,7 @@ void vertex() {
 	distance_fade = clamp((focus.y - ground_y) / 600.0, 0.0, 1.0) * 0.10;
 	lit = 0.0;
 	if (tile_surface || ground_surface) {
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < 8; i++) {
 			if (lights[i].w > 0.0) {
 				lit += lights[i].w * (1.0 - smoothstep(0.0, lights[i].z, distance(ground_point, lights[i].xy)));
 			}

@@ -66,6 +66,7 @@ var tint_tween: Tween
 var aura: Node2D # círculo de magia sob quem carrega um feitiço
 var aura_rune: Sprite2D
 var aura_time := 0.0
+var elite_glow: Node2D # brasa embaixo da Sentinela da Lanterna, pulsando devagar
 
 
 func setup(p_unit, p_team_color: Color, meta: Dictionary) -> void:
@@ -170,6 +171,8 @@ func _process(delta: float) -> void:
 		aura_time += delta
 		aura_rune.rotation += delta * 0.9
 		aura.modulate.a = 0.75 + sin(aura_time * 5.0) * 0.25
+	if elite_glow != null:
+		elite_glow.modulate.a = 0.7 + sin(bounce_time * 2.2) * 0.3
 	arrow.position.y = head_y - arrow_gap + sin(bounce_time * BOUNCE_SPEED) * BOUNCE_HEIGHT
 	frame_pos += delta * FPS
 	var sheet_row := _sheet_row()
@@ -342,6 +345,52 @@ func set_aura(color: Color) -> void:
 	motes.position = Vector2(0, -10)
 	add_child(motes)
 	aura.set_meta("motes", motes)
+
+
+## Marca da elite: uma poça de brasa nos pés, um anel e fagulhas subindo em volta do corpo.
+## Fica embaixo do círculo de magia, para os dois aparecerem juntos.
+func set_elite(color: Color) -> void:
+	if elite_glow != null:
+		return
+	elite_glow = Node2D.new()
+	elite_glow.use_parent_material = true
+	elite_glow.scale = Vector2(1.0, 0.45) # deitado no chão
+	add_child(elite_glow)
+	move_child(elite_glow, shadow.get_index() + 1)
+	var pool := Sprite2D.new()
+	pool.texture = load("res://assets/fx/kenney/circle_05.png")
+	pool.scale = Vector2.ONE * 0.8
+	pool.modulate = Color(color * 1.6, 0.6)
+	pool.use_parent_material = true
+	elite_glow.add_child(pool)
+	var ring := Sprite2D.new()
+	ring.texture = load("res://assets/fx/kenney/circle_03.png")
+	ring.scale = Vector2.ONE * 0.55
+	ring.modulate = Color(color * 2.0, 0.9)
+	ring.use_parent_material = true
+	elite_glow.add_child(ring)
+	var sparks := CPUParticles2D.new()
+	sparks.use_parent_material = true
+	sparks.texture = load("res://assets/fx/kenney/star_04.png")
+	sparks.amount = 10
+	sparks.lifetime = 1.6
+	sparks.local_coords = true
+	sparks.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE_SURFACE
+	sparks.emission_sphere_radius = 54.0
+	sparks.direction = Vector2.UP
+	sparks.spread = 20.0
+	sparks.gravity = Vector2(0, -60)
+	sparks.initial_velocity_min = 15.0
+	sparks.initial_velocity_max = 40.0
+	sparks.scale_amount_min = 0.1
+	sparks.scale_amount_max = 0.18
+	var fade := Gradient.new()
+	fade.set_color(0, Color(color * 1.8, 1.0))
+	fade.set_color(1, Color(color, 0.0))
+	sparks.color_ramp = fade
+	sparks.position = Vector2(0, -40)
+	add_child(sparks)
+	move_child(sparks, elite_glow.get_index() + 1)
 
 
 ## O círculo cresce e some quando a magia sai (ou some na hora, se a unidade cair).

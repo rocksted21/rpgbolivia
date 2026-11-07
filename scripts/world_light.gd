@@ -9,11 +9,14 @@ const DRAW_LAYER := 850 # acima do mapa, abaixo das magias (900) e da interface
 const SCREEN := Rect2(0, 0, 1280, 720)
 const SCREEN_MARGIN := 260.0
 const GLOW_TEXTURE_SIZE := 256.0
-const MAX_LIGHTS := 6 # igual a lights[] no shader
+const MAX_LIGHTS := 8 # igual a lights[] no shader
 const LANTERN_RADIUS := 375.0
 const LANTERN_POWER := 0.62
 const BEACON_RADIUS := 700.0
 const BEACON_POWER := 1.0
+const LIT_LANTERN_RADIUS := 320.0 # lanterna do mapa acesa: uma ilha de luz no escuro
+const LIT_LANTERN_POWER := 0.8
+const LIT_LANTERN_SLOTS := 2 # só as mais perto da câmera clareiam o chão
 const FLASH_RADIUS := 375.0
 const FLASH_POWER := 1.4
 const PROP_UPDATE_TIME := 0.066 # objetos em pé recebem a luz a cerca de 15 vezes por segundo
@@ -24,6 +27,7 @@ const AMBIENT_AMOUNT := 44
 # Luz de cada coisa no mapa.
 const SPOTS := {
 	"farol": {"color": Color(1.0, 0.68, 0.3), "alpha": 0.5, "size": 260.0, "height": 412.0, "embers": true}, # 165 × escala das construções (biome_art.gd)
+	"lanterna": {"color": Color(1.0, 0.78, 0.4), "alpha": 0.55, "size": 110.0, "height": 128.0, "embers": true, "ember_count": 5},
 	"bau": {"color": Color(1.0, 0.8, 0.4), "alpha": 0.42, "size": 74.0, "height": 22.0},
 	"cristal": {"color": Color(0.3, 0.97, 0.86), "alpha": 0.2, "size": 62.0, "height": 22.0},
 }
@@ -93,7 +97,7 @@ func add_spot(cell: Vector2i, kind: String) -> void:
 	_remove_spot(cell)
 	var entry := {"kind": kind, "glow": _new_glow(SPOTS[kind]["color"], SPOTS[kind]["alpha"]), "embers": null, "phase": float(cell.x * 3 + cell.y * 7)}
 	if SPOTS[kind].get("embers", false):
-		entry["embers"] = _new_embers(SPOTS[kind]["color"])
+		entry["embers"] = _new_embers(SPOTS[kind]["color"], SPOTS[kind].get("ember_count", 14))
 	spots[cell] = entry
 
 
@@ -131,7 +135,8 @@ func flash(point: Vector2, element: String, power := 1.0) -> void:
 	flashes.append({"point": point, "glow": _new_glow(color, 1.0), "life": FLASH_TIME, "power": power})
 
 
-## Pontos de luz no chão, já girados: a party, o farol aceso e o último clarão.
+## Pontos de luz no chão, já girados: a party, o farol aceso, as lanternas acesas mais perto
+## e o último clarão.
 func _light_points() -> PackedVector4Array:
 	var board: Transform2D = view.board.get_global_transform()
 	var points := PackedVector4Array()
@@ -147,6 +152,14 @@ func _light_points() -> PackedVector4Array:
 			points[used] = _point(board * view.feet_of(cell), view._cell_elevation(cell), BEACON_RADIUS, BEACON_POWER)
 			used += 1
 			break
+	var lanterns: Array = spots.keys().filter(func(cell): return spots[cell]["kind"] == "lanterna")
+	if not lanterns.is_empty():
+		var focus: Vector2i = view.camera_cell
+		lanterns.sort_custom(func(a, b): return a.distance_squared_to(focus) < b.distance_squared_to(focus))
+		for cell in lanterns.slice(0, LIT_LANTERN_SLOTS):
+			if used < MAX_LIGHTS - 1:
+				points[used] = _point(board * view.feet_of(cell), view._cell_elevation(cell), LIT_LANTERN_RADIUS, LIT_LANTERN_POWER)
+				used += 1
 	if not flashes.is_empty():
 		var entry: Dictionary = flashes.back()
 		var power: float = FLASH_POWER * entry["life"] / FLASH_TIME
@@ -299,9 +312,9 @@ func _update_air() -> void:
 	air.gravity = AIR[biome]["gravity"]
 
 
-func _new_embers(color: Color) -> CPUParticles2D:
+func _new_embers(color: Color, amount := 14) -> CPUParticles2D:
 	var embers := CPUParticles2D.new()
-	embers.amount = 14
+	embers.amount = amount
 	embers.lifetime = 1.6
 	embers.direction = Vector2.UP
 	embers.spread = 26.0

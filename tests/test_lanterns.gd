@@ -8,6 +8,7 @@ const Data = preload("res://scripts/game_data.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const ExpeditionState = preload("res://scripts/expedition_state.gd")
 const SaveGame = preload("res://scripts/save_game.gd")
+const BiomeArt = preload("res://scripts/biome_art.gd")
 
 var checks := 0
 var failures := 0
@@ -27,6 +28,7 @@ func _initialize() -> void:
 	test_guardian()
 	test_compass_light()
 	test_save()
+	test_visual()
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -197,3 +199,22 @@ func test_save() -> void:
 	check(restored.landmarks[lanterns[1]]["guards"].size() == state.landmarks[lanterns[1]]["guards"].size(), "save mantém a elite e a escolta")
 	_win_fight(restored, lanterns[1])
 	check(restored.next_lantern() == lanterns[2], "depois de carregar, a corrente continua")
+
+
+## Tarefa 10b: a arte existe, a acesa brilha, a apagada não, e a elite é reconhecida
+## (também depois de salvar, pelo nome).
+func test_visual() -> void:
+	for lit in [false, true]:
+		var art: Array = BiomeArt.landmark("floresta", "lanterna", lit, 0.5)
+		check(art.size() == 1 and ResourceLoader.exists(art[0]["path"]), "arte da lanterna %s" % ("acesa" if lit else "apagada"))
+		if art.size() == 1:
+			check((BiomeArt.light_of("floresta", art[0]["path"]) == "lanterna") == lit, "só a lanterna acesa brilha")
+	var state = _new(11)
+	var lantern: Vector2i = state.lantern_cells()[0]
+	_visit(state, lantern)
+	var guards: Array = state.landmarks[lantern]["guards"]
+	check(not guards.is_empty() and Exp.is_elite(guards[0]), "a primeira guarda é a elite")
+	check(guards.slice(1).all(func(unit): return not Exp.is_elite(unit)), "a escolta não tem aura de elite")
+	var loaded = SaveGame.restore(SaveGame.capture(state))
+	check(loaded != null and loaded.units.any(func(unit): return Exp.is_elite(unit) and unit.alive()), "a elite continua elite depois de carregar")
+

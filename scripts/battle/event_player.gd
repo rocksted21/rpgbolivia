@@ -268,8 +268,10 @@ func _play_landmark(event: Dictionary) -> void:
 				battle.cell_nodes[event["cell"]].erase(node)
 			node.queue_free()
 		battle.landmark_nodes.erase(event["cell"])
-	if event["done"] and battle.state.landmarks[event["cell"]]["kind"] in ["bau", "forte"]:
-		battle.board_art._rebuild_cell(event["cell"]) # o baú fica aberto
+	if event["done"] and battle.state.landmarks[event["cell"]]["kind"] in ["bau", "forte", "lanterna"]:
+		battle.board_art._rebuild_cell(event["cell"]) # o baú fica aberto; a lanterna, acesa
+	if event["done"] and battle.state.landmarks[event["cell"]]["kind"] == "lanterna" and battle.world_light != null:
+		battle.world_light.flash(battle.feet_of(event["cell"]) + Vector2(0, -128), "fogo", 2.4)
 	battle.journey_ui._update_journey()
 	await battle.get_tree().create_timer(0.5).timeout
 

@@ -14,6 +14,7 @@ const BattleCamera = preload("res://scripts/battle_camera.gd")
 const BiomeArt = preload("res://scripts/biome_art.gd")
 
 const BOSS_SCALE := 1.35
+const ELITE_SCALE := 1.15 # a Sentinela da Lanterna fica entre o inimigo comum e o guardião
 const TILE_FRONT := 213.0 # ponta da frente do topo do hexágono, na textura (igual ao shader)
 const TILE_SLOPE := 53.0 # quanto as bordas inclinadas descem do centro até o lado
 const TILE_WALL := 31.0 # altura da parede abaixo da borda da frente
@@ -38,8 +39,14 @@ const VIEW_ROWS_BACK := 14
 const UNLOAD_MARGIN := 2
 const Z_REBASE_ROWS := 12 # em meias linhas: a ordem de desenho fica longe do limite do Godot
 const REACH_LINE := Color(1.0, 0.6, 0.15, 0.95)
+# Borda da área onde está a próxima lanterna: um círculo de brasas no chão (só visual).
+const AREA_DOT := Color(1.0, 0.78, 0.38, 0.5)
+const AREA_DOT_CORE := Color(1.0, 0.93, 0.7, 0.85)
+const AREA_DOT_RADIUS := Vector2(30, 22)
 
 var battle: BattleView # a tela dona deste módulo
+var area_key := "" # qual área de lanterna está desenhada no chão
+var area_marks := {} # casa: marca da borda da área
 
 
 func _init(host: Node) -> void:
@@ -85,6 +92,7 @@ func _build_cell(cell: Vector2i) -> void:
 		_add_scenery(terrain_id, cell)
 	if battle.expedition:
 		_add_landmark(cell, row)
+		_add_area_mark(cell, row, battle.building)
 	if battle.town:
 		battle.town_mode._add_person_name(cell, row)
 	var overlay := Polygon2D.new()
@@ -388,6 +396,65 @@ func _unload_cell(cell: Vector2i) -> void:
 	battle.move_shown.erase(cell)
 	battle.forests.erase(cell)
 	battle.trees.erase(cell)
+	area_marks.erase(cell)
+
+
+## A área da próxima lanterna, enquanto ela não foi achada: {cell, radius} ou {}.
+func _lantern_area() -> Dictionary:
+	if not battle.expedition or battle.state.winner() >= 0:
+		return {}
+	var lantern: Variant = battle.state.next_lantern()
+	if lantern == null:
+		return {}
+	var target: Dictionary = battle.state.lantern_target(lantern)
+	return target if target["radius"] > 0 else {}
+
+
+## Uma brasa no chão se a casa fica na borda da área. `nodes`: a lista de nós da casa.
+func _add_area_mark(cell: Vector2i, row: int, nodes: Array) -> void:
+	var area := _lantern_area()
+	if area.is_empty() or Hex.distance(cell, area["cell"]) != area["radius"] or battle.state.terrain_id_at(cell) in [5, 14]:
+		return
+	var dot := Polygon2D.new()
+	var points := PackedVector2Array()
+	for i in 12:
+		points.append(battle.HEX_MIDDLE + Vector2.from_angle(TAU * i / 12.0) * AREA_DOT_RADIUS)
+	dot.polygon = points
+	dot.color = AREA_DOT
+	var core := Polygon2D.new() # miolo claro: lê como brasa, não como mancha
+	var inner := PackedVector2Array()
+	for point in points:
+		inner.append(battle.HEX_MIDDLE + (point - battle.HEX_MIDDLE) * 0.45)
+	core.polygon = inner
+	core.color = AREA_DOT_CORE
+	core.use_parent_material = true
+	dot.add_child(core)
+	battle.board.add_child(dot)
+	battle._place_ground_marker(dot, cell)
+	dot.z_index = battle._z(row) + 2
+	nodes.append(dot)
+	area_marks[cell] = dot
+
+
+## Redesenha a borda quando a área muda: lanterna achada ou acesa, ou bússola melhor.
+func refresh_lantern_area() -> void:
+	var area := _lantern_area()
+	var key := str(area)
+	if key == area_key:
+		return
+	area_key = key
+	for cell in area_marks:
+		var dot: Node = area_marks[cell]
+		if battle.cell_nodes.has(cell):
+			battle.cell_nodes[cell].erase(dot)
+		if is_instance_valid(dot):
+			dot.queue_free()
+	area_marks.clear()
+	if area.is_empty():
+		return
+	for cell in battle.cell_nodes:
+		if Hex.distance(cell, area["cell"]) == area["radius"]:
+			_add_area_mark(cell, battle.cell_rows[cell], battle.cell_nodes[cell])
 
 
 ## Marca de um local no chão natural: um círculo, porque não há casas à vista.
@@ -589,6 +656,9 @@ func _add_unit_view(unit) -> void:
 	if battle.expedition and battle.state.is_boss(unit):
 		view.scale *= BOSS_SCALE
 		view.self_modulate = Color(0.75, 0.6, 1.0)
+	if battle.expedition and Exp.is_elite(unit):
+		view.scale *= ELITE_SCALE
+		view.set_elite(Exp.ELITE_AURA)
 	battle.battle_camera.add_billboard(view, Vector2.ZERO, battle._cell_elevation(unit.pos))
 
 

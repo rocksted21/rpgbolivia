@@ -48,6 +48,7 @@ const LANTERN_EXACT := 2 # chegando perto, a lanterna (ou o farol) aparece exata
 const LANTERN_LIGHT := 10 # lanterna acesa ilumina em volta: os locais perto entram na bússola
 const LANTERN_HEAL := 0.3
 const ELITE_NAME := "Sentinela da Lanterna"
+const ELITE_AURA := Color(1.0, 0.55, 0.25) # brilho de brasa em volta da Sentinela (só visual)
 # Cada lanterna apagada deixa o guardião mais forte; vencê-lo assim rende brasas a mais.
 const DARK_HP := 0.2
 const DARK_ATK := 0.08
@@ -160,3 +161,8 @@ const VILLAIN := {
 	"intro": "\"Eu guardei vocês. Guardei tudo. Num mundo que esquece, quem vai lembrar de vocês se eu soltar?\"",
 	"farewell": "\"Então... lembrem por mim.\"",
 }
+
+
+## A elite que guarda uma lanterna. O nome vai no save; assim a aura volta ao carregar.
+static func is_elite(unit) -> bool:
+	return unit != null and unit.display_name == ELITE_NAME

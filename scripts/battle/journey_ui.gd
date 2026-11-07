@@ -14,7 +14,7 @@ const HeroProgress = preload("res://scripts/hero_progress.gd")
 const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
 const DANGER_HOT := Color(1.0, 0.42, 0.32)
 const CAMP_ICONS := {"camp": "tent", "garden": "ruin", "shrine": "candle", "crossing": "house"}
-const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest", "lanterna": "candle"}
+const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest", "lanterna": "lantern"}
 const DANGER_CALM := Color(0.62, 0.9, 0.55)
 
 var battle: BattleView # a tela dona deste módulo
@@ -44,6 +44,7 @@ func _update_journey() -> void:
 	stats.append({"icon": "flame", "value": battle.state.brasas, "label": "Brasas", "color": Color(1.0, 0.68, 0.3)})
 	stats.append({"icon": "star", "value": battle.state.level, "label": "Nível", "color": Color(1.0, 0.85, 0.35)})
 	battle.hud.set_overview(title, stats, _level_info(), _compass_chips())
+	battle.board_art.refresh_lantern_area()
 	battle.hud.set_tracker(_quest_tracker())
 	battle.hud.update_party(battle.selected if battle._free_roam() else battle.state.active_unit())
 
@@ -112,7 +113,9 @@ func _compass_chips() -> Array:
 		var label: String = battle.state.landmark_label(lantern)
 		if target["radius"] > 0:
 			label += " (área)"
-		chips.append(_compass(label, target["cell"], LANDMARK_ICONS["lanterna"], Exp.LANDMARKS["lanterna"]["color"]))
+		var chip := _compass(label, target["cell"], LANDMARK_ICONS["lanterna"], Exp.LANDMARKS["lanterna"]["color"])
+		chip["spread"] = _area_spread(target["cell"], target["radius"])
+		chips.append(chip)
 	var open: Array = battle.state.open_landmarks(battle.camera_cell)
 	var fort = battle.state.fort
 	if not fort.cells.is_empty() and battle.state.landmarks[fort.center]["state"] != "done":
@@ -135,6 +138,17 @@ func _compass_chips() -> Array:
 func _compass(label: String, cell: Vector2i, icon: String, color: Color) -> Dictionary:
 	var away: Vector2 = (battle.board_art._flat_point(cell) - battle.board_art._flat_point(battle.camera_cell)).rotated(battle.view_angle)
 	return {"label": label, "icon": icon, "color": color, "angle": Vector2(away.x, away.y * BattleCamera.GROUND_TILT).angle()}
+
+
+## Quanto do radar a área cobre, em radianos para cada lado: perto, a faixa abre;
+## dentro da área, o radar todo acende. 0 = ponto exato.
+func _area_spread(cell: Vector2i, radius: int) -> float:
+	if radius <= 0:
+		return 0.0
+	var away := Hex.distance(cell, battle.camera_cell)
+	if away <= radius:
+		return PI
+	return asin(float(radius) / away)
 
 
 ## A primeira missão aceita, somando o que a expedição já fez por ela.

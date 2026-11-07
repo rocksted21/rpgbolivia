@@ -39,7 +39,7 @@ const BUILDING_ART := [
 	"casa_a", "casa_b", "casa_c", "taverna", "mansao", "capela", "forja", "forno", "abrigo", "tenda", "torre_madeira", "farol", # cidade
 	"crossing_house", "shrine_monument", "garden_gate", # acampamentos e ruínas
 ]
-const SMALL_STRUCTURE_ART := ["acampamento", "fonte", "garden_wall", "garden_fountain", "crossing_pier"]
+const SMALL_STRUCTURE_ART := ["acampamento", "fonte", "lanterna_apagada", "lanterna_acesa", "garden_wall", "garden_fountain", "crossing_pier"]
 
 
 ## Quanto ampliar a arte de um objeto em pé: só construções crescem; o resto fica em 1.
@@ -66,7 +66,7 @@ static func prop_tint(biome: String, path: String) -> Color:
 	var night: Color = NIGHT_TINT.get(biome, Color.WHITE)
 	if light_of(biome, path) != "":
 		return Color.WHITE
-	if "/ruina_" in path:
+	if "/ruina_" in path or "lanterna_apagada" in path:
 		return night.lerp(Color.WHITE, LANDMARK_LIFT)
 	return night
 
@@ -75,6 +75,8 @@ static func prop_tint(biome: String, path: String) -> Color:
 static func light_of(biome: String, path: String) -> String:
 	if "farol_aceso" in path:
 		return "farol"
+	if "lanterna_acesa" in path:
+		return "lanterna"
 	if "bau_fechado" in path:
 		return "bau"
 	if biome == "selva" and "/enfeite_" in path:
@@ -179,6 +181,8 @@ static func landmark(biome: String, kind: String, done: bool, detail: float) -> 
 	match kind:
 		"bau":
 			return [{"path": COMMON % ("bau_aberto" if done else "bau_fechado"), "ground_y": MIDDLE_Y + 8, "depth": BEHIND_UNIT, "layer": "main", "fixed": true}]
+		"lanterna": # tools/build_lantern.py
+			return [{"path": COMMON % ("lanterna_acesa" if done else "lanterna_apagada"), "ground_y": MIDDLE_Y + 8, "depth": BEHIND_UNIT, "layer": "main", "fixed": true}]
 		"ruina", "emboscada":
 			return [_prop(biome, "ruina_a" if detail < 0.5 else "ruina_b", BACK_Y + 10, BEHIND_UNIT)]
 	return []
