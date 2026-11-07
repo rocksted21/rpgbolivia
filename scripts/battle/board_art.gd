@@ -535,7 +535,7 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	sprite.texture = load(prop["path"])
 	sprite.centered = false
 	# O ponto de apoio de cada arte é o centro da imagem.
-	sprite.scale = Vector2.ONE * float(prop.get("scale", 1.0))
+	sprite.scale = Vector2.ONE * float(prop.get("scale", 1.0)) * BiomeArt.building_scale(prop["path"])
 	var foot: Vector2 = sprite.texture.get_size() * sprite.scale / 2.0
 	sprite.position = battle.cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"]) - foot
 	if battle.natural and not battle.town and not _is_marked_place(cell) and not prop.get("fixed", false):

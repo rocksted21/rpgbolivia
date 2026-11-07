@@ -39,18 +39,18 @@ func setup(p_view) -> void:
 	camera = view.battle_camera
 	z_index = DRAW_LAYER
 	z_as_relative = false
-	for decor in Town.DECOR:
+	for decor in Town.decor():
 		if Town.LIGHT_ART.has(decor["art"]):
 			_add_light(decor["cell"], Town.LIGHT_ART[decor["art"]], true, FLAME_HEIGHT, decor.get("offset", 0))
-	for building in Town.BUILDINGS:
+	for building in Town.buildings():
 		if building["art"] == "farol":
-			_add_light(building["cell"], Town.BEACON_LIGHT, false, Town.BEACON_HEIGHT)
+			_add_light(building["cell"], Town.BEACON_LIGHT, false, Town.BEACON_HEIGHT * building["scale"] * Town.BiomeArt.building_scale(building["path"]))
 		elif building["art"] == "forja" and state.is_present(building):
 			_add_light(building["cell"], Town.FORGE_LIGHT, true)
 	var count: int = mini(Town.WALKER_BASE + TownProgress.rescued().size() + TownProgress.beacons(), Town.WALKER_MAX)
 	for i in count:
 		_add_walker(i)
-	for person in Town.PEOPLE:
+	for person in Town.people():
 		if person["id"] == Content.GUIDE:
 			guide_cell = person["cell"]
 	calling = TownProgress.story_pending()
@@ -125,7 +125,7 @@ func _add_walker(index: int) -> void:
 	sprite.texture = load(Town.TOWN_ROOT % Town.WALKER_ART[index % Town.WALKER_ART.size()])
 	sprite.centered = false
 	var foot: Vector2 = sprite.texture.get_size() / 2.0
-	var route: Array = Town.WALK_ROUTE.filter(func(cell): return state.tile_at(cell)["walkable"])
+	var route: Array = Town.walk_route().filter(func(cell): return state.tile_at(cell)["walkable"])
 	var cell: Vector2i = route[index * 3 % route.size()]
 	view.board.add_child(sprite)
 	camera.add_billboard(sprite, foot, view._cell_elevation(cell))

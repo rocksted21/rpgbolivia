@@ -23,7 +23,7 @@ const BIOME_CHECK_TIME := 0.5
 const AMBIENT_AMOUNT := 44
 # Luz de cada coisa no mapa.
 const SPOTS := {
-	"farol": {"color": Color(1.0, 0.68, 0.3), "alpha": 0.5, "size": 260.0, "height": 165.0, "embers": true},
+	"farol": {"color": Color(1.0, 0.68, 0.3), "alpha": 0.5, "size": 260.0, "height": 412.0, "embers": true}, # 165 × escala das construções (biome_art.gd)
 	"bau": {"color": Color(1.0, 0.8, 0.4), "alpha": 0.42, "size": 74.0, "height": 22.0},
 	"cristal": {"color": Color(0.3, 0.97, 0.86), "alpha": 0.2, "size": 62.0, "height": 22.0},
 }

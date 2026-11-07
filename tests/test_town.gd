@@ -43,8 +43,8 @@ func _new(rescued := []):
 func _reachable(state) -> Dictionary:
 	for member in state.party:
 		member.pos = Vector2i(999, 999)
-	var seen := {Town.PLAZA: true}
-	var frontier := [Town.PLAZA]
+	var seen := {Town.plaza(): true}
+	var frontier := [Town.plaza()]
 	while not frontier.is_empty():
 		var current: Vector2i = frontier.pop_back()
 		for next in Hex.neighbors(current):
@@ -59,7 +59,7 @@ func _reachable(state) -> Dictionary:
 
 func test_walking() -> void:
 	var state = _new(["ferreiro", "curandeira"])
-	check(state.tile_at(Town.PLAZA)["walkable"], "a praça é caminhável")
+	check(state.tile_at(Town.plaza())["walkable"], "a praça é caminhável")
 	for member in state.party:
 		check(state.tile_at(member.pos)["walkable"], "%s começa em casa livre" % member.type_id)
 	check(state.foes().is_empty() and state.tick().is_empty(), "a cidade não tem inimigos")
@@ -88,16 +88,16 @@ func test_art() -> void:
 	for cell in state.levels:
 		for piece in state.ground_overlays(cell):
 			check(ResourceLoader.exists(piece), "peça de piso existe: %s" % piece)
-	var width: int = Town.MAP[0].length()
-	for line in Town.MAP:
+	var width: int = Town.map_rows()[0].length()
+	for line in Town.map_rows():
 		check(line.length() == width, "a planta é retangular")
 	check(ResourceLoader.exists("res://assets/town/calcada.png"), "calçada existe")
 	var cells := {}
-	for building in Town.BUILDINGS:
+	for building in Town.buildings():
 		for cell in state._disc(building["cell"], building["radius"]):
 			check(not cells.has(cell), "prédios não se sobrepõem em %s" % cell)
 			cells[cell] = true
-	for person in Town.PEOPLE:
+	for person in Town.people():
 		check(not cells.has(person["cell"]), "%s fica fora dos prédios" % person["name"])
 
 
@@ -105,22 +105,21 @@ func test_art() -> void:
 func test_roads() -> void:
 	var state = _new(["ferreiro", "curandeira"])
 	var seen := _reachable(state)
-	for road in Town.ROADS:
-		for cell in state._line(road[0], road[1]):
-			if state.levels.has(cell):
-				check(seen.has(cell), "a rua continua aberta em %s" % cell)
-	for cell in Town.WALK_ROUTE:
+	for cell in Town.road_cells():
+		if state.levels.has(cell):
+			check(seen.has(cell), "a rua continua aberta em %s" % cell)
+	for cell in Town.walk_route():
 		check(seen.has(cell), "quem passeia chega a %s" % cell)
 	for art in Town.WALKER_ART:
 		check(ResourceLoader.exists(Town.TOWN_ROOT % art), "arte de quem passeia: %s" % art)
 
 
 func test_content() -> void:
-	for person in Town.PEOPLE:
+	for person in Town.people():
 		check(ResourceLoader.exists(Town.TOWN_ROOT % person["art"]), "%s tem arte" % person["name"])
 		if person["service"] != "board":
 			check(Content.TALK.has(person["id"]), "%s tem conversa" % person["name"])
-	var ids: Array = Town.PEOPLE.map(func(person): return person["id"])
+	var ids: Array = Town.people().map(func(person): return person["id"])
 	for id in Content.QUESTS:
 		var quest: Dictionary = Content.QUESTS[id]
 		check(id in Content.QUEST_ORDER, "%s está na ordem" % id)
@@ -211,11 +210,11 @@ func test_quests() -> void:
 ## O guia conta a história em capítulos, um por farol, e o objetivo acompanha.
 func test_story() -> void:
 	_clean_save()
-	var guide: Array = Town.PEOPLE.filter(func(p): return p["id"] == Content.GUIDE)
+	var guide: Array = Town.people().filter(func(p): return p["id"] == Content.GUIDE)
 	check(guide.size() == 1 and Content.TALK.has(Content.GUIDE), "existe um guia com conversa")
 	var state = _new()
-	check(Hex.distance(guide[0]["cell"], Town.PLAZA) <= Town.VISIT_RADIUS, "o guia está perto de onde a party começa")
-	check(state.person_near(Town.PLAZA)["id"] == Content.GUIDE, "a primeira conversa à mão é com o guia")
+	check(Hex.distance(guide[0]["cell"], Town.plaza()) <= Town.VISIT_RADIUS, "o guia está perto de onde a party começa")
+	check(state.person_near(Town.plaza())["id"] == Content.GUIDE, "a primeira conversa à mão é com o guia")
 	check(TownProgress.story_pending() and TownProgress.person_mark(Content.GUIDE) == "!", "no começo o guia tem história")
 	check(TownProgress.objective() == Content.GOAL_TALK, "o objetivo manda falar com o guia")
 	check(TownProgress.pending_pages() == Content.STORY[0]["pages"], "conta o primeiro capítulo")
@@ -238,7 +237,7 @@ func test_story() -> void:
 	for i in Content.STORY.size():
 		check(not Content.STORY[i]["pages"].is_empty() and Content.STORY[i]["call"].all(func(line): return line.length() <= 40), "capítulo %d tem falas e balões curtos" % i)
 		for page in Content.STORY[i]["pages"]:
-			check(Town.PEOPLE.any(func(p): return p["id"] == page[0]), "quem fala no capítulo %d existe" % i)
+			check(Town.people().any(func(p): return p["id"] == page[0]), "quem fala no capítulo %d existe" % i)
 	for kind in Exp.BOSS_BY_BIOME.values():
 		check(Exp.BOSS_LINES.has(kind) and Exp.BOSS_FAREWELL.has(kind), "%s tem falas" % kind)
 		check(Content.TALK[Content.KEEPER]["guardians"].has(kind), "o Faroleiro conta quem era %s" % kind)
@@ -247,24 +246,24 @@ func test_story() -> void:
 func test_growth() -> void:
 	var empty = _new()
 	var saved = _new(["ferreiro"])
-	var forge: Vector2i = Town.BUILDINGS[1]["cell"]
+	var forge: Vector2i = Town.buildings().filter(func(b): return b["art"] == "forja")[0]["cell"]
 	check(empty.props[forge][0]["path"] == Town.RUBBLE, "sem o ferreiro a forja está em ruínas")
 	check(saved.props[forge][0]["path"].ends_with("forja.png"), "o resgate reconstrói a forja")
-	var smith: Vector2i = Town.PEOPLE[0]["cell"]
+	var smith: Vector2i = Town.people().filter(func(p): return p["id"] == "ferreiro")[0]["cell"]
 	check(empty.tile_at(smith)["walkable"], "sem o ferreiro, o lugar dele fica livre")
 	check(not saved.tile_at(smith)["walkable"], "o ferreiro ocupa uma casa")
 	check(saved.person_near(smith + Vector2i(1, 0))["id"] == "ferreiro", "dá para falar com quem está perto")
 	check(saved.person_near(Vector2i(200, 200)).is_empty(), "longe não há conversa")
-	check(not saved.tile_at(Town.PEOPLE.filter(func(p): return p["id"] == "mercadora")[0]["cell"])["walkable"], "a mercadora ocupa uma casa")
+	check(not saved.tile_at(Town.people().filter(func(p): return p["id"] == "mercadora")[0]["cell"])["walkable"], "a mercadora ocupa uma casa")
 	# Cada morador resgatado traz de volta o prédio do seu ofício.
 	var everyone = _new(Exp.RESIDENT_ORDER)
-	for building in Town.BUILDINGS:
+	for building in Town.buildings():
 		if building.get("needs", "") == "":
 			continue
 		var cell: Vector2i = building["cell"]
 		check(empty.props[cell][0]["path"] == Town.RUBBLE, "sem %s, %s em ruínas" % [building["needs"], building["art"]])
 		check(everyone.props[cell][0]["path"] != Town.RUBBLE, "com %s, %s de pé" % [building["needs"], building["art"]])
 	for id in Exp.RESIDENT_ORDER:
-		var home: Array = Town.PEOPLE.filter(func(p): return p["id"] == id)
+		var home: Array = Town.people().filter(func(p): return p["id"] == id)
 		check(home.size() == 1 and home[0]["needs"] == id, "%s tem casa na cidade" % id)
-		check(Town.BUILDINGS.any(func(b): return b.get("needs", "") == id), "%s reabre um prédio" % id)
+		check(Town.buildings().any(func(b): return b.get("needs", "") == id), "%s reabre um prédio" % id)

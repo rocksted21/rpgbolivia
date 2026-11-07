@@ -178,7 +178,7 @@ func _tell_story(person: Dictionary, pages: Array, index: int) -> void:
 
 
 func _person(id: String) -> Dictionary:
-	for person in Town.PEOPLE:
+	for person in Town.people():
 		if person["id"] == id:
 			return person
 	return {}
@@ -359,7 +359,7 @@ func open_log() -> void:
 
 func _fill_quests(list: Control) -> void:
 	var names := {}
-	for person in Town.PEOPLE:
+	for person in Town.people():
 		names[person["id"]] = person["name"]
 	var sections := [["ready", "Prontas para entregar", GOOD], ["active", "Em andamento", GOLD], ["available", "Pedidos novos", TEXT]]
 	var any := false

@@ -29,6 +29,27 @@ const MIDDLE_Y := 118
 const FRONT_Y := 172
 const BEHIND_UNIT := 3
 const BEFORE_UNIT := 6
+# Escala provisória das construções, para ficarem proporcionais aos heróis (~170 px de altura).
+# Na arte atual a porta de uma casa mede ~60 px; com ×2,5 ela fica perto da altura de um herói.
+# Vale para a cidade, o mundo, o forte e os acampamentos. Arte nova no tamanho certo: voltar a 1.
+const BUILDING_SCALE := 2.5
+const SMALL_STRUCTURE_SCALE := 1.5
+const BUILDING_ART := [
+	"casa", "torre", "ruina_a", "ruina_b", "farol_aceso", "farol_apagado", # mundo
+	"casa_a", "casa_b", "casa_c", "taverna", "mansao", "capela", "forja", "forno", "abrigo", "tenda", "torre_madeira", "farol", # cidade
+	"crossing_house", "shrine_monument", "garden_gate", # acampamentos e ruínas
+]
+const SMALL_STRUCTURE_ART := ["acampamento", "fonte", "garden_wall", "garden_fountain", "crossing_pier"]
+
+
+## Quanto ampliar a arte de um objeto em pé: só construções crescem; o resto fica em 1.
+static func building_scale(path: String) -> float:
+	var art := path.get_file().get_basename()
+	if art in BUILDING_ART:
+		return BUILDING_SCALE
+	if art in SMALL_STRUCTURE_ART:
+		return SMALL_STRUCTURE_SCALE
+	return 1.0
 
 
 static func soil(biome: String) -> String:

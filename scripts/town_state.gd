@@ -31,15 +31,16 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 	rescued = town.get("rescued", [])
 	_build_ground()
 	_build_places()
-	start_cell = Town.PLAZA
-	var spots := [Town.PLAZA] + Hex.neighbors(Town.PLAZA)
+	start_cell = Town.plaza()
+	var spots := [start_cell] + Hex.neighbors(start_cell)
 	for i in party.size():
 		party[i].pos = spots[i]
 
 
 func _build_ground() -> void:
-	for row in Town.MAP.size():
-		var line: String = Town.MAP[row]
+	var rows: Array = Town.map_rows()
+	for row in rows.size():
+		var line: String = rows[row]
 		for col in line.length():
 			var cell := Vector2i(col, row)
 			var mark := line[col]
@@ -54,39 +55,44 @@ func _build_ground() -> void:
 			else:
 				ground[cell] = TERRAIN_GRASS if _roll(cell) < 0.5 else TERRAIN_GRASS_B
 				levels[cell] = int(mark)
-	for road in Town.ROADS:
-		for cell in _line(road[0], road[1]):
-			if ground.has(cell):
-				ground[cell] = TERRAIN_STONE
+	for cell in Town.road_cells():
+		if ground.has(cell):
+			ground[cell] = TERRAIN_STONE
 	for cell in ground:
 		floor[cell] = TERRAIN_GRASS if ground[cell] == TERRAIN_ROCK else ground[cell]
 
 
+## Tudo vem de scenes/cidade.tscn (Town.buildings(), trees(), decor(), people()).
 func _build_places() -> void:
-	for building in Town.BUILDINGS:
-		var ready: bool = building.get("needs", "") == "" or building["needs"] in rescued
+	for building in Town.buildings():
+		var ready: bool = building["needs"] == "" or building["needs"] in rescued
 		for cell in _disc(building["cell"], building["radius"]):
 			ground[cell] = TERRAIN_BUILT
-		if ready and building["art"] in Town.MODELS:
-			_put_model(building["cell"], building["art"], building.get("face", building["cell"]))
+		if not ready:
+			_put(building["cell"], Town.RUBBLE, BUILDING_GROUND)
 			continue
-		var path: String = (Town.TOWN_ROOT % building["art"]) if ready else Town.RUBBLE
-		_put(building["cell"], path, BUILDING_GROUND)
-	for i in Town.TREES.size():
-		var spot: Vector2i = Town.TREES[i]
-		if ground.has(spot):
-			ground[spot] = TERRAIN_BUILT
-			_put(spot, Town.TREE_ART % ("a" if i % 2 == 0 else "b"), BUILDING_GROUND, 0, BEHIND_UNIT, i % 3 == 0)
-	for decor in Town.DECOR:
+		# Desenhos de assets/town/ilustrado têm o pé no centro do hexágono.
+		_put_piece(building, MODEL_GROUND if "/ilustrado/" in building["path"] else BUILDING_GROUND)
+	for tree in Town.trees():
+		if ground.has(tree["cell"]):
+			ground[tree["cell"]] = TERRAIN_BUILT
+			_put_piece(tree, BUILDING_GROUND)
+	for decor in Town.decor():
 		var cell: Vector2i = decor["cell"]
-		if ground.has(cell) and ground[cell] != TERRAIN_WATER and decor.get("solid", true):
+		if ground.has(cell) and ground[cell] != TERRAIN_WATER and decor["solid"]:
 			ground[cell] = TERRAIN_BUILT
-		_put(cell, Town.TOWN_ROOT % decor["art"], PERSON_GROUND, decor.get("offset", 0))
-	for person in Town.PEOPLE:
+		_put_piece(decor, PERSON_GROUND)
+	for person in Town.people():
 		people[person["cell"]] = person
-		if person.get("needs", "") == "" or person["needs"] in rescued:
+		if person["needs"] == "" or person["needs"] in rescued:
 			ground[person["cell"]] = TERRAIN_BUILT
-			_put(person["cell"], Town.TOWN_ROOT % person["art"], PERSON_GROUND)
+			_put_piece(person, PERSON_GROUND)
+
+
+## Peça da cena: respeita o deslocamento dentro do hexágono, o tamanho e o espelhamento.
+func _put_piece(piece: Dictionary, ground_y: int) -> void:
+	_put(piece["cell"], piece["path"], ground_y + piece["lift"], piece["offset"], BEHIND_UNIT, piece["flip"])
+	props[piece["cell"]].back()["scale"] = piece["scale"]
 
 
 ## Uma casa pode ter mais de um objeto: o prédio, uma tocha na beira e quem mora ali.
@@ -94,22 +100,6 @@ func _put(cell: Vector2i, path: String, ground_y: int, offset := 0, depth := BEH
 	if not props.has(cell):
 		props[cell] = []
 	props[cell].append({"path": path, "ground_y": ground_y, "depth": depth, "layer": "main", "fixed": true, "offset_x": offset, "flip": flip})
-
-
-## Construção em 3D: o pé do modelo fica no centro da casa, e o desenho muda com a câmera.
-func _put_model(cell: Vector2i, model: String, face: Vector2i) -> void:
-	var illustrated := "res://assets/town/ilustrado/%s.png" % model
-	if ResourceLoader.exists(illustrated):
-		_put(cell, illustrated, MODEL_GROUND)
-		return
-	if not props.has(cell):
-		props[cell] = []
-	# A frente do modelo olha para `face`: a casa fica de frente para a rua.
-	var turn := 0.0
-	if face != cell:
-		var toward: Vector2 = _flat(face) - _flat(cell)
-		turn = toward.angle() - PI / 2.0
-	props[cell].append({"path": Town.MODEL_ROOT % model, "model": model, "turn": turn, "ground_y": MODEL_GROUND, "depth": BEHIND_UNIT, "layer": "main", "fixed": true})
 
 
 func _line(from: Vector2i, to: Vector2i) -> Array:

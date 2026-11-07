@@ -1,6 +1,6 @@
 extends RefCounted
 ## O que há para fazer na Cidade-Farol: itens, melhorias, missões e conversas.
-## Mudar textos, preços e recompensas mexendo só aqui. A planta fica em town_data.gd.
+## Mudar textos, preços e recompensas mexendo só aqui. A planta fica em scenes/cidade.tscn.
 
 # --- Itens ---------------------------------------------------------------------
 # seller: quem vende. max: quanto cabe na mochila.
@@ -255,7 +255,7 @@ const QUEST_ORDER := [
 # SPOILER: o enredo inteiro está em docs/SPOILER_historia.md.
 # Cada capítulo é contado pelo guia na volta para casa. O capítulo atual é o número de faróis
 # acesos (0 a 4); o último só aparece depois da batalha final (TownProgress.finish_story()).
-# pages: [quem fala (id em Town.PEOPLE), fala]. goal: o objetivo no topo da tela.
+# pages: [quem fala (id em Town.people()), fala]. goal: o objetivo no topo da tela.
 # help: o que fazer, em palavras simples. call: o que o guia grita enquanto tem algo a contar.
 const GUIDE := "guia"
 const KEEPER := "guarda"

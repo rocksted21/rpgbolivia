@@ -1,0 +1,20 @@
+[gd_resource type="TileSet" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/town/editor/chao_cidade.png" id="1_chao"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_chao"]
+texture = ExtResource("1_chao")
+texture_region_size = Vector2i(186, 213)
+0:0/0 = 0
+1:0/0 = 0
+2:0/0 = 0
+3:0/0 = 0
+4:0/0 = 0
+5:0/0 = 0
+6:0/0 = 0
+7:0/0 = 0
+
+[resource]
+tile_shape = 3
+tile_size = Vector2i(186, 213)
+sources/0 = SubResource("TileSetAtlasSource_chao")
