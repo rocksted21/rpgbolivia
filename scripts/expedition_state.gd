@@ -187,10 +187,9 @@ func _zone_pools(candidates: Array) -> Dictionary:
 func _plateau_spot(placed: Array, spacing: int, reachable: Dictionary) -> Variant:
 	var tops := []
 	for zone in layout.zones:
-		var disc: Array = zone["plateau"]
-		if disc.is_empty():
+		if zone["plateau"].is_empty():
 			continue
-		var top: Vector2i = disc[disc.size() / 2]
+		var top: Vector2i = zone["peak"]
 		if reachable.has(top) and Hex.distance(top, start_cell) >= Exp.LANDMARK_MIN:
 			tops.append(top)
 	_shuffle(tops)

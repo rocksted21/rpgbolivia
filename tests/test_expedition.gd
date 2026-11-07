@@ -247,6 +247,8 @@ func _kinds(events: Array) -> Array:
 
 func test_layout() -> void:
 	var total_repairs := 0
+	var sizes := {}
+	var ramp_sides := {}
 	for world_seed in [7, 93, 248, 279, 465, 1054]:
 		var state = ExpeditionState.new(Data.DEFAULT_PARTY, world_seed)
 		var layout = state.layout
@@ -256,7 +258,13 @@ func test_layout() -> void:
 		for zone in layout.zones:
 			check(not zone["passages"].is_empty(), "semente %d: toda zona tem passagem" % world_seed)
 			check(zone["top"] >= 2, "semente %d: toda zona tem platô de nível 2 ou 3" % world_seed)
-			check(zone["plateau"].any(func(cell): return area.has(cell)), "semente %d: dá para subir no platô" % world_seed)
+			check(area.has(zone["peak"]), "semente %d: dá para subir até o alto do platô" % world_seed)
+			check(zone["plateau"].has(zone["peak"]), "semente %d: o alto fica no platô" % world_seed)
+			sizes[zone["plateau"].size()] = true
+			if not zone["ramp"].is_empty():
+				ramp_sides[Hex.distance(zone["ramp"][0], zone["center"]) < Hex.distance(zone["peak"], zone["center"])] = true
+				for step in zone["ramp"]:
+					check(not zone["plateau"].has(step), "semente %d: a rampa fica fora do platô" % world_seed)
 			check(area.has(zone["center"]) or Hex.neighbors(zone["center"]).any(func(cell): return area.has(cell)), "semente %d: dá para chegar à zona" % world_seed)
 			for strip in zone["passages"]:
 				_check_passage_width(state, strip, world_seed)
@@ -272,6 +280,8 @@ func test_layout() -> void:
 			check(state.gen.is_path(zone["center"]), "semente %d: a trilha chega ao centro da zona %s" % [world_seed, zone["center"]])
 		_check_bridges(state, world_seed)
 	print("Forma do mapa: %d reparos em 6 mapas" % total_repairs)
+	check(sizes.size() >= 8, "platôs de tamanhos variados (%d tamanhos)" % sizes.size())
+	check(ramp_sides.size() == 2, "rampas não apontam todas para o mesmo lado")
 	# Atrás da serra o inimigo não entra na luta.
 	var walled = ExpeditionState.new(Data.DEFAULT_PARTY, 93)
 	var hidden_foe = walled.add_unit("esqueleto", Data.Team.ENEMY, walled.start_cell + Vector2i(30, 30))
