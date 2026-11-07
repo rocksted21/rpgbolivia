@@ -41,7 +41,8 @@ func setup(p_view) -> void:
 	z_as_relative = false
 	for decor in Town.decor():
 		if Town.LIGHT_ART.has(decor["art"]):
-			_add_light(decor["cell"], Town.LIGHT_ART[decor["art"]], true, FLAME_HEIGHT, decor.get("offset", 0))
+			var flame: bool = not decor["art"].begins_with("porto_") # lanterna do porto não solta fagulha
+			_add_light(decor["cell"], Town.LIGHT_ART[decor["art"]], flame, FLAME_HEIGHT, decor.get("offset", 0))
 	for building in Town.buildings():
 		if building["art"] == "farol":
 			_add_light(building["cell"], Town.BEACON_LIGHT, false, Town.BEACON_HEIGHT * building["scale"] * Town.BiomeArt.building_scale(building["path"]))

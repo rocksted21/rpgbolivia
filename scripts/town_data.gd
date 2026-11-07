@@ -21,6 +21,8 @@ const ROCK_LEVEL := 3
 
 # Construções em 3D têm desenho de todos os lados: ver tools/build_town_models.py.
 const MODEL_ROOT := "res://assets/town/modelos/%s.png"
+# Enfeites em 3D (tools/build_harbor_models.py): giram com a câmera; o editor mostra um quadro.
+const MODEL_DECOR := ["porto_barco", "porto_pier"]
 const MODELS := ["casa_a", "casa_b", "casa_c", "taverna", "mansao", "capela", "forja", "tenda", "abrigo", "forno", "torre_madeira", "fonte", "farol"]
 
 # Quem anda pelas ruas. A cidade ganha gente com os resgates e os faróis.
@@ -28,7 +30,7 @@ const WALKER_ART := ["morador_f", "morador_a", "morador_c", "morador_h"] # morad
 const WALKER_BASE := 2
 const WALKER_MAX := 6
 # Tochas e fogueiras: de noite, é a luz delas que mostra a cidade.
-const LIGHT_ART := {"fogueira_a": 1.0, "fogueira_b": 1.0, "tocha": 0.6}
+const LIGHT_ART := {"fogueira_a": 1.0, "fogueira_b": 1.0, "tocha": 0.6, "porto_pier": 0.7, "porto_barco": 0.45}
 const BEACON_LIGHT := 2.2
 const BEACON_HEIGHT := 288.0 # altura da lanterna no desenho do farol; cresce com a escala dele
 const FORGE_LIGHT := 1.2
@@ -156,7 +158,8 @@ static func _piece(ground: TileMapLayer, sprite: Sprite2D) -> Dictionary:
 	var shift: Vector2 = spot - ground.map_to_local(cell)
 	var path: String = sprite.texture.resource_path
 	return {"cell": cell, "path": path, "art": path.get_file().get_basename(), "offset": roundi(shift.x), "lift": roundi(shift.y),
-		"scale": absf(sprite.scale.x) / BiomeArt.building_scale(path), "flip": sprite.flip_h}
+		"scale": absf(sprite.scale.x) / BiomeArt.building_scale(path), "flip": sprite.flip_h,
+		"turn": deg_to_rad(float(sprite.get("giro"))) if sprite.get("giro") != null else 0.0}
 
 
 static func _needs(node: Node) -> String:

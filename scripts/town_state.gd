@@ -10,6 +10,11 @@ const TERRAIN_BUILT := 10
 const TERRAIN_WATER := 5
 const TERRAIN_STONE := 12
 const TERRAIN_ROCK := 6
+# Pisos só de desenho (o chão que aparece; não muda por onde se anda). A cidade é toda
+# calçada: paralelepípedo no bairro, pedra mais escura nas ruas e lajes claras na praça.
+const FLOOR_PAVE := 13
+const FLOOR_PLAZA := 14
+const FLOOR_STREET := 12 # o mesmo id da pedra
 const BUILDING_GROUND := 138
 const MODEL_GROUND := 107 # centro do hexágono
 const PERSON_GROUND := 160
@@ -17,6 +22,7 @@ const BEHIND_UNIT := 3
 
 var ground := {}
 var floor := {} # o piso que aparece, mesmo embaixo do que bloqueia a casa
+var gardens := {} # canteiros de grama em volta das árvores
 var levels := {}
 var props := {}
 var people := {}
@@ -31,6 +37,7 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 	rescued = town.get("rescued", [])
 	_build_ground()
 	_build_places()
+	_paint_floor()
 	start_cell = Town.plaza()
 	var spots := [start_cell] + Hex.neighbors(start_cell)
 	for i in party.size():
@@ -60,6 +67,26 @@ func _build_ground() -> void:
 			ground[cell] = TERRAIN_STONE
 	for cell in ground:
 		floor[cell] = TERRAIN_GRASS if ground[cell] == TERRAIN_ROCK else ground[cell]
+
+
+## O piso que aparece: a cidade inteira calçada. Só o morro de pedra ao fundo fica de fora;
+## as árvores ganham um canteiro de grama (gardens) por cima da calçada.
+func _paint_floor() -> void:
+	var rows: Array = Town.map_rows()
+	var streets := {}
+	for cell in Town.road_cells():
+		streets[cell] = true
+	for cell in ground:
+		if ground[cell] == TERRAIN_ROCK:
+			continue
+		if rows[cell.y][cell.x] == "p":
+			floor[cell] = FLOOR_PLAZA
+		elif streets.has(cell):
+			floor[cell] = FLOOR_STREET
+		else:
+			floor[cell] = FLOOR_PAVE
+	for tree in Town.trees():
+		gardens[tree["cell"]] = true
 
 
 ## Tudo vem de scenes/cidade.tscn (Town.buildings(), trees(), decor(), people()).
@@ -92,7 +119,12 @@ func _build_places() -> void:
 ## Peça da cena: respeita o deslocamento dentro do hexágono, o tamanho e o espelhamento.
 func _put_piece(piece: Dictionary, ground_y: int) -> void:
 	_put(piece["cell"], piece["path"], ground_y + piece["lift"], piece["offset"], BEHIND_UNIT, piece["flip"])
-	props[piece["cell"]].back()["scale"] = piece["scale"]
+	var prop: Dictionary = props[piece["cell"]].back()
+	prop["scale"] = piece["scale"]
+	if piece["art"] in Town.MODEL_DECOR: # o desenho de todos os lados, virado como no editor
+		prop["model"] = piece["art"]
+		prop["path"] = Town.MODEL_ROOT % piece["art"]
+		prop["turn"] = piece.get("turn", 0.0)
 
 
 ## Uma casa pode ter mais de um objeto: o prédio, uma tocha na beira e quem mora ali.

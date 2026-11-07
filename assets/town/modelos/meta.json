@@ -151,6 +151,22 @@
 		"views": 16,
 		"w": 260
 	},
+	"porto_barco": {
+		"columns": 4,
+		"foot_x": 182,
+		"foot_y": 326,
+		"h": 437,
+		"views": 16,
+		"w": 364
+	},
+	"porto_pier": {
+		"columns": 4,
+		"foot_x": 132,
+		"foot_y": 220,
+		"h": 301,
+		"views": 16,
+		"w": 264
+	},
 	"shrine_bench": {
 		"columns": 4,
 		"foot_x": 41,

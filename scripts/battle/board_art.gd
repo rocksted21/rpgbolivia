@@ -8,6 +8,13 @@ const Data = preload("res://scripts/game_data.gd")
 const WorldGen = preload("res://scripts/world_gen.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const TownState = preload("res://scripts/town_state.gd")
+# Pisos da Cidade-Farol, na ordem em que são pintados.
+const TOWN_FLOORS := [
+	[TownState.FLOOR_PAVE, "res://assets/town/chao/calcada_bairro.png"],
+	[TownState.FLOOR_STREET, "res://assets/town/chao/calcada_rua.png"],
+	[TownState.FLOOR_PLAZA, "res://assets/town/chao/laje_praca.png"],
+]
+const GARDEN_EDGE := 0.45 # o canteiro chega até perto dos cantos da casa
 const UnitView = preload("res://scripts/unit_view.gd")
 const Hud = preload("res://scripts/hud.gd")
 const BattleCamera = preload("res://scripts/battle_camera.gd")
@@ -210,9 +217,17 @@ func _add_natural_ground(cell: Vector2i, row: int, layers: int, biome: String) -
 	if battle.expedition and (battle.state.fort.cells.has(cell) or around.any(func(c): return battle.state.fort.cells.has(c))):
 		var paving := _cover(around, cell, func(c): return battle.state.fort.cells.has(c))
 		_natural_layer(mesh, BiomeArt.COBBLES, paving, biome, row, layers)
-	if battle.town: # as ruas da cidade são desenhadas pela planta
-		var paved := _cover(around, cell, func(spot): return battle.state.floor_id_at(spot) == TownState.TERRAIN_STONE)
-		_natural_layer(mesh, BiomeArt.COBBLES, paved, biome, row, layers)
+	if battle.town: # a cidade é calçada; as ruas e a praça vêm da planta
+		# A calçada vai embaixo de tudo que é pavimento: sem fresta de grama entre ela e a rua.
+		var paved_ids: Array = TOWN_FLOORS.map(func(kind): return kind[0])
+		for i in TOWN_FLOORS.size(): # de baixo para cima: a rua fica por cima da calçada
+			var ids: Array = paved_ids if i == 0 else [TOWN_FLOORS[i][0]]
+			if not ([cell] + around).any(func(spot): return battle.state.floor_id_at(spot) in ids):
+				continue
+			var cover := _cover(around, cell, func(spot): return battle.state.floor_id_at(spot) in ids)
+			_natural_layer(mesh, TOWN_FLOORS[i][1], cover, biome, row, layers)
+		if battle.state.gardens.has(cell): # canteiro redondo no pé da árvore
+			_natural_layer(mesh, BiomeArt.soil(biome), _path_cover([], 1.0, GARDEN_EDGE), biome, row, layers)
 		return
 	var links: Array = battle.state.gen.path_links(cell)
 	if links.is_empty():
