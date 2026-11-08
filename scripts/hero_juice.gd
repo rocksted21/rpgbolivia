@@ -261,4 +261,7 @@ static func _build_guards() -> Dictionary:
 	g["bencao"] = {"shake": 0.1, "color": NATURE, "fx": [_ring(NATURE, 1.1, 0.45), _embers(Color(1.0, 0.8, 0.4), 16, 40), _glow(NATURE, 0.6, 0.35, "circle_05", 90)]}
 	g["manto_agua"] = {"shake": 0.14, "color": WATER, "fx": [_ring(WATER, 1.2, 0.45), _sparks(WATER, 12, 0.8, 60)]}
 	g["veu_fumaca"] = {"shake": 0.1, "color": SMOKE, "fx": [_smoke(ASH, 10, 0.4, 60), _ring(SMOKE, 1.1, 0.45), _spiral(SMOKE, 0.5, 80)]}
+	g["resgate"] = g["interpor"]
+	g["casca_viva"] = g["casca"]
+	g["troca_fumaca"] = g["veu_fumaca"]
 	return g

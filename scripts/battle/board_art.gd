@@ -75,7 +75,7 @@ var battle: BattleView # a tela dona deste módulo
 var area_key := "" # qual área de lanterna está desenhada no chão
 var area_marks := {} # casa: marca da borda da área
 var used_art := {} # caminho da imagem: retângulo sem a margem transparente
-var turning_props := {} # Sprite2D: [sul, oeste, norte, leste] — arte chapada com 4 lados
+var turning_props := {} # Sprite2D: {sides [sul, oeste, norte, leste], turn, end_on} — arte chapada com 4 lados
 
 
 func _init(host: Node) -> void:
@@ -720,7 +720,7 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	# O ponto de apoio de cada arte é o centro da imagem (do quadro, nas folhas).
 	sprite.scale = Vector2.ONE * float(prop.get("scale", 1.0)) * BiomeArt.building_scale(prop["path"])
 	var foot: Vector2 = sprite.get_rect().size * sprite.scale / 2.0
-	sprite.position = battle.cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"]) - foot
+	sprite.position = battle.cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"] + prop.get("offset_y", 0)) - foot
 	if battle.natural and not battle.town and not _is_marked_place(cell) and not prop.get("fixed", false):
 		sprite.position += Vector2(fmod(detail * 53.0, 1.0) - 0.5, fmod(detail * 71.0, 1.0) - 0.5) * PROP_WOBBLE * (1.0 if prop["layer"] != "front" else 0.6)
 	sprite.flip_h = prop.get("flip", false) or (not prop.get("fixed", false) and fmod(detail * 13.0, 1.0) < 0.5)
@@ -732,12 +732,15 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	if prop.has("idle"):
 		_play_idle(sprite, cell)
 	else:
-		_add_turning_sides(sprite, prop["path"])
+		_add_turning_sides(sprite, prop)
 	return sprite
 
 
 ## Peça dos Subúrbios que tem os 4 lados desenhados: troca a imagem a cada giro da câmera.
-func _add_turning_sides(sprite: Sprite2D, path: String) -> void:
+## turn: a peça já vem virada (cerca correndo para o fundo). end_on: pedaço extra de linha,
+## que só aparece quando a câmera vê a linha de ponta.
+func _add_turning_sides(sprite: Sprite2D, prop: Dictionary) -> void:
+	var path: String = prop["path"]
 	var art_name := path.get_file().get_basename()
 	if not "/biomes/suburbios/" in path or not art_name in TURNING_ART:
 		return
@@ -745,15 +748,19 @@ func _add_turning_sides(sprite: Sprite2D, path: String) -> void:
 	for side in TURNING_SIDES:
 		var file := TURNING_ROOT % [art_name, side]
 		if not ResourceLoader.exists(file):
-			return # sem a arte importada, fica a imagem de sempre
+			sprite.visible = not prop.get("end_on", false) # sem a arte importada, fica a imagem de sempre
+			return
 		sides.append(load(file))
-	turning_props[sprite] = sides
+	turning_props[sprite] = {"sides": sides, "turn": float(prop.get("turn", 0.0)), "end_on": prop.get("end_on", false)}
 	_set_turning_side(sprite)
 
 
 func _set_turning_side(sprite: Sprite2D) -> void:
-	var sides: Array = turning_props[sprite]
-	sprite.texture = sides[posmod(roundi(battle.view_angle / (TAU / 4.0)), 4)]
+	var info: Dictionary = turning_props[sprite]
+	var side := posmod(roundi((battle.view_angle + info["turn"]) / (TAU / 4.0)), 4)
+	sprite.texture = info["sides"][side]
+	if info["end_on"]:
+		sprite.visible = side % 2 == 1 # oeste/leste: a linha vista de ponta
 
 
 ## Toca a folha em loop. Cada morador começa num quadro diferente para não respirarem juntos.

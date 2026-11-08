@@ -694,6 +694,13 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			events.append({"type": "buff", "unit": unit, "target": target, "ability": ability_id, "label": ability["name"]})
 			if ability.get("guard_ally", false):
 				target.guarding = true
+			if ability.get("swap", false) and target != unit:
+				# Troca de lugar: as duas deslizam juntas, sem ataque de oportunidade.
+				var from: Vector2i = unit.pos
+				unit.pos = target.pos
+				target.pos = from
+				events.append({"type": "move", "unit": target, "from": unit.pos, "to": from, "push": true, "silent": true, "together": true})
+				events.append({"type": "move", "unit": unit, "from": from, "to": unit.pos, "push": true, "silent": true})
 			if ability.has("haste") and target != unit:
 				# Adianta, mas nunca para antes de agora: ninguém volta no tempo.
 				target.clock = maxi(now, target.clock - ability["haste"])

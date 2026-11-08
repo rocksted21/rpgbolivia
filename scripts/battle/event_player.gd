@@ -47,7 +47,7 @@ func _play(events: Array, roam := false) -> void:
 					battle.sound_manager.play_sfx(&"swing")
 				elif event.get("push", false):
 					event["duration"] = PUSH_TIME
-				if roam:
+				if roam or event.get("together", false): # together: desliza junto com o próximo (troca de lugar)
 					_play_move(event)
 				else:
 					await _play_move(event)

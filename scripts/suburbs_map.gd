@@ -39,6 +39,11 @@ const TOWN_MODELS := {"carroca": "camp_carroca", "caixas": "camp_caixas", "banco
 # direção dele. Assim a linha fica certa de qualquer ângulo da câmera.
 const BARRIERS := {"f": "grade", "w": "muro", "h": "sebe"}
 const JOINS := {"f": ["f", "w"], "w": ["w", "f"], "h": ["h"]}
+# Um pouco maiores que a casa (186 px), para os pedaços vizinhos se encostarem.
+const BARRIER_SCALE := {"grade": 1.3, "muro": 1.2, "sebe": 1.15, "sebe_b": 1.15}
+const HEX_W := 186.0 # TILE_WIDTH de battle_view.gd
+const HEX_ROW := 160.0 # ROW_STEP de battle_view.gd
+const BARRIER_FILL := 3 # trecho entre duas casas dividido em 3: 2 pedaços extras
 # O que cada letra da planta vira. Os sólidos sem peça própria ganham a arte do tipo.
 const LEGEND := {
 	".": FIELD_A, ",": FIELD_B, ":": FIELD_A, "=": ROAD, "-": PATH, "~": WATER, "o": STONES,
@@ -112,24 +117,75 @@ func _read_plan() -> void:
 	_carve_streets()
 
 
-## Trechos de cerca, muro e sebe. Casas com peça própria (portões, guaritas) ficam como estão.
+## Trechos de cerca, muro e sebe, com a arte chapada de 4 lados (assets/2 rotacao).
+## As linhas ficam retas: numa coluna de casas desencontradas, cada pedaço anda um quarto de
+## casa para o lado da vizinha, e o zigue-zague some. As regras continuam nas casas.
+## Entre vizinhas vão pedaços extras, que só aparecem quando a linha foge da câmera (vista de
+## ponta, a peça é estreita e deixaria buraco). Casas com peça própria (portões) ficam como estão.
 func _build_barriers() -> void:
+	var links := {}
 	for cell in marks:
 		var mark: String = marks[cell]
 		if not BARRIERS.has(mark) or (art.has(cell) and not art[cell].is_empty()):
 			continue
-		var list: Array = []
+		var joined: Array[Vector2i] = []
 		for dir in 6:
 			var next := Hex.neighbor(cell, dir)
 			if marks.get(next, " ") in JOINS[mark]:
-				list.append(_model(BARRIERS[mark], MODEL_ROOT, _angle(cell, next)))
-		if list.is_empty():
-			if mark == "h":
-				list.append(_model("sebe_bloco", MODEL_ROOT, 0.0))
-			else: # pedaço solto: um trecho inteiro, de lado a lado
-				list.append(_model(BARRIERS[mark], MODEL_ROOT, 0.0))
-				list.append(_model(BARRIERS[mark], MODEL_ROOT, PI))
+				joined.append(next)
+		links[cell] = joined
+	var shifts := {}
+	for cell in links:
+		shifts[cell] = _barrier_shift(cell, links[cell])
+	for cell in links:
+		var mark: String = marks[cell]
+		var shift: float = shifts[cell]
+		var across := not _only_vertical(cell, links[cell])
+		var list: Array = [_barrier(mark, cell, Vector2(shift, 0.0), 0.0 if across else PI / 2.0, false)]
+		var start := Vector2(shift, 0.0)
+		for next in links[cell]:
+			if next.y < cell.y or (next.y == cell.y and next.x < cell.x):
+				continue # cada trecho entre duas casas é preenchido uma vez só
+			var next_shift: float = shifts.get(next, 0.0)
+			var end := Vector2(_hex_x(next) - _hex_x(cell) + next_shift, (next.y - cell.y) * HEX_ROW)
+			var turn := 0.0 if next.y == cell.y else PI / 2.0
+			for k in range(1, BARRIER_FILL):
+				list.append(_barrier(mark, cell, start.lerp(end, k / float(BARRIER_FILL)), turn, true))
 		art[cell] = list
+
+
+## Casa só com vizinhas em outras fileiras: a linha corre para o fundo do mapa.
+func _only_vertical(cell: Vector2i, joined: Array[Vector2i]) -> bool:
+	if joined.is_empty():
+		return false
+	for next in joined:
+		if next.y == cell.y:
+			return false
+	return true
+
+
+## Quanto o pedaço anda para o lado (em px do tabuleiro) para a coluna ficar reta.
+func _barrier_shift(cell: Vector2i, joined: Array[Vector2i]) -> float:
+	if not _only_vertical(cell, joined):
+		return 0.0
+	var total := 0.0
+	for next in joined:
+		total += _hex_x(next) - _hex_x(cell)
+	return total / joined.size() / 2.0
+
+
+func _hex_x(cell: Vector2i) -> float:
+	return cell.x * HEX_W + (cell.y & 1) * HEX_W / 2.0
+
+
+## Um pedaço de cerca, muro ou sebe. turn 0: a linha corre de lado; PI/2: corre para o fundo.
+## end_on: pedaço extra, visível só quando a câmera vê a linha de ponta.
+func _barrier(mark: String, cell: Vector2i, offset: Vector2, turn: float, end_on: bool) -> Dictionary:
+	var file: String = BARRIERS[mark]
+	if mark == "h" and fmod(_roll(cell) * 7.0, 1.0) < 0.5:
+		file = "sebe_b"
+	return {"path": ART % file, "ground_y": GROUND_Y, "offset_x": offset.x, "offset_y": offset.y, "depth": 3,
+		"layer": "main", "fixed": true, "scale": BARRIER_SCALE.get(file, 1.0), "turn": turn, "end_on": end_on}
 
 
 ## Ângulo da casa até a vizinha, no plano do tabuleiro (y para baixo), como o "turn" dos modelos.

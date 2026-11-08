@@ -215,6 +215,12 @@ static func _restore_units(state, data: Dictionary) -> Dictionary:
 		unit.def = row.def
 		unit.speed = row.speed
 		unit.abilities = row.abilities.duplicate()
+		# Saves de antes do kit básico (2026-11-08): o herói ganha o que falta da lista inicial.
+		if row.team == Data.Team.PLAYER and Data.WORLD_HEROES.has(row.type):
+			for id in Data.UNIT_TYPES[row.type]["abilities"]:
+				if not unit.abilities.has(id):
+					var at: int = unit.abilities.find("reerguer")
+					unit.abilities.insert(at if at >= 0 else unit.abilities.size(), id)
 		# Saves de antes do Reerguer (2026-11-08): todo herói ganha a ação.
 		if row.team == Data.Team.PLAYER and Data.WORLD_HEROES.has(row.type) and not unit.abilities.has("reerguer"):
 			unit.abilities.append("reerguer")

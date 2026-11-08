@@ -19,6 +19,7 @@ const ABILITY_ICONS := {
 	"escudada": "shield", "interpor": "shield", "carga": "bolt", "marcar": "sword", "investida": "bolt", "sangria": "heart", "chute": "sword",
 	"virote_marcador": "arrow", "tiro_perna": "arrow", "espinhos_venenosos": "star", "bencao": "star",
 	"passo_fumaca": "bolt", "veu_fumaca": "shield",
+	"resgate": "shield", "casca_viva": "shield", "transfusao": "heart", "troca_fumaca": "bolt",
 } # o resto das magias usa o ícone do elemento
 
 var battle: BattleView # a tela dona deste módulo
