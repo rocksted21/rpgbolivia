@@ -14,6 +14,7 @@ var sound_manager:
 const GameData = preload("res://scripts/game_data.gd")
 const GameSettings = preload("res://scripts/game_settings.gd")
 const SaveGame = preload("res://scripts/save_game.gd")
+const HeroProgress = preload("res://scripts/hero_progress.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
 const FONT := preload("res://assets/fonts/LibreBaskerville.ttf")
 const BACKGROUND := preload("res://assets/menu/fundo.jpg")
@@ -545,6 +546,7 @@ func _build_options() -> void:
 	load_button.pressed.connect(_load_game)
 	parts["body"].add_child(load_button)
 	sound_manager.bind_button(load_button)
+	_build_delete_save(parts["body"], load_button)
 	var volume_label := _text(parts["body"], "Volume geral: %d%%" % GameSettings.volume(), body_font, 15, TEXT)
 	volume_slider = HSlider.new()
 	volume_slider.min_value = 0
@@ -582,6 +584,57 @@ func _build_options() -> void:
 		_update_volume_chip())
 	parts["body"].add_child(mute)
 	sound_manager.bind_button(mute)
+
+
+## Apagar save: o primeiro clique só pede confirmação; o segundo apaga tudo (jogo salvo,
+## heróis e cidade) e o jogo recomeça do zero.
+func _build_delete_save(body: Control, load_button: Button) -> void:
+	const DANGER := Color("b8473a")
+	var button := Button.new()
+	button.custom_minimum_size.y = 44
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.add_theme_font_override("font", title_font)
+	button.add_theme_font_size_override("font_size", 16)
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		button.add_theme_color_override(state, TEXT_LIT)
+	button.add_theme_stylebox_override("normal", _button_box(DANGER))
+	button.add_theme_stylebox_override("hover", _button_box(DANGER.lightened(0.2)))
+	button.add_theme_stylebox_override("pressed", _button_box(DANGER.darkened(0.2)))
+	button.add_theme_stylebox_override("disabled", _button_box(DANGER.darkened(0.55)))
+	body.add_child(button)
+	sound_manager.bind_button(button)
+	var armed := [false]
+	var refresh := func() -> void:
+		armed[0] = false
+		button.disabled = not _has_any_save()
+		button.text = "Apagar save" if not button.disabled else "Nenhum save para apagar"
+	refresh.call()
+	button.focus_exited.connect(refresh)
+	options.visibility_changed.connect(refresh)
+	button.pressed.connect(func() -> void:
+		if not armed[0]:
+			armed[0] = true
+			button.text = "Apagar TUDO? Clique de novo"
+			return
+		_delete_all_saves()
+		load_button.disabled = true
+		load_button.tooltip_text = ""
+		refresh.call()
+		button.text = "Save apagado")
+
+
+func _save_files() -> Array:
+	return [SaveGame.path, HeroProgress.OWN_PATH, HeroProgress.GUEST_PATH, TownProgress.path]
+
+
+func _has_any_save() -> bool:
+	return _save_files().any(func(file: String) -> bool: return FileAccess.file_exists(file))
+
+
+func _delete_all_saves() -> void:
+	for file in _save_files():
+		if FileAccess.file_exists(file):
+			DirAccess.remove_absolute(file)
 
 
 func _build_archive() -> void:

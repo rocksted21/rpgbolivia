@@ -50,6 +50,7 @@ const TRAIL_STRENGTH := 0.86 # abaixo de 1 estreita o traço; a estrada é mais 
 const ROAD_CORNER := 0.22
 const SCENERY_BASE := {3: 1, 6: 7, 10: 9, 11: 9}
 const TILE_PATH := "res://assets/tiles/%d.png"
+const TILE_2_PATH := "res://assets/2 tiles topo/%d.png"
 const FOG_SIDE_SQUEEZE := 0.6 # igual ao peso lateral da névoa no shader
 const VIEW_ROWS_FRONT := 7
 const VIEW_ROWS_BACK := 14
@@ -91,9 +92,13 @@ func _build_cell(cell: Vector2i) -> void:
 	var biome: String = battle.state.biome_at(cell) if battle.exploring else ""
 	var wall := BiomeArt.wall(biome) if battle.exploring else TILE_PATH % 9
 	var ground := BiomeArt.ground(biome, battle.state.floor_id_at(cell), battle.state.detail_at(cell)) if battle.exploring else TILE_PATH % SCENERY_BASE.get(terrain_id, terrain_id)
+	var tiles_2: bool = battle.exploring and battle.TILES_2 and not battle.town
+	if tiles_2:
+		ground = _tile_2(battle.state.floor_id_at(cell), battle.state.detail_at(cell))
 	battle.cell_tint = BiomeArt.NIGHT_TINT.get(biome, Color.WHITE) if battle.world_light != null else Color.WHITE
 	if battle.exploring:
-		_add_walls(cell, wall, ground, row, layers)
+		# Os tiles novos não têm parede embaixo: a parede do bioma cobre todos os degraus.
+		_add_walls(cell, wall, wall if tiles_2 else ground, row, layers)
 	else:
 		for layer in range(_hidden_layers(cell, layers), layers):
 			_add_tile(wall, base - Vector2(0, layer * battle.SIDE_HEIGHT), row, layer * battle.SIDE_HEIGHT)
@@ -102,7 +107,7 @@ func _build_cell(cell: Vector2i) -> void:
 	else:
 		_add_tile(ground, battle.cell_origin(cell), row, layers * battle.SIDE_HEIGHT)
 	if battle.exploring:
-		if not battle.natural:
+		if not battle.natural and not tiles_2:
 			for overlay_path in battle.state.ground_overlays(cell):
 				_add_tile(overlay_path, battle.cell_origin(cell), row, layers * battle.SIDE_HEIGHT)
 		_add_biome_props(biome, terrain_id, cell)
@@ -129,6 +134,23 @@ func _build_cell(cell: Vector2i) -> void:
 	battle.reach_lines[cell] = line
 	battle.cell_nodes[cell] = battle.building
 	battle.cell_rows[cell] = row
+
+
+## Tile novo (assets/2 tiles topo) de cada piso. 1 grama com flores, 2 grama com trevo,
+## 3 grama escura, 4 musgo com folhas, 5 terra, 6 lama, 7 pedras, 8 laje, 9 água.
+func _tile_2(floor_id: int, detail: float) -> String:
+	var id := 2
+	if floor_id in BiomeArt.WET:
+		id = 9
+	elif floor_id in BiomeArt.SHADED:
+		id = 3 if detail < 0.5 else 4
+	elif floor_id == 12:
+		id = 7
+	elif floor_id == 9:
+		id = 1
+	else:
+		id = 2 if detail < 0.5 else 1
+	return TILE_2_PATH % id
 
 
 ## Com a câmera livre, qualquer lado pode ficar de frente: cada lado com desnível ganha a sua

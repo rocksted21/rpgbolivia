@@ -48,6 +48,9 @@ const BattleJuice = preload("res://scripts/battle_juice.gd")
 const BOARD_POS := Vector2(250, 142) # sem painel lateral: o tabuleiro fica no meio, a fila à esquerda
 const BOARD_SCALE := 0.5
 const TILE_WIDTH := 186
+# Nas expedições, o chão são os tiles hex novos (assets/2 tiles topo) no lugar do chão contínuo.
+# false volta ao chão de antes.
+const TILES_2 := true
 const ROW_STEP := 160
 const HEX_MIDDLE := Vector2(93, 107)
 const SIDE_HEIGHT := 29 # altura da lateral do tile; empilhar tiles a cada 29 px forma o penhasco
@@ -510,7 +513,7 @@ func _start_battle() -> void:
 	if world_light != null:
 		world_light.queue_free()
 		world_light = null
-	natural = exploring
+	natural = exploring and (town or not TILES_2)
 	if natural:
 		battle_camera.ground_noise = load(BiomeArt.EDGE_NOISE)
 		if town:
