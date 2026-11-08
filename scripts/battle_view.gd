@@ -174,6 +174,17 @@ const BOSS_FX := {
 			{"kind": "burst", "tex": "smoke_04", "color": Color(0.85, 0.92, 1.0, 0.35), "amount": 14, "speed": [80, 220], "size": 0.4, "life": 1.1, "gravity": -30},
 		],
 	},
+	"boss_acendedor": {
+		"hit": [
+			{"kind": "flash", "tex": "slash_02", "color": Color(0.7, 0.72, 0.85), "size": 0.45, "life": 0.25},
+			{"kind": "burst", "tex": "spark_04", "color": Color(1.0, 0.7, 0.35), "amount": 6, "speed": [120, 260], "size": 0.07, "life": 0.45, "gravity": 300},
+		],
+		"skill": [
+			{"kind": "ring", "tex": "circle_02", "color": Color(0.55, 0.58, 0.72), "size": 1.2, "life": 0.5},
+			{"kind": "burst", "tex": "smoke_04", "color": Color(0.2, 0.2, 0.26, 0.55), "amount": 16, "speed": [80, 240], "size": 0.4, "life": 1.1, "gravity": -40},
+			{"kind": "burst", "tex": "spark_04", "color": Color(1.0, 0.62, 0.25), "amount": 14, "speed": [180, 420], "size": 0.08, "life": 0.7, "gravity": 500},
+		],
+	},
 	"boss_farao": {
 		"hit": [
 			{"kind": "flash", "tex": "slash_03", "color": Color(1.0, 0.82, 0.35), "size": 0.45, "life": 0.25},
@@ -513,7 +524,7 @@ func _start_battle() -> void:
 	if world_light != null:
 		world_light.queue_free()
 		world_light = null
-	natural = exploring and (town or not TILES_2)
+	natural = exploring and (town or not TILES_2 or (expedition and state.fixed_map))
 	if natural:
 		battle_camera.ground_noise = load(BiomeArt.EDGE_NOISE)
 		if town:

@@ -14,7 +14,7 @@ func check(ok: bool, message: String) -> void:
 func _initialize() -> void:
 	var seen := {}
 	for world_seed in [9, 77, 93, 207]:
-		var state = Expedition.new(Data.DEFAULT_PARTY, world_seed)
+		var state = Expedition.new(Data.DEFAULT_PARTY, world_seed, {}, {"biome": legacy_biome(world_seed)})
 		var sites: Dictionary = state.camps.sites
 		print("Semente ", world_seed, ": ", sites)
 		var reachable: Dictionary = state.layout.walk_area()
@@ -38,3 +38,13 @@ func _initialize() -> void:
 		check(seen.has(theme), "tema aparece nas sementes de teste: " + theme)
 	print("Cenários: %d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures else 0)
+
+
+## Bioma que a semente sorteava antes do mapa fixo dos Subúrbios: assim os testes do mapa
+## sorteado continuam olhando os mesmos mapas de antes.
+static func legacy_biome(world_seed: int) -> String:
+	var dice := RandomNumberGenerator.new()
+	dice.seed = world_seed + 17
+	var keys := ["deserto", "floresta", "neve", "selva"]
+	return keys[dice.randi_range(0, keys.size() - 1)]
+

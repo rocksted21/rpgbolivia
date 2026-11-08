@@ -57,6 +57,7 @@ const TERRAIN := {
 	14: {"name": "Ponte", "walkable": true, "cost": 0, "damage": 1.0},
 	15: {"name": "Estrada", "walkable": true, "cost": 0, "damage": 1.0},
 	16: {"name": "Árvore", "walkable": false, "cost": 0, "damage": 1.0},
+	17: {"name": "Pedras do vau", "walkable": true, "cost": 0, "damage": 1.0}, # só nos Subúrbios
 }
 
 const MAP_TERRAIN := [
@@ -193,6 +194,8 @@ const UNIT_TYPES := {
 	"boss_serpente": {"name": "Rainha Serpente", "role": "Chefe · selva", "hp": 38, "atk": 12, "def": 2, "speed": 10, "abilities": ["golpe", "bote"]},
 	"boss_jarl": {"name": "Jarl de Gelo Negro", "role": "Chefe · neve", "hp": 46, "atk": 13, "def": 3, "speed": 7, "abilities": ["golpe", "giro_machado"]},
 	"boss_farao": {"name": "Faraó Eclipse", "role": "Chefe · deserto", "hp": 38, "atk": 12, "def": 2, "speed": 9, "abilities": ["golpe", "decreto"]},
+	# O faroleiro dos subúrbios: a folha do Rei Cervo, em cinza de cinzas (falta arte própria).
+	"boss_acendedor": {"name": "O Acendedor Apagado", "role": "Chefe · subúrbios", "hp": 42, "atk": 12, "def": 3, "speed": 8, "abilities": ["golpe", "esmagar"], "art": "boss_cervo", "tint": Color(0.72, 0.78, 1.0)},
 }
 
 ## Folha de sprite do tipo (variações reaproveitam a de outro tipo).
@@ -317,6 +320,12 @@ const WORLD_SPAWNS := [
 # names troca o nome das casas (a chave é o terreno); o que falta usa TERRAIN.
 # A arte fica em assets/biomes/<chave>; ver tools/build_biomes.py.
 const BIOMES := {
+	# Mapa 1, desenhado à mão (scripts/suburbs_map.gd): os números de ruído só valem se um dia
+	# o bioma for sorteado; os nomes trocam o que aparece ao passar o mouse.
+	"suburbios": {
+		"name": "Subúrbios Apagados", "forest": 0.2, "water": 0.22, "hills": -0.42, "rocks": -0.3,
+		"names": {1: "Chão batido", 9: "Mato ralo", 2: "Entulho", 3: "Arvoredo seco", 16: "Plátano morto", 5: "Água do canal", 6: "Barranco", 7: "Monte de entulho", 10: "Casa", 11: "Farol", 13: "Trilha", 14: "Ponte", 15: "Rua de pedra", 17: "Pedras do vau"},
+	},
 	"floresta": {
 		"name": "Floresta das Ruínas", "forest": 0.2, "water": 0.22, "hills": -0.42, "rocks": -0.3,
 		"names": {1: "Musgo", 9: "Musgo", 2: "Pedras", 3: "Árvores mortas", 16: "Árvores mortas", 5: "Água escura", 6: "Ruínas", 7: "Colinas", 10: "Casa", 11: "Arco", 13: "Trilha", 14: "Ponte", 15: "Estrada"},

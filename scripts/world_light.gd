@@ -40,6 +40,7 @@ const FLASH_TIME := 0.5
 const VIGNETTE_ALPHA := 0.62
 # Partículas do ar em cada bioma: cor, para onde caem e quanto se espalham.
 const AIR := {
+	"suburbios": {"color": Color(0.62, 0.6, 0.66, 0.5), "gravity": Vector2(5, 6)}, # cinza fina caindo
 	"floresta": {"color": Color(0.78, 0.85, 0.52, 0.55), "gravity": Vector2(3, -5)},
 	"selva": {"color": Color(0.3, 0.97, 0.86, 0.75), "gravity": Vector2(0, -7)},
 	"neve": {"color": Color(0.8, 0.83, 0.88, 0.65), "gravity": Vector2(-4, 14)},

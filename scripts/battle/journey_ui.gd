@@ -38,11 +38,15 @@ func _update_journey() -> void:
 		{"icon": "warning", "value": danger, "label": "Perigo", "color": DANGER_CALM.lerp(DANGER_HOT, heat), "ink": DANGER_CALM.lerp(DANGER_HOT, heat)},
 	]
 	var title: String = Data.BIOMES[battle.state.biome_at(battle.camera_cell)]["name"]
+	if battle.expedition and battle.state.district_at(battle.camera_cell) != "":
+		title += " · " + battle.state.district_at(battle.camera_cell)
 	if not battle.expedition:
 		battle.hud.set_overview(title, stats)
 		return
 	stats.append({"icon": "flame", "value": battle.state.brasas, "label": "Brasas", "color": Color(1.0, 0.68, 0.3)})
 	stats.append({"icon": "star", "value": battle.state.level, "label": "Nível", "color": Color(1.0, 0.85, 0.35)})
+	if battle.state.fixed_map:
+		stats.append({"icon": "compass", "value": "%d/%d" % [battle.state.secrets_found(), battle.state.secrets_total()], "label": "Segredos", "color": Exp.SECRET_COLOR})
 	battle.hud.set_overview(title, stats, _level_info(), _compass_chips())
 	battle.board_art.refresh_lantern_area()
 	battle.hud.set_tracker(_quest_tracker())

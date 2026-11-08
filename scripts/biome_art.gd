@@ -3,12 +3,12 @@ extends RefCounted
 ## arquivos são gerados por tools/build_biomes.py.
 
 const ROOT := "res://assets/biomes/%s/%s.png"
-const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 16: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra", 13: "campo_a", 14: "agua_a", 15: "campo_a"}
+const GROUND := {1: "campo_a", 9: "campo_b", 2: "campo_a", 3: "sombra", 16: "sombra", 5: "agua_a", 6: "sombra", 7: "campo_a", 10: "sombra", 11: "sombra", 13: "campo_a", 14: "agua_a", 15: "campo_a", 17: "agua_a"}
 const COMMON := "res://assets/biomes/comum/%s.png"
 # A borda que invade a vizinha: quem vem depois na lista pinta por cima de quem vem antes.
-const BIOME_ORDER := ["deserto", "selva", "floresta", "neve"]
+const BIOME_ORDER := ["suburbios", "deserto", "selva", "floresta", "neve"]
 const SHADED := [3, 6, 10, 11, 16] # terrenos com piso de sombra: o campo em volta avança sobre eles
-const WET := [5, 14]
+const WET := [5, 14, 17] # 17: pedras do vau, com água em volta
 # Tom do chão e do cenário nas expedições: a escuridão cobre o mapa, e a luz vem de world_light.gd.
 const EDGE_NOISE := "res://assets/biomes/comum/ruido_chao.png"
 # Texturas contínuas do chão das expedições (tools/build_ground.py), de baixo para cima.
@@ -16,6 +16,7 @@ const SOLO := "res://assets/biomes/%s/%s_solo.png"
 const SOIL := "res://assets/biomes/%s/solo.png"
 const COBBLES := "res://assets/town/calcada_solo.png"
 const NIGHT_TINT := {
+	"suburbios": Color(0.7, 0.74, 0.9),
 	"floresta": Color(0.74, 0.78, 0.92),
 	"selva": Color(0.92, 0.97, 1.0),
 	"neve": Color(0.5, 0.56, 0.72),
@@ -75,10 +76,12 @@ static func prop_tint(biome: String, path: String) -> Color:
 static func light_of(biome: String, path: String) -> String:
 	if "farol_aceso" in path:
 		return "farol"
-	if "lanterna_acesa" in path:
+	if "lanterna_acesa" in path or "lampiao_aceso" in path:
 		return "lanterna"
 	if "bau_fechado" in path:
 		return "bau"
+	if "fonte_luz" in path:
+		return "cristal"
 	if biome == "selva" and "/enfeite_" in path:
 		return "cristal"
 	return ""

@@ -7,6 +7,8 @@ const Exp = preload("res://scripts/expedition_data.gd")
 const Content = preload("res://scripts/town_content.gd")
 const Layout = preload("res://scripts/expedition_layout.gd")
 const AbandonedCamp = preload("res://scripts/abandoned_camp.gd")
+const SuburbsGen = preload("res://scripts/suburbs_map.gd")
+const SuburbsLayout = preload("res://scripts/suburbs_layout.gd")
 
 const SPOT_WALK := 1200 # pontos de movimento até onde os guardas podem nascer
 
@@ -38,11 +40,12 @@ var brasa_pct := 0 # Destilaria do Laboratório: brasas a mais, em %
 var items := []
 var tally := {"ruins": 0, "ambushes": 0, "villages": 0, "fountains": 0, "memories": 0, "chests": 0, "lanterns": 0}
 var town_setup := {} # o que a cidade deu à party; o save refaz a expedição com ele
-var biome := "" # a expedição inteira acontece neste bioma (town["biome"], ou sorteado pela semente)
+var biome := "" # a expedição inteira acontece neste bioma (town["biome"], ou Exp.DEFAULT_BIOME)
+var fixed_map := false # mapa desenhado à mão (Subúrbios): a planta manda, a semente só varia os locais
 
 
 ## `town`: o que a cidade dá à party, de TownProgress.expedition_setup().
-## `town["biome"]`: a região escolhida (chave de Data.BIOMES); sem ela, a semente sorteia.
+## `town["biome"]`: a região escolhida (chave de Data.BIOMES); sem ela, Exp.DEFAULT_BIOME.
 func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Dictionary = {}) -> void:
 	town_setup = town.duplicate(true) # antes do super: _prepare_world() precisa do bioma
 	super(heroes, world_seed, builds)
@@ -64,16 +67,24 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 	potion_pct = town.get("potion_pct", 0)
 	brasa_pct = town.get("brasa_pct", 0)
 	items = town.get("items", [])
-	layout = Layout.new(gen, start_cell, _route_radius())
-	_place_landmarks()
-	layout.check_map(landmarks.keys())
+	if fixed_map:
+		layout = SuburbsLayout.new(gen, start_cell)
+		_place_fixed_landmarks()
+	else:
+		layout = Layout.new(gen, start_cell, _route_radius())
+		_place_landmarks()
+		layout.check_map(landmarks.keys())
 	for cell in landmarks:
 		if landmarks[cell]["kind"] == "emboscada":
 			camps.place(self, cell)
-	_place_ruin_scenes()
+	if not fixed_map:
+		_place_ruin_scenes() # no mapa fixo, as cenas já estão na planta
 	if town_setup.get("first_stage", true):
 		town_setup["fort_layout"] = town_setup.get("fort_layout", 2)
-		fort.place(self)
+		if fixed_map:
+			_place_fixed_fort()
+		else:
+			fort.place(self)
 
 
 ## Ruínas continuam com seus prêmios; a travessia usa uma ponte real e alcançável.
@@ -100,12 +111,11 @@ func _place_ruin_scenes() -> void:
 func _prepare_world() -> void:
 	biome = town_setup.get("biome", "")
 	if not Data.BIOMES.has(biome):
-		var dice := RandomNumberGenerator.new()
-		dice.seed = gen.world_seed + 17
-		var keys: Array = Data.BIOMES.keys()
-		keys.sort()
-		biome = keys[dice.randi_range(0, keys.size() - 1)]
+		biome = Exp.DEFAULT_BIOME
 	town_setup["biome"] = biome
+	if biome == SuburbsGen.BIOME:
+		fixed_map = true
+		gen = SuburbsGen.new(gen.world_seed) # a planta no lugar do ruído; a semente continua a mesma
 	gen.fixed_biome = biome
 	gen.noise_paths = false # os caminhos da expedição são abertos depois, respeitando as serras
 
@@ -134,7 +144,37 @@ func tile_name_at(cell: Vector2i) -> String:
 		if landmarks[cell]["kind"] == "lanterna":
 			return "Lanterna acesa" if landmarks[cell]["state"] == "done" else "Lanterna apagada"
 		return Exp.LANDMARKS[landmarks[cell]["kind"]]["label"]
+	if fixed_map and not terrain_override.has(cell):
+		var label: String = gen.label_at(cell)
+		if label != "":
+			return label
 	return super(cell)
+
+
+## Bairro dos Subúrbios em que a casa fica ("" no mapa sorteado).
+func district_at(cell: Vector2i) -> String:
+	return gen.district_at(cell) if fixed_map else ""
+
+
+## Chão calçado: o pátio do forte e, nos Subúrbios, as praças, cais e ruas da planta.
+func paved_at(cell: Vector2i) -> bool:
+	return fort.cells.has(cell) or (fixed_map and gen.is_paved(cell))
+
+
+## Arte que a planta põe nesta casa; null quando vale a arte do terreno (BiomeArt.props).
+func map_art(cell: Vector2i) -> Variant:
+	if not fixed_map or terrain_override.has(cell):
+		return null
+	if landmarks.has(cell) and landmarks[cell]["kind"] == "fonte":
+		return [gen.fountain_art(cell)] # a Fonte de luz: a única com água em todo o subúrbio
+	return gen.art_at(cell)
+
+
+## No mapa fixo o perigo sobe mais depressa: ele é menor que o sorteado e o farol fica mais perto.
+func danger() -> int:
+	if not fixed_map:
+		return super()
+	return mini(1 + farthest / Exp.FIXED_DANGER_DISTANCE, Data.WORLD["danger_max"])
 
 
 func _place_landmarks() -> void:
@@ -177,6 +217,53 @@ func _place_landmarks() -> void:
 				landmarks[cell]["resident"] = _next_resident()
 				terrain_override[cell] = Exp.TERRAIN_VILLAGE
 	_carve_trails()
+
+
+## Mapa fixo: o farol, a rota das lanternas e os locais saem dos candidatos da planta.
+## A semente escolhe a rota (oeste ou leste primeiro) e quais candidatos recebem cada local.
+## Os segredos sempre guardam um baú escondido, e a cripta sempre guarda uma memória.
+func _place_fixed_landmarks() -> void:
+	var plan = SuburbsGen.Plan
+	beacon_cell = plan.SITES["farol"][0]
+	terrain_override[beacon_cell] = Exp.TERRAIN_BEACON
+	landmarks[beacon_cell] = {"kind": "farol", "state": "idle", "guards": [], "hidden": false}
+	var routes: Array = plan.LANTERN_ROUTES
+	var route: Array = routes[rng.randi_range(0, routes.size() - 1)]
+	for order in route.size():
+		var cell: Vector2i = route[order]
+		landmarks[cell] = {"kind": "lanterna", "state": "idle", "guards": [], "hidden": false,
+			"order": order, "hint": _lantern_hint(cell, order), "found": false}
+	landmarks[beacon_cell]["found"] = false
+	var taken: Array = landmarks.keys()
+	for kind in Exp.LANDMARKS:
+		var want: int = Exp.FIXED_COUNTS.get(kind, 0)
+		var pool: Array = plan.SITES.get(kind, []).duplicate()
+		_shuffle(pool)
+		var placed := 0
+		for cell in pool:
+			if placed >= want:
+				break
+			if taken.any(func(other): return Hex.distance(other, cell) < Exp.FIXED_SPACING):
+				continue
+			landmarks[cell] = {"kind": kind, "state": "idle", "guards": [], "hidden": false}
+			if kind == "vila":
+				landmarks[cell]["resident"] = _next_resident()
+				terrain_override[cell] = Exp.TERRAIN_VILLAGE
+			taken.append(cell)
+			placed += 1
+	for cell in plan.SITES.get("memoria_fixa", []):
+		landmarks[cell] = {"kind": "memoria", "state": "idle", "guards": [], "hidden": true}
+	for secret in plan.SECRETS:
+		landmarks[secret["cell"]] = {"kind": "bau", "state": "idle", "guards": [], "hidden": true, "secret": secret["name"]}
+
+
+## O Forte da Vigília da primeira expedição é o quartel da planta: o comandante espera no pátio,
+## ao lado do cofre. Não se constrói muralha nova: ela já está desenhada.
+func _place_fixed_fort() -> void:
+	var site: Vector2i = SuburbsGen.Plan.SITES["forte"][0]
+	fort.center = site
+	fort.cells[site] = ""
+	landmarks[site] = {"kind": "forte", "state": "idle", "guards": [], "hidden": false}
 
 
 ## As três lanternas, em faixas de distância do início e longe umas das outras (zigue-zague).
@@ -283,6 +370,29 @@ func _check_found() -> void:
 		var entry: Dictionary = landmarks[cell]
 		if not entry.get("found", true) and party_distance(cell) <= Exp.LANTERN_EXACT:
 			entry["found"] = true
+
+
+## Segredos da planta (Subúrbios): o primeiro passo dentro de um deles avisa e conta.
+## A marca fica no próprio local ("discovered"), então volta com o save.
+func _check_secrets(events: Array) -> void:
+	for cell in landmarks:
+		var entry: Dictionary = landmarks[cell]
+		if not entry.has("secret") or entry.get("discovered", false):
+			continue
+		if party_distance(cell) > Exp.SECRET_RADIUS:
+			continue
+		entry["discovered"] = true
+		tally["secrets"] = tally.get("secrets", 0) + 1
+		var detail := "%s · %d de %d segredos dos Subúrbios" % [entry["secret"], secrets_found(), secrets_total()]
+		events.append({"type": "secret", "cell": cell, "title": "Segredo encontrado!", "detail": detail, "color": Exp.SECRET_COLOR})
+
+
+func secrets_found() -> int:
+	return landmarks.values().filter(func(entry): return entry.get("discovered", false)).size()
+
+
+func secrets_total() -> int:
+	return landmarks.values().filter(func(entry): return entry.has("secret")).size()
 
 
 func _wake_lantern(cell: Vector2i, entry: Dictionary, events: Array) -> void:
@@ -573,6 +683,8 @@ func tick() -> Array:
 	if winner() >= 0:
 		return events
 	_check_found()
+	if fixed_map:
+		_check_secrets(events)
 	_check_fights(events)
 	if not in_combat():
 		_check_visits(events)

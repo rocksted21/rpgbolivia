@@ -91,8 +91,8 @@ func test_biomes() -> void:
 	var total := 0
 	for biome in counts:
 		total += counts[biome]
-	check(counts.size() == Data.BIOMES.size(), "todos os biomas aparecem")
-	for biome in Data.BIOMES:
+	check(counts.size() == WorldGen.BIOME_RING.size(), "todos os biomas aparecem")
+	for biome in WorldGen.BIOME_RING:
 		var share: float = counts.get(biome, 0) * 100.0 / total
 		check(share >= 12.0, "%s ocupa parte do mundo (%.0f%%)" % [biome, share])
 		var closed: float = blocked.get(biome, 0) * 100.0 / maxi(counts.get(biome, 0), 1)
@@ -143,7 +143,7 @@ func _check_one_piece(gen) -> void:
 					if Hex.distance(next, middle) <= RADIUS and not seen.has(next) and gen.sample(next)["biome"] == biome:
 						seen[next] = true
 						open.append(next)
-	check(pieces.size() == Data.BIOMES.size(), "os quatro biomas estão no mapa (semente %d)" % gen.world_seed)
+	check(pieces.size() == WorldGen.BIOME_RING.size(), "os quatro biomas estão no mapa (semente %d)" % gen.world_seed)
 	for biome in pieces:
 		check(pieces[biome] == 1, "%s é um pedaço só (%d, semente %d)" % [biome, pieces[biome], gen.world_seed])
 	check(trees * 100.0 / total < 15.0, "as árvores não fecham o mapa (%.0f%%, semente %d)" % [trees * 100.0 / total, gen.world_seed])

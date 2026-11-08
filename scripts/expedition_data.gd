@@ -18,6 +18,17 @@ const VISIT_RADIUS := 1
 const BEACON_VISIT_RADIUS := 2
 const COMPASS_RADIUS := 25 # além disso a bússola só mostra o farol
 
+# Mapa 1: os Subúrbios Apagados, desenhados à mão (scripts/suburbs_plan.gd). Sem bioma escolhido
+# na cidade, a expedição vai para lá. Os outros biomas continuam sorteados pela semente.
+const DEFAULT_BIOME := "suburbios"
+# Quantos de cada local a semente escolhe entre os candidatos da planta. Fora isso, cada
+# segredo guarda um baú escondido e a Cripta dos Faroleiros guarda uma memória.
+const FIXED_COUNTS := {"vila": 2, "ruina": 3, "emboscada": 2, "fonte": 2, "memoria": 1, "bau": 3}
+const FIXED_SPACING := 4 # dois locais sorteados nunca ficam colados
+const FIXED_DANGER_DISTANCE := 13 # a cada tantas casas do início o perigo sobe (o mapa é menor)
+const SECRET_RADIUS := 2 # chegando a essa distância de um segredo da planta, ele conta como achado
+const SECRET_COLOR := Color("7fe8ff")
+
 const LANDMARKS := {
 	"forte": {"label": "Forte da Vigília", "count": 0, "color": Color("ff6858"), "brasas": 24, "xp": 80},
 	"vila": {"label": "Vila", "count": 2, "color": Color("7fb6ff"), "guards": 3, "brasas": 4, "xp": 30},
@@ -71,6 +82,7 @@ const BOSS_BY_BIOME := {
 	"selva": "boss_serpente",
 	"neve": "boss_jarl",
 	"deserto": "boss_farao",
+	"suburbios": "boss_acendedor",
 }
 
 const KILL_XP := 10
@@ -147,12 +159,14 @@ const BOSS_LINES := {
 	"boss_serpente": "\"Vocês cheiram a fogo novo... Ele também cheirava assim, no começo.\"",
 	"boss_jarl": "\"Juramos guardar a luz. Até de quem a acendeu. Até de vocês.\"",
 	"boss_farao": "\"Ele levou o céu inteiro. Não vai levar a minha última estrela.\"",
+	"boss_acendedor": "\"Apaguei um por um. Ele disse que a escuridão era descanso... e as ruas dormiram.\"",
 }
 const BOSS_FAREWELL := {
 	"boss_cervo": "\"Tomé... eu me chamava Tomé.\nNão deixem que ele beba esta chama.\"",
 	"boss_serpente": "\"Killa... agora eu lembro.\nDigam ao Bento que eu cumpri o juramento.\"",
 	"boss_jarl": "\"Gunnar. Guardei a luz até de quem a acendeu.\nAgora ela é de vocês.\"",
 	"boss_farao": "\"Inti... E as estrelas? Ele ainda tem todas.\nO Primeiro Faroleiro nunca solta nada.\"",
+	"boss_acendedor": "\"Anselmo... eu acendia os lampiões desta rua, toda noite.\nAcendam o primeiro por mim.\"",
 }
 # A batalha final ainda não existe: estes textos esperam por ela.
 const VILLAIN := {

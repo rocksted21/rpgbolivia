@@ -33,8 +33,22 @@ func _initialize() -> void:
 	quit(1 if failures > 0 else 0)
 
 
+## As regras de posição deste arquivo são as do mapa sorteado; os Subúrbios têm as suas
+## (rotas fixas da planta) em test_suburbs.gd.
 func _new(world_seed: int, town := {}):
+	if not town.has("biome"):
+		town = town.duplicate()
+		town["biome"] = legacy_biome(world_seed)
 	return ExpeditionState.new(Data.DEFAULT_PARTY, world_seed, {}, town)
+
+
+## Bioma que a semente sorteava antes do mapa fixo dos Subúrbios: assim os testes do mapa
+## sorteado continuam olhando os mesmos mapas de antes.
+static func legacy_biome(world_seed: int) -> String:
+	var dice := RandomNumberGenerator.new()
+	dice.seed = world_seed + 17
+	var keys := ["deserto", "floresta", "neve", "selva"]
+	return keys[dice.randi_range(0, keys.size() - 1)]
 
 
 ## Põe a party ao lado do local e deixa a regra de visita agir.

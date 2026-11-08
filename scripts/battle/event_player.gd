@@ -105,6 +105,8 @@ func _play(events: Array, roam := false) -> void:
 				_play_revive(event)
 			"landmark":
 				await _play_landmark(event)
+			"secret":
+				await _play_secret(event)
 			"level_up":
 				_play_level_up(event)
 	battle.hit_ctx = {}
@@ -274,6 +276,17 @@ func _play_landmark(event: Dictionary) -> void:
 		battle.world_light.flash(battle.feet_of(event["cell"]) + Vector2(0, -128), "fogo", 2.4)
 	battle.journey_ui._update_journey()
 	await battle.get_tree().create_timer(0.5).timeout
+
+
+## Segredo da planta: um aviso curto e um brilho frio onde ele está.
+func _play_secret(event: Dictionary) -> void:
+	battle.sound_manager.play_sfx(&"heal")
+	battle.hud.show_banner(event["title"], event["color"])
+	battle.hud.show_detail(event["detail"])
+	if battle.world_light != null:
+		battle.world_light.flash(battle.feet_of(event["cell"]) + Vector2(0, -60), "agua/segredo", 1.6)
+	battle.journey_ui._update_journey()
+	await battle.get_tree().create_timer(0.4).timeout
 
 
 func _play_level_up(event: Dictionary) -> void:

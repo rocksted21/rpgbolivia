@@ -43,8 +43,22 @@ func _initialize() -> void:
 	quit(1 if failures > 0 else 0)
 
 
+## Expedição num bioma sorteado (as regras deste arquivo são as do mapa gerado). O mapa fixo
+## dos Subúrbios tem testes próprios em test_suburbs.gd.
 func _new(world_seed: int, town := {}):
+	if not town.has("biome"):
+		town = town.duplicate()
+		town["biome"] = legacy_biome(world_seed)
 	return ExpeditionState.new(Data.DEFAULT_PARTY, world_seed, {}, town)
+
+
+## Bioma que a semente sorteava antes do mapa fixo dos Subúrbios: assim os testes do mapa
+## sorteado continuam olhando os mesmos mapas de antes.
+static func legacy_biome(world_seed: int) -> String:
+	var dice := RandomNumberGenerator.new()
+	dice.seed = world_seed + 17
+	var keys := ["deserto", "floresta", "neve", "selva"]
+	return keys[dice.randi_range(0, keys.size() - 1)]
 
 
 ## Uma expedição acontece num bioma só e tem borda: além do raio, nada se atravessa.
@@ -91,7 +105,9 @@ func test_region() -> void:
 				steps[next] = true
 				frontier.append(next)
 		check(not escaped, "semente %d: a pé não se sai do mapa" % world_seed)
-	check(chosen.size() >= 3, "sem região escolhida, as sementes variam o bioma (%d)" % chosen.size())
+	check(chosen.size() >= 3, "as sementes de teste passam por vários biomas (%d)" % chosen.size())
+	var plain = ExpeditionState.new(Data.DEFAULT_PARTY, 5)
+	check(plain.biome == Exp.DEFAULT_BIOME and plain.fixed_map, "sem região escolhida, a expedição vai para os Subúrbios")
 
 
 func test_placement() -> void:
@@ -250,7 +266,7 @@ func test_layout() -> void:
 	var sizes := {}
 	var ramp_sides := {}
 	for world_seed in [7, 93, 248, 279, 465, 1054]:
-		var state = ExpeditionState.new(Data.DEFAULT_PARTY, world_seed)
+		var state = _new(world_seed)
 		var layout = state.layout
 		var area: Dictionary = layout.walk_area()
 		total_repairs += layout.repairs
@@ -283,7 +299,7 @@ func test_layout() -> void:
 	check(sizes.size() >= 8, "platôs de tamanhos variados (%d tamanhos)" % sizes.size())
 	check(ramp_sides.size() == 2, "rampas não apontam todas para o mesmo lado")
 	# Atrás da serra o inimigo não entra na luta.
-	var walled = ExpeditionState.new(Data.DEFAULT_PARTY, 93)
+	var walled = _new(93)
 	var hidden_foe = walled.add_unit("esqueleto", Data.Team.ENEMY, walled.start_cell + Vector2i(30, 30))
 	for member in walled.party.slice(1):
 		member.hp = 0
@@ -309,7 +325,7 @@ func test_layout() -> void:
 	check(not walled._can_reach_party(hidden_foe), "inimigo sem caminho até a party não entra na luta")
 	# Guardas nascem onde a party chega.
 	for world_seed in [93, 248, 279]:
-		var guarded = ExpeditionState.new(Data.DEFAULT_PARTY, world_seed)
+		var guarded = _new(world_seed)
 		for cell in guarded.landmarks:
 			var walkers: Array = Hex.neighbors(cell).filter(func(next): return guarded.gen.walkable(next))
 			if walkers.is_empty():
@@ -320,8 +336,8 @@ func test_layout() -> void:
 			for spot in guarded._spots_around(cell, 4):
 				check(reach.has(spot), "semente %d: guarda em lugar alcançável" % world_seed)
 	# A mesma semente dá o mesmo mapa.
-	var one = ExpeditionState.new(Data.DEFAULT_PARTY, 93)
-	var two = ExpeditionState.new(Data.DEFAULT_PARTY, 93)
+	var one = _new(93)
+	var two = _new(93)
 	check(one.layout.ridge == two.layout.ridge and one.beacon_cell == two.beacon_cell, "semente repete o mapa")
 	# A Jornada online não passa por aqui.
 	var journey = preload("res://scripts/world_state.gd").new(Data.DEFAULT_PARTY, 93)

@@ -422,6 +422,7 @@ const TALK := {
 			"boss_serpente": ["Quem era a Rainha Serpente?", "Killa cuidava do farol do pântano e de todo mundo que se perdia nele. Ela disse que cumpriu o juramento? Então quem ainda deve sou eu."],
 			"boss_jarl": ["Quem era o Jarl de Gelo?", "Gunnar, capitão da nossa guarda. Foi o primeiro a aceitar ficar. Disse que o frio não assusta quem já perdeu tudo."],
 			"boss_farao": ["Quem era o Faraó Eclipse?", "Inti contava as estrelas. Quando elas começaram a sumir, foi ela quem percebeu primeiro quem as estava levando."],
+			"boss_acendedor": ["Quem era o Acendedor?", "Anselmo acendia os lampiões dos subúrbios, rua por rua, toda noite. Quando aceitou guardar o farol de lá, as ruas ficaram escuras pela primeira vez. Ele nunca se perdoou."],
 		},
 	},
 	"pescador": {

@@ -92,7 +92,7 @@ func _build_cell(cell: Vector2i) -> void:
 	var biome: String = battle.state.biome_at(cell) if battle.exploring else ""
 	var wall := BiomeArt.wall(biome) if battle.exploring else TILE_PATH % 9
 	var ground := BiomeArt.ground(biome, battle.state.floor_id_at(cell), battle.state.detail_at(cell)) if battle.exploring else TILE_PATH % SCENERY_BASE.get(terrain_id, terrain_id)
-	var tiles_2: bool = battle.exploring and battle.TILES_2 and not battle.town
+	var tiles_2: bool = battle.exploring and _tiles_2()
 	if tiles_2:
 		ground = _tile_2(battle.state.floor_id_at(cell), battle.state.detail_at(cell))
 	battle.cell_tint = BiomeArt.NIGHT_TINT.get(biome, Color.WHITE) if battle.world_light != null else Color.WHITE
@@ -134,6 +134,12 @@ func _build_cell(cell: Vector2i) -> void:
 	battle.reach_lines[cell] = line
 	battle.cell_nodes[cell] = battle.building
 	battle.cell_rows[cell] = row
+
+
+## Tiles novos valem nas expedições de mapa sorteado. O mapa fixo dos Subúrbios usa o chão
+## contínuo, porque as ruas e praças calçadas dele são desenhadas por esse chão.
+func _tiles_2() -> bool:
+	return battle.TILES_2 and not battle.town and not (battle.expedition and battle.state.fixed_map)
 
 
 ## Tile novo (assets/2 tiles topo) de cada piso. 1 grama com flores, 2 grama com trevo,
@@ -243,9 +249,10 @@ func _add_natural_ground(cell: Vector2i, row: int, layers: int, biome: String) -
 	_natural_layer(mesh, BiomeArt.solo(biome, "sombra"), shaded, biome, row, layers)
 	var wet := _cover(around, cell, func(spot): return battle.state.floor_id_at(spot) in BiomeArt.WET)
 	_natural_layer(mesh, BiomeArt.solo(biome, "agua"), wet, biome, row, layers)
-	if battle.expedition and (battle.state.fort.cells.has(cell) or around.any(func(c): return battle.state.fort.cells.has(c))):
-		var paving := _cover(around, cell, func(c): return battle.state.fort.cells.has(c))
-		_natural_layer(mesh, BiomeArt.COBBLES, paving, biome, row, layers)
+	if battle.expedition and (battle.state.paved_at(cell) or around.any(func(c): return battle.state.paved_at(c))):
+		var paving := _cover(around, cell, func(c): return battle.state.paved_at(c))
+		var stones: String = BiomeArt.solo(biome, "estrada") if battle.state.fixed_map else BiomeArt.COBBLES
+		_natural_layer(mesh, stones, paving, biome, row, layers)
 	if battle.town: # a cidade é calçada; as ruas e a praça vêm da planta
 		# A calçada vai embaixo de tudo que é pavimento: sem fresta de grama entre ela e a rua.
 		var paved_ids: Array = TOWN_FLOORS.map(func(kind): return kind[0])
@@ -618,7 +625,11 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	elif battle.expedition and cell == battle.state.beacon_cell:
 		art = [BiomeArt.beacon(biome, battle.state.defeated_boss)]
 	else:
-		art = BiomeArt.props_2(biome, terrain_id, detail) if battle.TILES_2 else BiomeArt.props(biome, terrain_id, detail)
+		var planned: Variant = battle.state.map_art(cell) if battle.expedition else null
+		if planned != null:
+			art = planned # mapa desenhado à mão (Subúrbios): a planta diz o que fica em pé
+		else:
+			art = BiomeArt.props_2(biome, terrain_id, detail) if _tiles_2() else BiomeArt.props(biome, terrain_id, detail)
 		if battle.expedition and battle.state.landmarks.has(cell):
 			var entry: Dictionary = battle.state.landmarks[cell]
 			var special: Array = BiomeArt.landmark(biome, entry["kind"], entry["state"] == "done", detail)
