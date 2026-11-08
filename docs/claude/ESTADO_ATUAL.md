@@ -1,5 +1,10 @@
 # Estado do projeto — 08/11/2026, 12:00
 
+## Ajuste (08/11) — ferramentas do Claude
+- Conferido: 9 skills de Godot, atalhos /tarefa /testes /fechar e PixelLab (pixel art) funcionando. Plugin do GitHub instalado, mas sem conectar (reconectar em claude.ai → Conectores).
+- `.claude/settings.json`: as permissões agora valem também para o PowerShell (git, testes, Godot sem janela); as proibições (push forçado, reset, clean) também.
+- Próximo passo: o mesmo de antes (jogar os Subúrbios e anotar no `BALANCEAMENTO.md`).
+
 ## Última tarefa (08/11, 12:00) — primeira conversa no Claude Code
 - Arquivos do Claude Code entraram no projeto (CLAUDE.md, .claude/, docs/claude/, tools/rodar_testes.ps1).
 - Testes no PC: 11 de 11 verdes. `test_audio` falhava porque não reconhecia sons de menu ligados por `bind_button` (o `click3` da arena); o teste foi corrigido, o jogo não mudou.
