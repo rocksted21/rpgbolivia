@@ -2,6 +2,7 @@ extends Control
 ## Interface da Cidade-Farol: botões no canto e as janelas de moradores e da party.
 
 signal depart(party: Array)
+signal party_changed(party: Array) # nova party; o primeiro é o líder
 signal skills_requested
 signal menu_requested
 signal changed
@@ -12,6 +13,7 @@ const Town = preload("res://scripts/town_data.gd")
 const TownProgress = preload("res://scripts/town_progress.gd")
 const Content = preload("res://scripts/town_content.gd")
 const Brass = preload("res://scripts/hud/brass.gd") # latão e vinho, como o HUD e o Diário
+const Icon = preload("res://scripts/icon.gd")
 
 const SCREEN := Vector2(1280, 720)
 const WINDOW_WIDTH := 720
@@ -25,6 +27,10 @@ const GOOD := Color("9fe39a")
 const PORTRAIT := 124
 const SCROLL_HEIGHT := 400
 const CHOICE_WIDTH := 330
+const CORNER_BOTTOM := SCREEN.y - 12 - 92 - 8 # logo acima das cartas da party
+const DEPART_SIZE := Vector2(236, 38) # aba dourada pendurada na faixa do topo
+const DEPART_TOP := 42.0 # a faixa do topo tem 44 de altura: a aba encosta na borda dela
+const SLOT_SIZE := Vector2(160, 150)
 
 var sound_manager:
 	get: return get_node("/root/SoundManager")
@@ -33,20 +39,31 @@ var action_button: Button
 var log_button: Button
 var nearby := {}
 var window: Control
-var party := []
+var party := [] # a party da cidade, em ordem: o primeiro é o líder
+var draft := [] # a party sendo montada na janela
 var hero_buttons := {}
+var slot_row: HBoxContainer
+var save_button: Button
 var start_button: Button
+var party_button: Button
+var depart_button: Button
+var units_meta := {}
+var portrait_regions := {} # herói: o pedaço do primeiro quadro que tem desenho
 
 
-func setup(chosen: Array) -> void:
+## `can_edit`: a party pode mudar aqui (online a party é a da sala).
+func setup(chosen: Array, can_edit := true) -> void:
 	party = chosen.duplicate()
 	size = SCREEN
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var leave := _button(self, "Partir para a\nExpedição", true)
-	_place_corner(leave, 76, SCREEN.y - 12 - 92 - 8 - 76) # acima das cartas da party
-	leave.pressed.connect(open_party)
+	units_meta = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
+	party_button = _button(self, "Configurar Party")
+	_place_corner(party_button, 56, CORNER_BOTTOM - 56)
+	party_button.pressed.connect(open_party_setup)
+	party_button.visible = can_edit
+	depart_button = _depart_tab()
 	action_button = _button(self, "")
-	_place_corner(action_button, 56, SCREEN.y - 12 - 92 - 8 - 76 - 8 - 56)
+	_place_corner(action_button, 56, CORNER_BOTTOM - 56 - 8 - 56)
 	action_button.visible = false
 	action_button.pressed.connect(func(): open_person(nearby))
 	log_button = _button(self, "")
@@ -427,56 +444,205 @@ func _back_button(parent: Control, person: Dictionary) -> void:
 	_button(parent, "Voltar").pressed.connect(func(): _conversation(person, _greeting(person)))
 
 
+# --- Partir -------------------------------------------------------------------
+
+## Aba dourada pendurada no meio da faixa do topo: sempre à vista, sem cobrir o mapa.
+func _depart_tab() -> Button:
+	var tab := Button.new()
+	tab.focus_mode = Control.FOCUS_NONE
+	tab.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tab.tooltip_text = "Ver a party e partir para a expedição"
+	tab.custom_minimum_size = DEPART_SIZE
+	tab.size = DEPART_SIZE
+	tab.position = Vector2((SCREEN.x - DEPART_SIZE.x) / 2.0, DEPART_TOP)
+	tab.add_theme_stylebox_override("normal", _tab_style(Brass.GOLD))
+	tab.add_theme_stylebox_override("hover", _tab_style(Color("ffe1a0")))
+	tab.add_theme_stylebox_override("pressed", _tab_style(Brass.GOLD.darkened(0.12)))
+	tab.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	add_child(tab)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tab.add_child(center)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(row)
+	var compass := Icon.new()
+	compass.setup("compass", Brass.WINE_DEEP, 22)
+	compass.angle = -PI / 4.0 # agulha para o nordeste: lê como bússola mesmo pequena
+	compass.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(compass)
+	var text := Brass.label("Partir em Expedição", 15, Brass.WINE_DEEP, 700)
+	text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(text)
+	# Um brilho lento, para chamar o olho sem piscar.
+	var glow := tab.create_tween().set_loops()
+	glow.tween_property(tab, "self_modulate", Color(1.12, 1.08, 0.96), 1.4).set_trans(Tween.TRANS_SINE)
+	glow.tween_property(tab, "self_modulate", Color.WHITE, 1.4).set_trans(Tween.TRANS_SINE)
+	sound_manager.bind_button(tab)
+	tab.pressed.connect(open_party)
+	return tab
+
+
+## Aba presa em cima: só os cantos de baixo são redondos e não tem borda no topo.
+func _tab_style(fill: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = Brass.BRASS.darkened(0.25)
+	style.border_width_left = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.corner_radius_bottom_left = 14
+	style.corner_radius_bottom_right = 14
+	style.shadow_color = Color(Brass.WINE_DEEP, 0.85)
+	style.shadow_size = 3
+	style.shadow_offset = Vector2(0, 2)
+	style.anti_aliasing = true
+	return style
+
+
+## Antes de partir: quem vai, o que leva e o botão de sair da cidade.
 func open_party() -> void:
-	var body := _open("Party da expedição")
+	var body := _open("Partir em expedição")
+	_paragraph(body, "A party sai da cidade e só volta quando a expedição acabar.", MUTED)
+	var row := _lineup(body)
+	for i in party.size():
+		row.add_child(_slot(party[i], i == 0, false))
+	var carried: Array = Content.ITEM_ORDER.filter(func(id): return TownProgress.item_count(id) > 0).map(func(id):
+		return "%d× %s" % [TownProgress.item_count(id), Content.ITEMS[id]["name"]])
+	if not carried.is_empty():
+		_paragraph(body, "Na mochila: %s" % ", ".join(carried), GOLD)
+	var buttons := _row(body)
+	_close_button(buttons, "Ficar na cidade")
+	if party_button.visible:
+		var change := _button(buttons, "Configurar Party")
+		change.pressed.connect(open_party_setup)
+	start_button = _button(buttons, "Partir", true)
+	start_button.disabled = party.is_empty()
+	start_button.pressed.connect(_depart)
+
+
+func _depart() -> void:
+	depart.emit(party.duplicate())
+
+
+# --- Configurar a party ----------------------------------------------------------
+
+## Escolhe quem forma a party e quem lidera. O líder é quem anda com o jogador na cidade.
+func open_party_setup() -> void:
+	draft = party.duplicate()
+	var body := _open("Party")
+	_paragraph(body, "O primeiro é o líder: é com ele que você anda pela cidade. Os outros ficam cuidando da vida até a próxima expedição. Toque num herói da fila para ele liderar.", MUTED)
+	slot_row = _lineup(body)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 10)
 	body.add_child(grid)
-	var carried: Array = Content.ITEM_ORDER.filter(func(id): return TownProgress.item_count(id) > 0).map(func(id):
-		return "%d× %s" % [TownProgress.item_count(id), Content.ITEMS[id]["name"]])
-	if not carried.is_empty():
-		_paragraph(body, "Na mochila: %s" % ", ".join(carried), GOLD)
 	hero_buttons.clear()
-	var units_meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/units/meta.json"))
 	for id in Data.WORLD_HEROES:
 		var button := _button(grid, "")
 		_fill_hero(button, id, units_meta[id])
 		hero_buttons[id] = button
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 12)
-	body.add_child(row)
-	_close_button(row, "Ficar na cidade")
-	var menu := _button(row, "Menu principal")
+	var buttons := _row(body)
+	_close_button(buttons, "Cancelar")
+	var menu := _button(buttons, "Menu principal")
 	menu.pressed.connect(func(): menu_requested.emit())
-	start_button = _button(row, "", true)
-	start_button.pressed.connect(_depart)
+	save_button = _button(buttons, "Salvar party", true)
+	save_button.pressed.connect(_save_party)
 	_show_party()
 
 
-func _fill_hero(button: Button, id: String, info: Dictionary) -> void:
+func _lineup(body: Control) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	body.add_child(row)
+	return row
+
+
+## Uma vaga da fila: retrato, nome e o selo de líder. `pick`: tocar faz ele liderar.
+func _slot(id: String, leads: bool, pick: bool) -> Control:
+	var slot := Button.new()
+	slot.focus_mode = Control.FOCUS_NONE
+	slot.custom_minimum_size = SLOT_SIZE
+	var style := Brass.panel(Color("3b3a2c") if leads else PANEL, GOLD if leads else Brass.BRASS_DIM, 3 if leads else 1, 8, 6, 0)
+	for key in ["normal", "hover", "pressed", "disabled"]:
+		slot.add_theme_stylebox_override(key, style if key != "hover" or not pick else Brass.panel(Brass.WINE_LIFT, GOLD, 2, 8, 6, 0))
+	slot.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	if pick and not leads:
+		slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		slot.tooltip_text = "Tornar líder"
+		slot.pressed.connect(func(): _make_leader(id))
+		sound_manager.bind_button(slot)
+	else:
+		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE if not pick else Control.MOUSE_FILTER_STOP
+	var column := VBoxContainer.new()
+	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 2)
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.add_child(column)
+	var tag := _label("★ Líder" if leads else " ", 15, GOLD)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(tag)
+	var portrait := _hero_portrait(id, 92)
+	portrait.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(portrait)
+	var hero_name := _label(Data.UNIT_TYPES[id]["name"], 16, TEXT)
+	hero_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hero_name.clip_text = true
+	hero_name.custom_minimum_size.x = SLOT_SIZE.x - 12
+	column.add_child(hero_name)
+	return slot
+
+
+## Vaga vazia da fila, para mostrar quantos ainda cabem.
+func _empty_slot() -> Control:
+	var slot := PanelContainer.new()
+	slot.custom_minimum_size = SLOT_SIZE
+	var style := Brass.panel(Color(PANEL, 0.5), Color(Brass.BRASS_DIM, 0.45), 1, 8, 6, 0)
+	slot.add_theme_stylebox_override("panel", style)
+	var hint := _label("vaga livre", 15, Brass.DIM)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	slot.add_child(hint)
+	return slot
+
+
+func _hero_portrait(id: String, side: float) -> TextureRect:
+	var info: Dictionary = units_meta[id]
+	var portrait := TextureRect.new()
+	var atlas := AtlasTexture.new()
+	atlas.atlas = load("res://assets/units/%s.png" % id)
+	if not portrait_regions.has(id):
+		# O quadro tem muita sobra transparente: recorta só o herói, para ele encher a vaga.
+		var cell := Rect2i(0, 0, info["cell_w"], info["cell_h"])
+		var used := atlas.atlas.get_image().get_region(cell).get_used_rect()
+		portrait_regions[id] = Rect2(used) if used.size.x > 0 else Rect2(cell)
+	atlas.region = portrait_regions[id]
+	portrait.texture = atlas
+	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	portrait.custom_minimum_size = Vector2.ONE * side
+	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return portrait
+
+
+func _fill_hero(button: Button, id: String, _info: Dictionary) -> void:
 	var data: Dictionary = Data.UNIT_TYPES[id]
 	# A grade de 2 colunas foi pensada para 3 fileiras (6 heróis); com mais, os cartões encolhem.
 	var rows := ceili(Data.WORLD_HEROES.size() / 2.0)
-	var height := minf(92.0, (92.0 * 3 + 20 - 10 * (rows - 1)) / rows)
+	var height := minf(72.0, (72.0 * 3 + 20 - 10 * (rows - 1)) / rows)
 	button.custom_minimum_size = Vector2(340, height)
 	var row := HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(row)
-	var portrait := TextureRect.new()
-	var atlas := AtlasTexture.new()
-	atlas.atlas = load("res://assets/units/%s.png" % id)
-	atlas.region = Rect2(0, 0, info["cell_w"], info["cell_h"])
-	portrait.texture = atlas
-	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	portrait.custom_minimum_size = Vector2.ONE * minf(84.0, height - 8)
-	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(portrait)
+	row.add_child(_hero_portrait(id, minf(64.0, height - 6)))
 	var text := VBoxContainer.new()
 	text.alignment = BoxContainer.ALIGNMENT_CENTER
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -489,32 +655,44 @@ func _fill_hero(button: Button, id: String, info: Dictionary) -> void:
 	button.pressed.connect(func(): _toggle(id))
 
 
+## Tocar num herói da lista: entra no fim da fila, ou sai dela.
 func _toggle(id: String) -> void:
-	if id in party:
-		party.erase(id)
-	elif party.size() < Data.PARTY_SIZE:
-		party.append(id)
+	if id in draft:
+		draft.erase(id)
+	elif draft.size() < Data.PARTY_SIZE:
+		draft.append(id)
+	_show_party()
+
+
+func _make_leader(id: String) -> void:
+	draft.erase(id)
+	draft.push_front(id)
 	_show_party()
 
 
 func _show_party() -> void:
 	for id in hero_buttons:
-		var chosen: bool = id in party
+		var chosen: bool = id in draft
 		var style := _box(Color("3b3a2c") if chosen else PANEL)
 		if chosen:
 			style.border_color = GOLD
-			style.set_border_width_all(4)
+			style.set_border_width_all(3)
 		hero_buttons[id].add_theme_stylebox_override("normal", style)
-	start_button.disabled = party.is_empty()
-	start_button.text = "Partir com %d de %d" % [party.size(), Data.PARTY_SIZE]
+	for child in slot_row.get_children():
+		slot_row.remove_child(child)
+		child.queue_free()
+	for i in Data.PARTY_SIZE:
+		slot_row.add_child(_slot(draft[i], i == 0, true) if i < draft.size() else _empty_slot())
+	save_button.disabled = draft.is_empty()
 
 
-func _depart() -> void:
-	var chosen := []
-	for id in Data.WORLD_HEROES: # ordem fixa: a mesma party sempre sai igual
-		if id in party:
-			chosen.append(id)
-	depart.emit(chosen)
+func _save_party() -> void:
+	if draft.is_empty():
+		return
+	close_window()
+	if draft != party:
+		party = draft.duplicate()
+		party_changed.emit(party.duplicate())
 
 
 # --- Peças da janela -----------------------------------------------------------
