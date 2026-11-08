@@ -132,9 +132,14 @@ func _update_lights() -> void:
 
 func _add_walker(index: int) -> void:
 	var sprite := Sprite2D.new()
-	sprite.texture = load(Town.TOWN_ROOT % Town.WALKER_ART[index % Town.WALKER_ART.size()])
+	var art: String = Town.WALKER_ART[index % Town.WALKER_ART.size()]
+	sprite.texture = load(Town.TOWN_ROOT % art)
 	sprite.centered = false
-	var foot: Vector2 = sprite.texture.get_size() / 2.0
+	if ResourceLoader.exists(Town.IDLE_ROOT % art): # respira e pisca enquanto anda
+		sprite.texture = load(Town.IDLE_ROOT % art)
+		sprite.hframes = Town.IDLE_FRAMES
+		_play_idle(sprite, index * 5)
+	var foot: Vector2 = sprite.get_rect().size / 2.0
 	var route: Array = Town.walk_route().filter(func(cell): return state.tile_at(cell)["walkable"])
 	var cell: Vector2i = route[index * 3 % route.size()]
 	view.board.add_child(sprite)
@@ -142,6 +147,16 @@ func _add_walker(index: int) -> void:
 	var walker := {"sprite": sprite, "foot": foot, "cell": cell, "next": cell, "path": [], "route": route, "goal": index * 3, "step": 1.0, "rest": randf_range(REST_TIME.x, REST_TIME.y)}
 	walkers.append(walker)
 	_place_walker(walker)
+
+
+## Toca a folha em loop, começando num quadro diferente para cada um.
+func _play_idle(sprite: Sprite2D, start: int) -> void:
+	var count: int = sprite.hframes
+	start = posmod(start, count)
+	sprite.frame = start
+	var loop := sprite.create_tween().set_loops()
+	loop.tween_method(func(step: float): sprite.frame = (start + mini(int(step), count - 1)) % count,
+		0.0, float(count), count / Town.IDLE_FPS)
 
 
 func _place_walker(walker: Dictionary) -> void:

@@ -358,7 +358,7 @@ solido = false
 y_sort_enabled = true
 
 [node name="Ferreiro" type="Sprite2D" parent="Moradores" unique_id=848614258]
-position = Vector2(2697, 2023.5)
+position = Vector2(2604, 2183.25)
 texture = ExtResource("22_r")
 script = ExtResource("3_r")
 id = "ferreiro"
@@ -515,12 +515,6 @@ script = ExtResource("4_r")
 position = Vector2(2046, 2183.25)
 scale = Vector2(1.3, 1.3)
 texture = ExtResource("41_r")
-script = ExtResource("4_r")
-
-[node name="Bigorna 2" type="Sprite2D" parent="Enfeites" unique_id=1478985167]
-position = Vector2(2790, 2183.25)
-scale = Vector2(1.3, 1.3)
-texture = ExtResource("42_r")
 script = ExtResource("4_r")
 
 [node name="Lenha" type="Sprite2D" parent="Enfeites" unique_id=369918727]

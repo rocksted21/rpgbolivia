@@ -40,7 +40,13 @@ const IDLE_ROOT := "res://assets/town/anim/%s_idle.png"
 const IDLE_FRAMES := 24
 const IDLE_FPS := 8.0
 # Moradores que carregam luz: [força, distância do pé até a chama (x, y) na arte].
-const PERSON_LIGHT := {"morador_guarda": [0.4, Vector2(-38, 32)]}
+const PERSON_LIGHT := {
+	"morador_guarda": [0.4, Vector2(-38, 32)], # lanterna do Faroleiro
+	"morador_arquivista": [0.3, Vector2(-44, 88)], # vela na mão
+	"morador_e": [0.22, Vector2(-2, 86)], # vela da freira
+	"morador_d": [0.22, Vector2(40, 95)], # lanterna nas costas da mascate
+	"morador_ferreiro": [0.3, Vector2(64, 52)], # ferro em brasa na bigorna, onde o martelo bate
+}
 
 const BEACON_TEXT := "Enquanto esta chama arder, a cidade existe. Acendam os faróis das regiões e a escuridão vai recuar até quem a trouxe."
 const NO_MEMORY_TEXT := "Ninguém aqui lembra de muita coisa. Traga memórias das expedições e eu conto o que elas significam."

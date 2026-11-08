@@ -33,6 +33,7 @@ const TILE_WALL := 31.0 # altura da parede abaixo da borda da frente
 const HEX_CORNERS := [Vector2(185, 53), Vector2(185, 160), Vector2(93, 213), Vector2(0, 160), Vector2(0, 53), Vector2(93, 0)]
 const WALL_SIDE_MARGIN := 0.4
 const MODEL_META := "res://assets/town/modelos/meta.json"
+const EXTRA_MODEL_META := ["res://assets/biomes/suburbios/modelos/meta.json"]
 const MODEL_SCALE := 2.0 # como os personagens: 1 pixel de arte vale 2 no tabuleiro
 const MODEL_NIGHT_LIFT := Color(1.3, 1.26, 1.05) # desfaz parte do tom de noite: janelas acesas continuam vivas
 # Construções grandes ficam transparentes quando escondem alguém atrás delas.
@@ -651,6 +652,9 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 func _model_prop(prop: Dictionary, cell: Vector2i) -> Sprite2D:
 	if battle.model_meta.is_empty():
 		battle.model_meta = JSON.parse_string(FileAccess.get_file_as_string(MODEL_META))
+		for extra in EXTRA_MODEL_META: # modelos de outros lugares (os Subúrbios) no mesmo formato
+			if FileAccess.file_exists(extra):
+				battle.model_meta.merge(JSON.parse_string(FileAccess.get_file_as_string(extra)))
 	var info: Dictionary = battle.model_meta[prop["model"]]
 	var sprite := Sprite2D.new()
 	sprite.texture = load(prop["path"])

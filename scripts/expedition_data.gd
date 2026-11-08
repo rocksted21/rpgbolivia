@@ -26,6 +26,7 @@ const DEFAULT_BIOME := "suburbios"
 const FIXED_COUNTS := {"vila": 2, "ruina": 3, "emboscada": 2, "fonte": 2, "memoria": 1, "bau": 3}
 const FIXED_SPACING := 4 # dois locais sorteados nunca ficam colados
 const FIXED_DANGER_DISTANCE := 13 # a cada tantas casas do início o perigo sobe (o mapa é menor)
+const LAMP_RADIUS := 9 # lanterna acesa acende os lampiões de rua até essa distância (Subúrbios)
 const SECRET_RADIUS := 2 # chegando a essa distância de um segredo da planta, ele conta como achado
 const SECRET_COLOR := Color("7fe8ff")
 

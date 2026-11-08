@@ -274,8 +274,25 @@ func _play_landmark(event: Dictionary) -> void:
 		battle.board_art._rebuild_cell(event["cell"]) # o baú fica aberto; a lanterna, acesa
 	if event["done"] and battle.state.landmarks[event["cell"]]["kind"] == "lanterna" and battle.world_light != null:
 		battle.world_light.flash(battle.feet_of(event["cell"]) + Vector2(0, -128), "fogo", 2.4)
+	if event["done"] and battle.state.landmarks[event["cell"]]["kind"] == "lanterna":
+		_light_street(event["cell"])
 	battle.journey_ui._update_journey()
 	await battle.get_tree().create_timer(0.5).timeout
+
+
+## Subúrbios: a lanterna acesa devolve a luz à rua. Os lampiões em volta acendem um por um,
+## do mais perto ao mais longe, sem segurar a fila de eventos.
+func _light_street(cell: Vector2i) -> void:
+	var lamps: Array = battle.state.lamps_near(cell)
+	for i in lamps.size():
+		var lamp: Vector2i = lamps[i]
+		var wait := battle.get_tree().create_timer(0.35 + i * 0.12)
+		wait.timeout.connect(func():
+			if not is_instance_valid(battle) or not battle.cell_nodes.has(lamp):
+				return
+			battle.board_art._rebuild_cell(lamp)
+			if battle.world_light != null:
+				battle.world_light.flash(battle.feet_of(lamp) + Vector2(0, -180), "fogo", 0.5))
 
 
 ## Segredo da planta: um aviso curto e um brilho frio onde ele está.
