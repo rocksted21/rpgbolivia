@@ -195,6 +195,11 @@ func _toggle_pick(id: int, hero: int) -> void:
 func start_match() -> void:
 	if not relay.is_master or playing or not can_start():
 		return
+	var error := HeroProgress.new_game()
+	if error != OK:
+		notice = "Não foi possível iniciar os heróis do zero: %s" % error
+		changed.emit()
+		return
 	var heroes := party_heroes()
 	party_types = heroes.map(func(hero): return Data.WORLD_HEROES[hero])
 	owners = heroes.map(func(hero): return picks[hero])

@@ -16,6 +16,17 @@ static var path := OWN_PATH
 static var own_path := OWN_PATH # o save de antes de entrar na sala (os testes usam outro)
 
 
+## Partida nova, solo ou online: não herda experiência nem habilidades da anterior.
+static func new_game() -> Error:
+	use_own()
+	var config := ConfigFile.new()
+	for type_id in Skills.hero_types():
+		config.set_value(type_id, "xp", 0)
+		config.set_value(type_id, "earned", Skills.START_POINTS)
+		config.set_value(type_id, "unlocked", [])
+	return config.save(path)
+
+
 static func _load() -> ConfigFile:
 	var config := ConfigFile.new()
 	config.load(path) # sem arquivo, começa vazio

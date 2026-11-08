@@ -89,7 +89,7 @@ func _ready() -> void:
 	_build_background()
 	_build_ambience()
 	_build_status()
-	single_player = _menu_button(0, "JORNADA SOLO", "Single Player", _enter_town)
+	single_player = _menu_button(0, "NOVO JOGO SOLO", "Nível 1 · 0 EXP", _new_game)
 	_menu_button(1, "EXPEDIÇÃO ONLINE", "Multiplayer", func(): get_tree().change_scene_to_file("res://scenes/online_lobby.tscn"))
 	_menu_button(2, "PROGRESSÃO & HERÓIS", "Skills e builds", func(): get_tree().change_scene_to_file("res://scenes/skill_tree.tscn"))
 	_menu_button(3, "MEMÓRIAS & ARQUIVO", "Resumos e história", _open_archive)
@@ -127,6 +127,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	if open_modal != null and event.is_action_pressed("ui_cancel"):
 		_close_modal()
 		get_viewport().set_input_as_handled()
+
+
+func _new_game() -> void:
+	var error := HeroProgress.new_game()
+	if error != OK:
+		push_error("Não foi possível iniciar os heróis do zero: %s" % error)
+		return
+	_delete_all_saves()
+	var root := get_tree().root
+	for key in ["world_hero", "load_save", "town_spot", "expedition"]:
+		root.remove_meta(key)
+	_enter_town()
 
 
 func _enter_town() -> void:
@@ -532,6 +544,14 @@ func _close_modal() -> void:
 func _build_options() -> void:
 	var parts := _modal("Ajustes", 440.0)
 	options = parts["root"]
+	var continue_button := Button.new()
+	continue_button.text = "Continuar jornada"
+	continue_button.disabled = not _has_any_save()
+	continue_button.custom_minimum_size.y = 44
+	continue_button.pressed.connect(_enter_town)
+	parts["body"].add_child(continue_button)
+	sound_manager.bind_button(continue_button)
+	options.visibility_changed.connect(func(): continue_button.disabled = not _has_any_save())
 	var load_button := Button.new()
 	load_button.text = "Carregar jogo"
 	load_button.disabled = not SaveGame.exists()

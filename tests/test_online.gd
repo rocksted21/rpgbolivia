@@ -74,6 +74,7 @@ func _run() -> void:
 	_check(await _until(func(): return guest.picks.get(5) == host_id and not guest.picks.has(0)), "escolher e liberar sincronizam")
 	_check(host.can_start(), "todos escolheram: pode iniciar")
 	HeroProgress.path = "user://test_progress_host.cfg" # quem inicia é o dono: vale o save dele
+	HeroProgress.add_xp(["mago", "druida"], 120)
 	host.start_match()
 	_check(await _until(func(): return guest.playing), "início compartilhado")
 	_check(host.owners == [guest_id, host_id] and host.owners == guest.owners, "só os heróis escolhidos entram na party")
@@ -81,10 +82,12 @@ func _run() -> void:
 	_check(guest.state.start_cell == host.state.start_cell, "mesma semente, mesmo mapa")
 	var host_mage = host.state.party[0]
 	var guest_mage = guest.state.party[0]
-	_check("rajada_calor" in host_mage.abilities and "rajada_calor" in guest_mage.abilities, "herói do amigo usa a build do mundo do dono")
+	_check("rajada_calor" not in host_mage.abilities and "rajada_calor" not in guest_mage.abilities, "partida nova não herda a build anterior")
 	_check(not host_mage.passives.has("cast_mult") and not guest_mage.passives.has("cast_mult"), "save do amigo não entra no mundo do dono")
-	_check(HeroProgress.path == HeroProgress.GUEST_PATH and HeroProgress.unlocked("mago") == ["fog_rajada"], "amigo vê o nível e a árvore do dono")
-	_check(host.state.party[1].max_hp == 32 and guest.state.party[1].max_hp == 32, "build do dono chega ao amigo")
+	_check(HeroProgress.path == HeroProgress.GUEST_PATH and HeroProgress.unlocked("mago").is_empty(), "amigo recebe a árvore inicial")
+	for type_id in host.party_types:
+		_check(HeroProgress.level(type_id) == 1 and HeroProgress.xp(type_id) == 0, "online começa no nível 1 com zero EXP: " + type_id)
+	_check(host.state.party[1].max_hp == guest.state.party[1].max_hp, "atributos iniciais iguais nos dois lados")
 	view = load("res://main.tscn").instantiate()
 	root.add_child(view)
 	_check(await _until(func(): return not view.busy), "jornada fica pronta")
