@@ -38,6 +38,12 @@ const MODEL_META := "res://assets/town/modelos/meta.json"
 const EXTRA_MODEL_META := ["res://assets/biomes/suburbios/modelos/meta.json"]
 const MODEL_SCALE := 2.0 # como os personagens: 1 pixel de arte vale 2 no tabuleiro
 const MODEL_NIGHT_LIFT := Color(1.3, 1.26, 1.05) # desfaz parte do tom de noite: janelas acesas continuam vivas
+# Arte chapada dos Subúrbios com 4 lados (PixelLab), no mesmo quadro e pé da original.
+# Ordem pelo giro de 90°: com a câmera girada, a frente do objeto aponta para oeste na tela.
+const TURNING_ROOT := "res://assets/2 rotacao/alinhado/%s_%s.png"
+const TURNING_SIDES := ["south", "west", "north", "east"]
+const TURNING_ART := ["muro", "sebe", "sebe_b", "grade", "lampiao", "lampiao_aceso", "montanha_a", "montanha_b",
+	"pedras_a", "pedras_b", "ruina_a", "ruina_b", "coluna"]
 # Construções grandes ficam transparentes quando escondem alguém atrás delas.
 const TALL_PROP_HEIGHT := 200.0 # altura no tabuleiro a partir da qual a arte conta como "grande" (herói ~170)
 const TALL_SEE_THROUGH := 0.4 # opacidade enquanto cobre alguém
@@ -69,6 +75,7 @@ var battle: BattleView # a tela dona deste módulo
 var area_key := "" # qual área de lanterna está desenhada no chão
 var area_marks := {} # casa: marca da borda da área
 var used_art := {} # caminho da imagem: retângulo sem a margem transparente
+var turning_props := {} # Sprite2D: [sul, oeste, norte, leste] — arte chapada com 4 lados
 
 
 func _init(host: Node) -> void:
@@ -694,6 +701,11 @@ func _update_model_frames() -> void:
 			_set_model_frame(sprite)
 		else:
 			battle.models.erase(sprite)
+	for sprite in turning_props.keys():
+		if is_instance_valid(sprite):
+			_set_turning_side(sprite)
+		else:
+			turning_props.erase(sprite)
 
 
 func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
@@ -719,7 +731,29 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	_mark_if_tall(sprite, foot)
 	if prop.has("idle"):
 		_play_idle(sprite, cell)
+	else:
+		_add_turning_sides(sprite, prop["path"])
 	return sprite
+
+
+## Peça dos Subúrbios que tem os 4 lados desenhados: troca a imagem a cada giro da câmera.
+func _add_turning_sides(sprite: Sprite2D, path: String) -> void:
+	var art_name := path.get_file().get_basename()
+	if not "/biomes/suburbios/" in path or not art_name in TURNING_ART:
+		return
+	var sides: Array[Texture2D] = []
+	for side in TURNING_SIDES:
+		var file := TURNING_ROOT % [art_name, side]
+		if not ResourceLoader.exists(file):
+			return # sem a arte importada, fica a imagem de sempre
+		sides.append(load(file))
+	turning_props[sprite] = sides
+	_set_turning_side(sprite)
+
+
+func _set_turning_side(sprite: Sprite2D) -> void:
+	var sides: Array = turning_props[sprite]
+	sprite.texture = sides[posmod(roundi(battle.view_angle / (TAU / 4.0)), 4)]
 
 
 ## Toca a folha em loop. Cada morador começa num quadro diferente para não respirarem juntos.
