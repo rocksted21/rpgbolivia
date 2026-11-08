@@ -5,6 +5,7 @@ extends RefCounted
 ## As posições que o resto do jogo usa são casas (coluna, linha) do mapa hexagonal.
 
 const BiomeArt = preload("res://scripts/biome_art.gd")
+const Hex = preload("res://scripts/hex.gd")
 const SCENE := "res://scenes/cidade.tscn"
 const VISIT_RADIUS := 2
 const TOWN_ROOT := "res://assets/town/%s.png"
@@ -32,8 +33,23 @@ const WALKER_MAX := 6
 # Tochas e fogueiras: de noite, é a luz delas que mostra a cidade.
 const LIGHT_ART := {"fogueira_a": 1.0, "fogueira_b": 1.0, "tocha": 0.6, "porto_pier": 0.7, "porto_barco": 0.45}
 const BEACON_LIGHT := 2.2
-const BEACON_HEIGHT := 288.0 # altura da lanterna no desenho do farol; cresce com a escala dele
+const BEACON_HEIGHT := 226.0 # altura da lanterna acima do pé, em pixels do desenho do farol; cresce com a escala dele
 const FORGE_LIGHT := 1.2
+# O farol da cidade cresce com os faróis das regiões: chama fraca no começo, facho girando depois.
+const BEACON_LEVELS := [0.55, 0.9, 1.15, 1.35, 1.5, 1.65] # força da chama por faróis acesos
+const BEAM_FROM := 1 # a partir de quantos faróis acesos o facho gira no céu
+const BEAM_LENGTH := [0.0, 900.0, 1250.0, 1600.0, 1950.0, 2300.0]
+const BEAM_SPEED := 0.45 # voltas por segundo × TAU
+# Lampiões das ruas (grupo Lampioes em cidade.tscn): acendem do mais perto da praça para fora,
+# um pouco a cada morador resgatado e mais a cada farol aceso.
+const LAMP_UNLIT := "res://assets/biomes/suburbios/lampiao.png"
+const LAMP_LIT := "res://assets/biomes/suburbios/lampiao_aceso.png"
+const LAMP_GROUND := 118 # pé do lampião no hexágono (meio da casa)
+const LAMPS_BASE := 2
+const LAMPS_PER_RESCUE := 1
+const LAMPS_PER_BEACON := 2
+const LAMP_LIGHT := 0.55
+const LAMP_HEIGHT := 196.0 # altura da chama no desenho do lampião
 # Moradores animados (tools/build_npc_idle.py): folha com os quadros lado a lado, cada um
 # do mesmo tamanho da arte parada. Se a folha não existir, o morador fica parado como antes.
 const IDLE_ROOT := "res://assets/town/anim/%s_idle.png"
@@ -90,6 +106,26 @@ static func decor() -> Array:
 
 ## Peça + {id, name, service, needs}. service: "resident" (melhorias), "memories", "skills",
 ## "beacon", "shop", "board", "talk" ou "guide".
+## Lampiões, do mais perto da praça ao mais longe (a ordem em que acendem).
+static func lamps() -> Array:
+	var out: Array = plan()["lamps"].duplicate()
+	out.sort_custom(func(a, b): return Hex.distance(a["cell"], plaza()) < Hex.distance(b["cell"], plaza()))
+	return out
+
+
+## Quantos lampiões estão acesos com esse progresso.
+static func lit_lamps(rescued_count: int, beacons: int) -> int:
+	return LAMPS_BASE + rescued_count * LAMPS_PER_RESCUE + beacons * LAMPS_PER_BEACON
+
+
+static func beacon_power(beacons: int) -> float:
+	return BEACON_LIGHT * BEACON_LEVELS[clampi(beacons, 0, BEACON_LEVELS.size() - 1)]
+
+
+static func beam_length(beacons: int) -> float:
+	return BEAM_LENGTH[clampi(beacons, 0, BEAM_LENGTH.size() - 1)]
+
+
 static func people() -> Array:
 	return plan()["people"]
 
@@ -110,7 +146,7 @@ static func plan() -> Dictionary:
 static func read_scene(scene: Node) -> Dictionary:
 	var ground: TileMapLayer = scene.get_node("Chao")
 	var out := {"plaza": _cell_of(ground, scene.get_node("Praca")), "map": [], "roads": [], "trees": [],
-		"buildings": [], "decor": [], "people": [], "route": []}
+		"buildings": [], "decor": [], "people": [], "route": [], "lamps": []}
 	var size: Vector2i = ground.get_used_rect().end + Vector2i.ONE # uma volta de água
 	for row in size.y:
 		var line := ""
@@ -141,6 +177,9 @@ static func read_scene(scene: Node) -> Dictionary:
 		person["service"] = str(node.get("servico"))
 		person["needs"] = _needs(node)
 		out["people"].append(person)
+	if scene.has_node("Lampioes"):
+		for node in _sprites(scene, "Lampioes"):
+			out["lamps"].append(_piece(ground, node))
 	for point in scene.get_node("Rota").get_children():
 		if point is Node2D:
 			out["route"].append(_cell_of(ground, point))

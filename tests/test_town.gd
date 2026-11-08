@@ -31,6 +31,7 @@ func _initialize() -> void:
 	test_upgrades()
 	test_quests()
 	test_story()
+	test_lights()
 	DirAccess.remove_absolute(TownProgress.path)
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
@@ -267,3 +268,19 @@ func test_growth() -> void:
 		var home: Array = Town.people().filter(func(p): return p["id"] == id)
 		check(home.size() == 1 and home[0]["needs"] == id, "%s tem casa na cidade" % id)
 		check(Town.buildings().any(func(b): return b.get("needs", "") == id), "%s reabre um prédio" % id)
+
+
+## A cidade clareia com o progresso: lampiões acendem e o farol fica mais forte.
+func test_lights() -> void:
+	var lamps: Array = Town.lamps()
+	check(lamps.size() >= 8, "a cidade tem lampiões nas ruas (%d)" % lamps.size())
+	var fresh = TownState.new(Data.DEFAULT_PARTY, 5, {}, {"rescued": [], "beacons": 0})
+	var grown = TownState.new(Data.DEFAULT_PARTY, 5, {}, {"rescued": ["ferreiro", "curandeira"], "beacons": 2})
+	check(fresh.lit_lamps.size() == Town.LAMPS_BASE, "no começo, só os lampiões da praça acendem")
+	check(grown.lit_lamps.size() > fresh.lit_lamps.size(), "resgates e faróis acendem mais lampiões")
+	check(Hex.distance(lamps[0]["cell"], Town.plaza()) <= Hex.distance(lamps.back()["cell"], Town.plaza()), "a luz começa perto da praça")
+	check(Town.beacon_power(3) > Town.beacon_power(0), "o farol da cidade cresce com os faróis acesos")
+	check(Town.beam_length(0) == 0.0 and Town.beam_length(1) > 0.0, "o facho só gira depois do primeiro farol")
+	for lamp in lamps:
+		check(fresh.tile_at(lamp["cell"])["walkable"] or fresh.terrain_id_at(lamp["cell"]) != TownState.TERRAIN_WATER, "lampião em chão de verdade (%s)" % lamp["cell"])
+	check(TownProgress.expedition_setup().has("beacons"), "a cidade sabe quantos faróis estão acesos")

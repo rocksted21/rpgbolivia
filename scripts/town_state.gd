@@ -27,6 +27,8 @@ var levels := {}
 var props := {}
 var people := {}
 var rescued := []
+var beacons := 0 # faróis das regiões já acesos: o farol e as ruas da cidade clareiam com eles
+var lit_lamps := [] # lampiões acesos (town_life.gd põe a luz)
 var town_setup := {} # o save refaz a cidade com ele
 
 
@@ -35,6 +37,7 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 	super(heroes, world_seed, builds)
 	town_setup = town.duplicate(true)
 	rescued = town.get("rescued", [])
+	beacons = town.get("beacons", 0)
 	_build_ground()
 	_build_places()
 	_paint_floor()
@@ -109,6 +112,14 @@ func _build_places() -> void:
 		if ground.has(cell) and ground[cell] != TERRAIN_WATER and decor["solid"]:
 			ground[cell] = TERRAIN_BUILT
 		_put_piece(decor, PERSON_GROUND)
+	var lamps: Array = Town.lamps()
+	var lit: int = Town.lit_lamps(rescued.size(), beacons)
+	for i in lamps.size():
+		var lamp: Dictionary = lamps[i]
+		var on := i < lit
+		_put(lamp["cell"], Town.LAMP_LIT if on else Town.LAMP_UNLIT, Town.LAMP_GROUND + lamp["lift"], lamp["offset"], BEHIND_UNIT, lamp["flip"])
+		if on:
+			lit_lamps.append(lamp)
 	for person in Town.people():
 		people[person["cell"]] = person
 		if person["needs"] == "" or person["needs"] in rescued:

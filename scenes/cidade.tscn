@@ -48,6 +48,7 @@
 [ext_resource type="Texture2D" path="res://assets/town/caixas.png" id="51_r"]
 [ext_resource type="Texture2D" path="res://assets/town/porto_pier.png" id="52_r"]
 [ext_resource type="Texture2D" path="res://assets/town/porto_barco.png" id="53_r"]
+[ext_resource type="Texture2D" path="res://assets/biomes/suburbios/lampiao.png" id="lampiao_r"]
 
 [node name="Cidade" type="Node2D" unique_id=633509842]
 y_sort_enabled = true
@@ -68,7 +69,7 @@ y_sort_enabled = true
 
 [node name="Farol" type="Sprite2D" parent="Predios" unique_id=1609025661]
 position = Vector2(3255, 426)
-scale = Vector2(2.5, 2.5)
+scale = Vector2(3.6, 3.6)
 texture = ExtResource("7_r")
 script = ExtResource("2_r")
 raio = 1
@@ -626,3 +627,50 @@ gizmo_extents = 40.0
 [node name="Praca" type="Marker2D" parent="." unique_id=745566665]
 position = Vector2(3348, 2822.25)
 gizmo_extents = 80.0
+
+[node name="Lampioes" type="Node2D" parent="."]
+y_sort_enabled = true
+
+[node name="Lampião 1" type="Sprite2D" parent="Lampioes"]
+position = Vector2(3627.0, 3301.5)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 2" type="Sprite2D" parent="Lampioes"]
+position = Vector2(2697.0, 2662.5)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 3" type="Sprite2D" parent="Lampioes"]
+position = Vector2(3441.0, 2023.5)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 4" type="Sprite2D" parent="Lampioes"]
+position = Vector2(4092.0, 2502.8)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 5" type="Sprite2D" parent="Lampioes"]
+position = Vector2(2697.0, 1704.0)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 6" type="Sprite2D" parent="Lampioes"]
+position = Vector2(5022.0, 2822.2)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 7" type="Sprite2D" parent="Lampioes"]
+position = Vector2(1953.0, 3621.0)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 8" type="Sprite2D" parent="Lampioes"]
+position = Vector2(1581.0, 2343.0)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 9" type="Sprite2D" parent="Lampioes"]
+position = Vector2(3162.0, 905.2)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 10" type="Sprite2D" parent="Lampioes"]
+position = Vector2(4929.0, 1704.0)
+texture = ExtResource("lampiao_r")
+
+[node name="Lampião 11" type="Sprite2D" parent="Lampioes"]
+position = Vector2(6045.0, 2662.5)
+texture = ExtResource("lampiao_r")
