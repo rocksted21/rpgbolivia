@@ -618,7 +618,7 @@ func _add_biome_props(biome: String, terrain_id: int, cell: Vector2i) -> void:
 	elif battle.expedition and cell == battle.state.beacon_cell:
 		art = [BiomeArt.beacon(biome, battle.state.defeated_boss)]
 	else:
-		art = BiomeArt.props(biome, terrain_id, detail)
+		art = BiomeArt.props_2(biome, terrain_id, detail) if battle.TILES_2 else BiomeArt.props(biome, terrain_id, detail)
 		if battle.expedition and battle.state.landmarks.has(cell):
 			var entry: Dictionary = battle.state.landmarks[cell]
 			var special: Array = BiomeArt.landmark(biome, entry["kind"], entry["state"] == "done", detail)

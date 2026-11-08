@@ -176,6 +176,33 @@ static func props(biome: String, terrain_id: int, detail: float) -> Array:
 	return []
 
 
+## Enfeites dos tiles novos (assets/2 enfeites): pedras com cristal, árvores e tufos de grama.
+## Montanha, colina, casa e torre continuam com a arte do bioma.
+const PROPS_2 := "res://assets/2 enfeites/%s_%d.png"
+const GRASS_2_CHANCE := 0.3 # parte das casas de campo que ganha um tufo de grama
+const ROCK_2_SCALE := 1.0
+const TREE_2_SCALE := 1.5
+const GRASS_2_SCALE := 1.0
+
+
+static func props_2(biome: String, terrain_id: int, detail: float) -> Array:
+	var pick := 1 + int(detail * 4.0) % 4
+	match terrain_id:
+		2:
+			return [_prop_2("pedra", pick, ROCK_2_SCALE, "main")]
+		3, 16:
+			return [_prop_2("arvore", pick, TREE_2_SCALE, "tree")]
+		1, 9:
+			if detail < GRASS_2_CHANCE:
+				return [_prop_2("grama", 1 + int(detail / GRASS_2_CHANCE * 4.0) % 4, GRASS_2_SCALE, "main")]
+			return []
+	return props(biome, terrain_id, detail)
+
+
+static func _prop_2(art: String, pick: int, scale: float, layer: String) -> Dictionary:
+	return {"path": PROPS_2 % [art, pick], "ground_y": MIDDLE_Y, "depth": BEHIND_UNIT, "layer": layer, "scale": scale}
+
+
 ## Arte de um local especial, em vez do terreno; vazio se ele não tiver desenho próprio.
 static func landmark(biome: String, kind: String, done: bool, detail: float) -> Array:
 	match kind:
