@@ -125,6 +125,7 @@ func _put_piece(piece: Dictionary, ground_y: int) -> void:
 		prop["model"] = piece["art"]
 		prop["path"] = Town.MODEL_ROOT % piece["art"]
 		prop["turn"] = piece.get("turn", 0.0)
+		prop["bob"] = piece["art"] == "porto_barco"
 
 
 ## Uma casa pode ter mais de um objeto: o prédio, uma tocha na beira e quem mora ali.

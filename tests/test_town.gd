@@ -66,8 +66,8 @@ func test_walking() -> void:
 	check(state.winner() < 0, "a cidade não acaba")
 	var seen := _reachable(state)
 	check(seen.size() > 120, "a cidade é grande (%d casas)" % seen.size())
-	for spot in [Vector2i(17, 8), Vector2i(12, 12), Vector2i(18, 24), Vector2i(27, 13)]:
-		check(seen.has(spot), "as ruas sobem aos platôs e descem às docas: %s" % spot)
+	for spot in [Vector2i(17, 8), Vector2i(9, 12), Vector2i(18, 24), Vector2i(27, 15)]:
+		check(seen.has(spot), "as ruas levam ao farol, aos bairros e ao cais: %s" % spot)
 	for spot in state.people:
 		var near: Array = Hex.neighbors(spot).filter(func(cell): return seen.has(cell))
 		check(not near.is_empty(), "dá para chegar até %s" % state.people[spot]["name"])

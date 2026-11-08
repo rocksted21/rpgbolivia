@@ -57,7 +57,7 @@ tile_map_data = PackedByteArray("AAAMAAEAAAAEAAAAAAANAAEAAAAEAAAAAAAOAAEAAAAEAAA
 tile_set = ExtResource("1_r")
 
 [node name="Ruas" type="TileMapLayer" parent="." unique_id=1883381452]
-tile_map_data = PackedByteArray("AAARAAwAAAAHAAAAAAARAAsAAAAHAAAAAAARAAoAAAAHAAAAAAARAAkAAAAHAAAAAAARAAgAAAAHAAAAAAARAAcAAAAHAAAAAAARABIAAAAHAAAAAAARABMAAAAHAAAAAAARABQAAAAHAAAAAAARABUAAAAHAAAAAAASABYAAAAHAAAAAAASABcAAAAHAAAAAAASABgAAAAHAAAAAAASABkAAAAHAAAAAAANAA8AAAAHAAAAAAAMAA8AAAAHAAAAAAALAA8AAAAHAAAAAAAKAA8AAAAHAAAAAAAJAA8AAAAHAAAAAAAJABAAAAAHAAAAAAAIABEAAAAHAAAAAAAHABEAAAAHAAAAAAAHABIAAAAHAAAAAAAVAA8AAAAHAAAAAAAWAA8AAAAHAAAAAAAXAA4AAAAHAAAAAAAYAA4AAAAHAAAAAAAZAA4AAAAHAAAAAAAZAA0AAAAHAAAAAAAaAA0AAAAHAAAAAAAbAA0AAAAHAAAAAAAcAA0AAAAHAAAAAAAdAA0AAAAHAAAAAAAOAA0AAAAHAAAAAAANAA0AAAAHAAAAAAAMAA0AAAAHAAAAAAAMAAwAAAAHAAAAAAALAAwAAAAHAAAAAAAUAA0AAAAHAAAAAAAVAA0AAAAHAAAAAAAWAAwAAAAHAAAAAAAXAAwAAAAHAAAAAAAXAAsAAAAHAAAAAAAYAAsAAAAHAAAAAAAJABYAAAAHAAAAAAAKABYAAAAHAAAAAAALABYAAAAHAAAAAAAMABYAAAAHAAAAAAANABYAAAAHAAAAAAAOABYAAAAHAAAAAAAPABYAAAAHAAAAAAAQABYAAAAHAAAAAAARABYAAAAHAAAAAAATABYAAAAHAAAAAAAUABYAAAAHAAAAAAAVABYAAAAHAAAAAAAWABYAAAAHAAAAAAAXABYAAAAHAAAAAAAYABYAAAAHAAAAAAAZABYAAAAHAAAAAAAaABYAAAAHAAAAAAAOABIAAAAHAAAAAAANABMAAAAHAAAAAAANABQAAAAHAAAAAAAMABUAAAAHAAAAAAAVABIAAAAHAAAAAAAVABMAAAAHAAAAAAAWABQAAAAHAAAAAAAWABUAAAAHAAAAAAA=")
+tile_map_data = PackedByteArray("AAARAAQAAAAHAAAAAAASAAQAAAAHAAAAAAARAAUAAAAHAAAAAAARAAYAAAAHAAAAAAASAAYAAAAHAAAAAAARAAcAAAAHAAAAAAARAAgAAAAHAAAAAAASAAgAAAAHAAAAAAAHAAkAAAAHAAAAAAAIAAkAAAAHAAAAAAAJAAkAAAAHAAAAAAAKAAkAAAAHAAAAAAALAAkAAAAHAAAAAAAMAAkAAAAHAAAAAAANAAkAAAAHAAAAAAAOAAkAAAAHAAAAAAAPAAkAAAAHAAAAAAAQAAkAAAAHAAAAAAARAAkAAAAHAAAAAAASAAkAAAAHAAAAAAATAAkAAAAHAAAAAAAUAAkAAAAHAAAAAAAVAAkAAAAHAAAAAAAWAAkAAAAHAAAAAAAXAAkAAAAHAAAAAAAYAAkAAAAHAAAAAAAZAAkAAAAHAAAAAAAaAAkAAAAHAAAAAAAbAAkAAAAHAAAAAAAJAAoAAAAHAAAAAAARAAoAAAAHAAAAAAASAAoAAAAHAAAAAAAbAAoAAAAHAAAAAAAIAAsAAAAHAAAAAAARAAsAAAAHAAAAAAAbAAsAAAAHAAAAAAAJAAwAAAAHAAAAAAAbAAwAAAAHAAAAAAAIAA0AAAAHAAAAAAAbAA0AAAAHAAAAAAAJAA4AAAAHAAAAAAAbAA4AAAAHAAAAAAAGAA8AAAAHAAAAAAAHAA8AAAAHAAAAAAAIAA8AAAAHAAAAAAAJAA8AAAAHAAAAAAAKAA8AAAAHAAAAAAALAA8AAAAHAAAAAAAMAA8AAAAHAAAAAAAWAA8AAAAHAAAAAAAXAA8AAAAHAAAAAAAYAA8AAAAHAAAAAAAZAA8AAAAHAAAAAAAaAA8AAAAHAAAAAAAbAA8AAAAHAAAAAAAcAA8AAAAHAAAAAAAdAA8AAAAHAAAAAAAeAA8AAAAHAAAAAAAfAA8AAAAHAAAAAAAGABAAAAAHAAAAAAAHABAAAAAHAAAAAAAIABAAAAAHAAAAAAAJABAAAAAHAAAAAAAKABAAAAAHAAAAAAALABAAAAAHAAAAAAAMABAAAAAHAAAAAAANABAAAAAHAAAAAAAWABAAAAAHAAAAAAAXABAAAAAHAAAAAAAYABAAAAAHAAAAAAAZABAAAAAHAAAAAAAaABAAAAAHAAAAAAAbABAAAAAHAAAAAAAcABAAAAAHAAAAAAAdABAAAAAHAAAAAAAeABAAAAAHAAAAAAAfABAAAAAHAAAAAAAIABEAAAAHAAAAAAAbABEAAAAHAAAAAAAJABIAAAAHAAAAAAAbABIAAAAHAAAAAAAIABMAAAAHAAAAAAARABMAAAAHAAAAAAAbABMAAAAHAAAAAAAJABQAAAAHAAAAAAARABQAAAAHAAAAAAASABQAAAAHAAAAAAAbABQAAAAHAAAAAAAHABUAAAAHAAAAAAAIABUAAAAHAAAAAAAJABUAAAAHAAAAAAAKABUAAAAHAAAAAAALABUAAAAHAAAAAAAMABUAAAAHAAAAAAANABUAAAAHAAAAAAAOABUAAAAHAAAAAAAPABUAAAAHAAAAAAAQABUAAAAHAAAAAAARABUAAAAHAAAAAAASABUAAAAHAAAAAAATABUAAAAHAAAAAAAUABUAAAAHAAAAAAAVABUAAAAHAAAAAAAWABUAAAAHAAAAAAAXABUAAAAHAAAAAAAYABUAAAAHAAAAAAAZABUAAAAHAAAAAAAaABUAAAAHAAAAAAAbABUAAAAHAAAAAAARABYAAAAHAAAAAAASABYAAAAHAAAAAAARABcAAAAHAAAAAAARABgAAAAHAAAAAAASABgAAAAHAAAAAAARABkAAAAHAAAAAAA=")
 tile_set = ExtResource("1_r")
 
 [node name="Arvores" type="Node2D" parent="." unique_id=1547644184]
@@ -67,14 +67,14 @@ y_sort_enabled = true
 y_sort_enabled = true
 
 [node name="Farol" type="Sprite2D" parent="Predios" unique_id=1609025661]
-position = Vector2(3255, 745.5)
+position = Vector2(3255, 426)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("7_r")
 script = ExtResource("2_r")
 raio = 1
 
 [node name="Forja (Ferreiro)" type="Sprite2D" parent="Predios" unique_id=794860032]
-position = Vector2(1581, 2023.5)
+position = Vector2(2325, 2023.5)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("8_r")
 script = ExtResource("2_r")
@@ -82,26 +82,29 @@ raio = 1
 precisa_de = "ferreiro"
 
 [node name="Tenda (Curandeira)" type="Sprite2D" parent="Predios" unique_id=1743009416]
-position = Vector2(2046, 3141.75)
+position = Vector2(2325, 2982)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("9_r")
 script = ExtResource("2_r")
+raio = 1
 precisa_de = "curandeira"
 
 [node name="Horta" type="Sprite2D" parent="Predios" unique_id=1905358296]
-position = Vector2(1395, 3301.5)
+position = Vector2(1488, 3780.75)
+scale = Vector2(2.2, 2.2)
 texture = ExtResource("10_r")
 script = ExtResource("2_r")
+raio = 1
 
 [node name="Taverna" type="Sprite2D" parent="Predios" unique_id=2052190406]
-position = Vector2(4836, 2822.25)
+position = Vector2(4557, 2982)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("11_r")
 script = ExtResource("2_r")
 raio = 1
 
 [node name="Mansão (Arquivista)" type="Sprite2D" parent="Predios" unique_id=390327555]
-position = Vector2(5115, 1704)
+position = Vector2(4557, 1065)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("12_r")
 script = ExtResource("2_r")
@@ -109,68 +112,253 @@ raio = 1
 precisa_de = "arquivista"
 
 [node name="Capela" type="Sprite2D" parent="Predios" unique_id=1407951687]
-position = Vector2(2232, 1544.25)
+position = Vector2(2139, 1065)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("13_r")
 script = ExtResource("2_r")
 raio = 1
 
 [node name="Acampamento (Viajante)" type="Sprite2D" parent="Predios" unique_id=553456623]
-position = Vector2(1302, 2822.25)
-scale = Vector2(1.5, 1.5)
+position = Vector2(1302, 3141.75)
+scale = Vector2(2.5, 2.5)
 texture = ExtResource("14_r")
 script = ExtResource("2_r")
+raio = 1
 
 [node name="Forno (Padeira)" type="Sprite2D" parent="Predios" unique_id=545676526]
-position = Vector2(1116, 2183.25)
+position = Vector2(1209, 2023.5)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("15_r")
 script = ExtResource("2_r")
+raio = 1
 precisa_de = "padeira"
 
 [node name="Abrigo (Alquimista)" type="Sprite2D" parent="Predios" unique_id=1207287497]
-position = Vector2(2883, 3940.5)
+position = Vector2(2325, 3940.5)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("16_r")
 script = ExtResource("2_r")
+raio = 1
 precisa_de = "alquimista"
 
 [node name="Torre (Cartógrafa)" type="Sprite2D" parent="Predios" unique_id=1216042849]
-position = Vector2(4836, 4100.25)
+position = Vector2(5673, 2982)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("17_r")
 script = ExtResource("2_r")
+raio = 1
 precisa_de = "cartografa"
 
 [node name="Fonte" type="Sprite2D" parent="Predios" unique_id=679164857]
-position = Vector2(3255, 2343)
-scale = Vector2(1.5, 1.5)
+position = Vector2(3534, 2502.75)
+scale = Vector2(3.0, 3.0)
 texture = ExtResource("18_r")
 script = ExtResource("2_r")
+raio = 1
 
 [node name="Casa do Mestre de Armas" type="Sprite2D" parent="Predios" unique_id=1277676953]
-position = Vector2(4557, 1704)
+position = Vector2(3813, 1065)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("19_r")
 script = ExtResource("2_r")
+raio = 1
 
 [node name="Casa do Pavio" type="Sprite2D" parent="Predios" unique_id=1865519094]
-position = Vector2(3162, 1863.75)
+position = Vector2(4557, 2023.5)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("20_r")
 script = ExtResource("2_r")
+raio = 1
 
 [node name="Casa do Pescador" type="Sprite2D" parent="Predios" unique_id=973109033]
-position = Vector2(3906, 3780.75)
+position = Vector2(4278, 3780.75)
 scale = Vector2(2.5, 2.5)
 texture = ExtResource("21_r")
 script = ExtResource("2_r")
+raio = 1
+
+[node name="Casa 1" type="Sprite2D" parent="Predios"]
+position = Vector2(1488, 1224.75)
+scale = Vector2(2.5, 2.5)
+texture = ExtResource("21_r")
+script = ExtResource("2_r")
+raio = 1
+
+[node name="Casa 2" type="Sprite2D" parent="Predios"]
+position = Vector2(2697, 1065)
+scale = Vector2(2.5, 2.5)
+flip_h = true
+texture = ExtResource("20_r")
+script = ExtResource("2_r")
+raio = 1
+
+[node name="Casa 3" type="Sprite2D" parent="Predios"]
+position = Vector2(5673, 2023.5)
+scale = Vector2(2.5, 2.5)
+flip_h = true
+texture = ExtResource("19_r")
+script = ExtResource("2_r")
+raio = 1
+
+[node name="Casa 4" type="Sprite2D" parent="Predios"]
+position = Vector2(2976, 3780.75)
+scale = Vector2(2.5, 2.5)
+texture = ExtResource("20_r")
+script = ExtResource("2_r")
+raio = 1
+
+[node name="Casa 5" type="Sprite2D" parent="Predios"]
+position = Vector2(5022, 3780.75)
+scale = Vector2(2.5, 2.5)
+flip_h = true
+texture = ExtResource("21_r")
+script = ExtResource("2_r")
+raio = 1
+
+[node name="Casa 6" type="Sprite2D" parent="Predios"]
+position = Vector2(3906, 1863.75)
+scale = Vector2(2.5, 2.5)
+texture = ExtResource("19_r")
+script = ExtResource("2_r")
+raio = 1
+
+[node name="Tocha 1" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3162, 905.25)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 2" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3720, 905.25)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 3" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3069, 1384.5)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 4" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3627, 1384.5)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 5" type="Sprite2D" parent="Enfeites"]
+position = Vector2(1953, 1704)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 6" type="Sprite2D" parent="Enfeites"]
+position = Vector2(2697, 1704)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 7" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3999, 1704)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 8" type="Sprite2D" parent="Enfeites"]
+position = Vector2(4743, 1704)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 9" type="Sprite2D" parent="Enfeites"]
+position = Vector2(1581, 2343)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 10" type="Sprite2D" parent="Enfeites"]
+position = Vector2(2325, 2343)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 11" type="Sprite2D" parent="Enfeites"]
+position = Vector2(4371, 2343)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 12" type="Sprite2D" parent="Enfeites"]
+position = Vector2(5301, 2343)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 13" type="Sprite2D" parent="Enfeites"]
+position = Vector2(1674, 2822.25)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 14" type="Sprite2D" parent="Enfeites"]
+position = Vector2(2418, 2822.25)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 15" type="Sprite2D" parent="Enfeites"]
+position = Vector2(4464, 2822.25)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 16" type="Sprite2D" parent="Enfeites"]
+position = Vector2(5394, 2822.25)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 17" type="Sprite2D" parent="Enfeites"]
+position = Vector2(1953, 3301.5)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 18" type="Sprite2D" parent="Enfeites"]
+position = Vector2(2697, 3301.5)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 19" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3999, 3301.5)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 20" type="Sprite2D" parent="Enfeites"]
+position = Vector2(4743, 3301.5)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 21" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3069, 3621)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
+
+[node name="Tocha 22" type="Sprite2D" parent="Enfeites"]
+position = Vector2(3813, 3621)
+texture = ExtResource("47_r")
+script = ExtResource("4_r")
+solido = false
 
 [node name="Moradores" type="Node2D" parent="." unique_id=1511749504]
 y_sort_enabled = true
 
 [node name="Ferreiro" type="Sprite2D" parent="Moradores" unique_id=848614258]
-position = Vector2(1953, 2023.5)
+position = Vector2(2697, 2023.5)
 texture = ExtResource("22_r")
 script = ExtResource("3_r")
 id = "ferreiro"
@@ -179,7 +367,7 @@ servico = "resident"
 precisa_de = "ferreiro"
 
 [node name="Curandeira" type="Sprite2D" parent="Moradores" unique_id=523507637]
-position = Vector2(2325, 3301.5)
+position = Vector2(2697, 2982)
 texture = ExtResource("23_r")
 script = ExtResource("3_r")
 id = "curandeira"
@@ -188,7 +376,7 @@ servico = "resident"
 precisa_de = "curandeira"
 
 [node name="Taverneira" type="Sprite2D" parent="Moradores" unique_id=880373591]
-position = Vector2(4464, 2822.25)
+position = Vector2(4185, 2982)
 texture = ExtResource("24_r")
 script = ExtResource("3_r")
 id = "taverneira"
@@ -196,7 +384,7 @@ nome = "Taverneira"
 servico = "memories"
 
 [node name="Mestre de Armas" type="Sprite2D" parent="Moradores" unique_id=685606648]
-position = Vector2(4836, 1863.75)
+position = Vector2(3999, 1384.5)
 texture = ExtResource("25_r")
 script = ExtResource("3_r")
 id = "mestre"
@@ -204,7 +392,7 @@ nome = "Mestre de Armas"
 servico = "skills"
 
 [node name="Faroleiro" type="Sprite2D" parent="Moradores" unique_id=52300674]
-position = Vector2(3813, 1065)
+position = Vector2(3720, 585.75)
 texture = ExtResource("26_r")
 script = ExtResource("3_r")
 id = "guarda"
@@ -219,7 +407,7 @@ id = "pescador"
 nome = "Pescador"
 
 [node name="Viajante" type="Sprite2D" parent="Moradores" unique_id=30761257]
-position = Vector2(1581, 2982)
+position = Vector2(1581, 3301.5)
 texture = ExtResource("28_r")
 script = ExtResource("3_r")
 id = "viajante"
@@ -234,7 +422,7 @@ nome = "Mercadora"
 servico = "shop"
 
 [node name="Sacerdotisa" type="Sprite2D" parent="Moradores" unique_id=1873612826]
-position = Vector2(2604, 1863.75)
+position = Vector2(2139, 1384.5)
 texture = ExtResource("30_r")
 script = ExtResource("3_r")
 id = "sacerdotisa"
@@ -242,7 +430,7 @@ nome = "Sacerdotisa"
 servico = "shop"
 
 [node name="Padeira" type="Sprite2D" parent="Moradores" unique_id=1735704237]
-position = Vector2(1302, 2183.25)
+position = Vector2(1581, 2023.5)
 texture = ExtResource("31_r")
 script = ExtResource("3_r")
 id = "padeira"
@@ -251,7 +439,7 @@ servico = "resident"
 precisa_de = "padeira"
 
 [node name="Cartógrafa" type="Sprite2D" parent="Moradores" unique_id=1789981967]
-position = Vector2(4650, 4100.25)
+position = Vector2(5394, 3141.75)
 texture = ExtResource("32_r")
 script = ExtResource("3_r")
 id = "cartografa"
@@ -260,7 +448,7 @@ servico = "resident"
 precisa_de = "cartografa"
 
 [node name="Arquivista" type="Sprite2D" parent="Moradores" unique_id=582255597]
-position = Vector2(5115, 2023.5)
+position = Vector2(4557, 1384.5)
 texture = ExtResource("33_r")
 script = ExtResource("3_r")
 id = "arquivista"
@@ -269,7 +457,7 @@ servico = "resident"
 precisa_de = "arquivista"
 
 [node name="Alquimista" type="Sprite2D" parent="Moradores" unique_id=477262539]
-position = Vector2(3255, 3940.5)
+position = Vector2(2697, 3940.5)
 texture = ExtResource("34_r")
 script = ExtResource("3_r")
 id = "alquimista"
@@ -278,7 +466,7 @@ servico = "resident"
 precisa_de = "alquimista"
 
 [node name="Mural de Missões" type="Sprite2D" parent="Moradores" unique_id=1861311216]
-position = Vector2(3627, 2023.5)
+position = Vector2(3069, 2023.5)
 texture = ExtResource("35_r")
 script = ExtResource("3_r")
 id = "mural"
@@ -286,7 +474,7 @@ nome = "Mural de Missões"
 servico = "board"
 
 [node name="Pavio" type="Sprite2D" parent="Moradores" unique_id=1551954211]
-position = Vector2(3441, 2343)
+position = Vector2(3069, 2662.5)
 texture = ExtResource("36_r")
 script = ExtResource("3_r")
 id = "guia"
@@ -297,132 +485,82 @@ servico = "guide"
 y_sort_enabled = true
 
 [node name="Fogueira 1" type="Sprite2D" parent="Enfeites" unique_id=436090657]
-position = Vector2(2325, 2982)
+position = Vector2(1860, 3141.75)
 texture = ExtResource("37_r")
 script = ExtResource("4_r")
 
 [node name="Fogueira 2" type="Sprite2D" parent="Enfeites" unique_id=878441331]
-position = Vector2(3627, 3940.5)
+position = Vector2(3813, 3940.5)
 texture = ExtResource("38_r")
 script = ExtResource("4_r")
 
 [node name="Fogueira 3" type="Sprite2D" parent="Enfeites" unique_id=571420597]
-position = Vector2(1674, 2822.25)
+position = Vector2(1023, 3301.5)
 texture = ExtResource("37_r")
 script = ExtResource("4_r")
 
 [node name="Caldeirão" type="Sprite2D" parent="Enfeites" unique_id=1896880258]
-position = Vector2(1767, 3301.5)
+position = Vector2(1953, 2982)
+scale = Vector2(1.3, 1.3)
 texture = ExtResource("39_r")
 script = ExtResource("4_r")
 
 [node name="Frascos" type="Sprite2D" parent="Enfeites" unique_id=1830256729]
-position = Vector2(2195, 3301.5)
+position = Vector2(2790, 3141.75)
+scale = Vector2(1.2, 1.2)
 texture = ExtResource("40_r")
 script = ExtResource("4_r")
 
 [node name="Bigorna 1" type="Sprite2D" parent="Enfeites" unique_id=341794674]
-position = Vector2(2066, 2183.25)
+position = Vector2(2046, 2183.25)
+scale = Vector2(1.3, 1.3)
 texture = ExtResource("41_r")
 script = ExtResource("4_r")
 
 [node name="Bigorna 2" type="Sprite2D" parent="Enfeites" unique_id=1478985167]
-position = Vector2(1302, 2502.75)
+position = Vector2(2790, 2183.25)
+scale = Vector2(1.3, 1.3)
 texture = ExtResource("42_r")
 script = ExtResource("4_r")
 
 [node name="Lenha" type="Sprite2D" parent="Enfeites" unique_id=369918727]
-position = Vector2(837, 2343)
+position = Vector2(1488, 1863.75)
+scale = Vector2(1.4, 1.4)
 texture = ExtResource("43_r")
 script = ExtResource("4_r")
 
 [node name="Barraca 1" type="Sprite2D" parent="Enfeites" unique_id=906116464]
-position = Vector2(2790, 2822.25)
+position = Vector2(2976, 2183.25)
+scale = Vector2(2.0, 2.0)
 texture = ExtResource("44_r")
 script = ExtResource("4_r")
 
 [node name="Barraca 2" type="Sprite2D" parent="Enfeites" unique_id=1318935712]
-position = Vector2(2976, 3141.75)
+position = Vector2(2976, 2822.25)
+scale = Vector2(2.0, 2.0)
 texture = ExtResource("45_r")
 script = ExtResource("4_r")
 
 [node name="Barraca 3" type="Sprite2D" parent="Enfeites" unique_id=1340978391]
-position = Vector2(3813, 2982)
+position = Vector2(3906, 2822.25)
+scale = Vector2(2.0, 2.0)
 texture = ExtResource("44_r")
 script = ExtResource("4_r")
 
 [node name="Barris 1" type="Sprite2D" parent="Enfeites" unique_id=1778351295]
-position = Vector2(4464, 4100.25)
+position = Vector2(5022, 3141.75)
+scale = Vector2(1.2, 1.2)
 texture = ExtResource("46_r")
 script = ExtResource("4_r")
 
 [node name="Barris 2" type="Sprite2D" parent="Enfeites" unique_id=93233315]
-position = Vector2(4371, 2662.5)
+position = Vector2(4278, 3141.75)
+scale = Vector2(1.2, 1.2)
 texture = ExtResource("46_r")
 script = ExtResource("4_r")
 
-[node name="Tocha 1" type="Sprite2D" parent="Enfeites" unique_id=1065787733]
-position = Vector2(3119, 1704)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 2" type="Sprite2D" parent="Enfeites" unique_id=229283894]
-position = Vector2(3391, 1384.5)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 3" type="Sprite2D" parent="Enfeites" unique_id=1635292870]
-position = Vector2(2564, 2183.25)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 4" type="Sprite2D" parent="Enfeites" unique_id=867465386]
-position = Vector2(4132, 2183.25)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 5" type="Sprite2D" parent="Enfeites" unique_id=1973732943]
-position = Vector2(2551, 2982)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 6" type="Sprite2D" parent="Enfeites" unique_id=1211551022]
-position = Vector2(4052, 3141.75)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 7" type="Sprite2D" parent="Enfeites" unique_id=281697796]
-position = Vector2(3212, 3461.25)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 8" type="Sprite2D" parent="Enfeites" unique_id=432680414]
-position = Vector2(3670, 3780.75)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 9" type="Sprite2D" parent="Enfeites" unique_id=807833950]
-position = Vector2(1807, 2343)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
-[node name="Tocha 10" type="Sprite2D" parent="Enfeites" unique_id=1201588602]
-position = Vector2(4969, 2023.5)
-texture = ExtResource("47_r")
-script = ExtResource("4_r")
-solido = false
-
 [node name="Caixas do Cais" type="Sprite2D" parent="Enfeites"]
-position = Vector2(3330, 4090)
+position = Vector2(3140, 4100.25)
 texture = ExtResource("51_r")
 script = ExtResource("4_r")
 
@@ -452,53 +590,45 @@ giro = 337.5
 [node name="Rota" type="Node2D" parent="." unique_id=1348443151]
 
 [node name="Ponto 1" type="Marker2D" parent="Rota" unique_id=657266559]
-position = Vector2(2976, 2502.75)
+position = Vector2(3255, 1065)
 gizmo_extents = 40.0
 
 [node name="Ponto 2" type="Marker2D" parent="Rota" unique_id=1797720252]
-position = Vector2(3627, 2662.5)
+position = Vector2(2046, 1544.25)
 gizmo_extents = 40.0
 
 [node name="Ponto 3" type="Marker2D" parent="Rota" unique_id=529496968]
-position = Vector2(3348, 3141.75)
+position = Vector2(4836, 1544.25)
 gizmo_extents = 40.0
 
 [node name="Ponto 4" type="Marker2D" parent="Rota" unique_id=1189647060]
-position = Vector2(2325, 3621)
+position = Vector2(5208, 2502.75)
 gizmo_extents = 40.0
 
 [node name="Ponto 5" type="Marker2D" parent="Rota" unique_id=1720479232]
-position = Vector2(4371, 3621)
+position = Vector2(4836, 3461.25)
 gizmo_extents = 40.0
 
 [node name="Ponto 6" type="Marker2D" parent="Rota" unique_id=1453609108]
-position = Vector2(3441, 3940.5)
+position = Vector2(2046, 3461.25)
 gizmo_extents = 40.0
 
 [node name="Ponto 7" type="Marker2D" parent="Rota" unique_id=102295211]
-position = Vector2(1860, 2502.75)
+position = Vector2(1674, 2502.75)
 gizmo_extents = 40.0
 
 [node name="Ponto 8" type="Marker2D" parent="Rota" unique_id=124019331]
-position = Vector2(2325, 2023.5)
+position = Vector2(3534, 3780.75)
 gizmo_extents = 40.0
 
 [node name="Ponto 9" type="Marker2D" parent="Rota" unique_id=1226622350]
-position = Vector2(3255, 1704)
+position = Vector2(2511, 2662.5)
 gizmo_extents = 40.0
 
 [node name="Ponto 10" type="Marker2D" parent="Rota" unique_id=521852335]
-position = Vector2(3255, 1384.5)
-gizmo_extents = 40.0
-
-[node name="Ponto 11" type="Marker2D" parent="Rota" unique_id=1113865607]
-position = Vector2(4371, 2023.5)
-gizmo_extents = 40.0
-
-[node name="Ponto 12" type="Marker2D" parent="Rota" unique_id=87971292]
-position = Vector2(5208, 2183.25)
+position = Vector2(4185, 2662.5)
 gizmo_extents = 40.0
 
 [node name="Praca" type="Marker2D" parent="." unique_id=745566665]
-position = Vector2(3255, 2662.5)
+position = Vector2(3348, 2822.25)
 gizmo_extents = 80.0

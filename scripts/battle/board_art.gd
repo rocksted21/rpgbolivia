@@ -14,6 +14,9 @@ const TOWN_FLOORS := [
 	[TownState.FLOOR_STREET, "res://assets/town/chao/calcada_rua.png"],
 	[TownState.FLOOR_PLAZA, "res://assets/town/chao/laje_praca.png"],
 ]
+const BOB_HEIGHT := 3.0 # quanto o barco sobe com a maré, em pixels do tabuleiro
+const BOB_TIME := 1.8
+const SEA_Z := -3000 # o mar fica embaixo de todas as fileiras
 const GARDEN_EDGE := 0.45 # o canteiro chega até perto dos cantos da casa
 const UnitView = preload("res://scripts/unit_view.gd")
 const Hud = preload("res://scripts/hud.gd")
@@ -194,6 +197,9 @@ func _natural_mesh(cell: Vector2i) -> Dictionary:
 ## o meio do caminho nas vizinhas, com a borda recortada pelo ruído do shader.
 func _add_natural_ground(cell: Vector2i, row: int, layers: int, biome: String) -> void:
 	var mesh := _natural_mesh(cell)
+	if battle.town and battle.state.floor_id_at(cell) == TownState.TERRAIN_WATER:
+		_add_sea(cell, mesh, layers)
+		return
 	var around := []
 	for dir in 6:
 		var next: Vector2i = Hex.neighbor(cell, dir)
@@ -248,6 +254,33 @@ func _full_cover() -> PackedFloat32Array:
 	cover.resize(13)
 	cover.fill(1.0)
 	return cover
+
+
+## Mar da cidade: sempre por baixo de tudo (o barco passa por cima da água de qualquer
+## ângulo da câmera). A espuma segue a distância até o cais, que vai no vermelho dos vértices.
+func _add_sea(cell: Vector2i, mesh: Dictionary, layers: int) -> void:
+	var around := []
+	for dir in 6:
+		around.append(Hex.neighbor(cell, dir))
+	var shore := _cover(around, cell, func(spot): return battle.state.floor_id_at(spot) != TownState.TERRAIN_WATER)
+	var colors := PackedColorArray()
+	colors.resize(13)
+	for i in 13:
+		colors[i] = Color(shore[i], 0.0, 0.0, 1.0)
+	var height := layers * battle.SIDE_HEIGHT
+	var water := Polygon2D.new()
+	water.texture = battle.battle_camera.ground_noise
+	water.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	water.polygon = mesh["vertices"]
+	water.uv = mesh["vertices"]
+	water.polygons = mesh["faces"]
+	water.vertex_colors = colors
+	water.material = battle.battle_camera.sea_material(height * battle.BOARD_SCALE)
+	water.position = Vector2(0, -height)
+	water.z_index = SEA_Z
+	battle.board.add_child(water)
+	battle.battle_camera.keep_drawn(water)
+	battle.building.append(water)
 
 
 ## Cobertura nos 13 pontos: a média das casas que se encontram em cada ponto.
@@ -602,6 +635,11 @@ func _model_prop(prop: Dictionary, cell: Vector2i) -> Sprite2D:
 	battle.models[sprite] = {"views": int(info["views"]), "turn": float(prop.get("turn", 0.0))}
 	_set_model_frame(sprite)
 	_mark_if_tall(sprite, foot)
+	if prop.get("bob", false): # barco na água: sobe e desce devagar com a maré
+		var rest := sprite.position.y
+		var sway := sprite.create_tween().set_loops()
+		sway.tween_property(sprite, "position:y", rest - BOB_HEIGHT, BOB_TIME).set_trans(Tween.TRANS_SINE)
+		sway.tween_property(sprite, "position:y", rest, BOB_TIME).set_trans(Tween.TRANS_SINE)
 	return sprite
 
 

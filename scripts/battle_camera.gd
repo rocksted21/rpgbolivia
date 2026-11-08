@@ -4,6 +4,7 @@ extends Node
 
 const SHADER = preload("res://scripts/battle_perspective.gdshader")
 const SHADER_ADD = preload("res://scripts/battle_perspective_add.gdshader")
+const SEA_NOISE = preload("res://assets/town/chao/mar_ruido.png") # ondas suaves do mar da cidade
 const FOCUS := Vector2(660, 450)
 const SCREEN_FOCUS := Vector2(660, 470)
 const GROUND_TILT := 0.80 # mais alto = câmera mais de cima
@@ -159,6 +160,19 @@ func _material(upright: bool, additive := false) -> ShaderMaterial:
 	_apply_fog(result)
 	result.set_shader_parameter("view_angle", view_angle)
 	return result
+
+
+## Mar (cidade): mesmo material do chão, com a água desenhada pelo shader.
+func sea_material(elevation: float) -> ShaderMaterial:
+	var key := "mar %s" % elevation
+	if not ground_materials.has(key):
+		var mat := _material(false)
+		mat.set_shader_parameter("elevation", elevation)
+		mat.set_shader_parameter("sea", true)
+		mat.set_shader_parameter("sea_noise", SEA_NOISE)
+		mat.set_shader_parameter("lights", lights)
+		ground_materials[key] = mat
+	return ground_materials[key]
 
 
 ## Offset em coordenadas do pai, para efeitos cujo centro está acima do chão.
