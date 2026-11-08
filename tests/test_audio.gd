@@ -96,7 +96,8 @@ func _run() -> void:
 		if file.ends_with(".gd"):
 			source += "\n" + FileAccess.get_file_as_string("res://scripts/battle/" + file)
 	var ui_names := []
-	for found in RegEx.create_from_string("play_ui\\(&\"(\\w+)\"").search_all(source):
+	# bind_button(botão, &"som") também toca no grupo Menu (via play_ui).
+	for found in RegEx.create_from_string("(?:play_ui\\(|bind_button\\([^,()]+,\\s*)&\"(\\w+)\"").search_all(source):
 		var sound_name := found.get_string(1)
 		ui_names.append(sound_name)
 		_expect(menu.has_node(sound_name), "Som de interface existe: %s" % sound_name)
