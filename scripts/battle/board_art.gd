@@ -8,6 +8,7 @@ const Data = preload("res://scripts/game_data.gd")
 const WorldGen = preload("res://scripts/world_gen.gd")
 const Exp = preload("res://scripts/expedition_data.gd")
 const TownState = preload("res://scripts/town_state.gd")
+const Town = preload("res://scripts/town_data.gd")
 # Pisos da Cidade-Farol, na ordem em que são pintados.
 const TOWN_FLOORS := [
 	[TownState.FLOOR_PAVE, "res://assets/town/chao/calcada_bairro.png"],
@@ -662,9 +663,12 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	var sprite := Sprite2D.new()
 	sprite.texture = load(prop["path"])
 	sprite.centered = false
-	# O ponto de apoio de cada arte é o centro da imagem.
+	if prop.has("idle"): # morador animado: a folha troca a arte parada, quadro do mesmo tamanho
+		sprite.texture = load(prop["idle"])
+		sprite.hframes = Town.IDLE_FRAMES
+	# O ponto de apoio de cada arte é o centro da imagem (do quadro, nas folhas).
 	sprite.scale = Vector2.ONE * float(prop.get("scale", 1.0)) * BiomeArt.building_scale(prop["path"])
-	var foot: Vector2 = sprite.texture.get_size() * sprite.scale / 2.0
+	var foot: Vector2 = sprite.get_rect().size * sprite.scale / 2.0
 	sprite.position = battle.cell_origin(cell) + Vector2(93 + prop.get("offset_x", 0), prop["ground_y"]) - foot
 	if battle.natural and not battle.town and not _is_marked_place(cell) and not prop.get("fixed", false):
 		sprite.position += Vector2(fmod(detail * 53.0, 1.0) - 0.5, fmod(detail * 71.0, 1.0) - 0.5) * PROP_WOBBLE * (1.0 if prop["layer"] != "front" else 0.6)
@@ -674,7 +678,19 @@ func _biome_prop(prop: Dictionary, cell: Vector2i, detail: float) -> Sprite2D:
 	battle.building.append(sprite)
 	battle.battle_camera.add_billboard(sprite, foot, battle._cell_elevation(cell))
 	_mark_if_tall(sprite, foot)
+	if prop.has("idle"):
+		_play_idle(sprite, cell)
 	return sprite
+
+
+## Toca a folha em loop. Cada morador começa num quadro diferente para não respirarem juntos.
+func _play_idle(sprite: Sprite2D, cell: Vector2i) -> void:
+	var count: int = sprite.hframes
+	var start: int = posmod(cell.x * 7 + cell.y * 13, count)
+	sprite.frame = start
+	var loop := sprite.create_tween().set_loops()
+	loop.tween_method(func(step: float): sprite.frame = (start + mini(int(step), count - 1)) % count,
+		0.0, float(count), count / Town.IDLE_FPS)
 
 
 func _mark_if_tall(sprite: Sprite2D, foot: Vector2) -> void:

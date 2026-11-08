@@ -20,6 +20,7 @@ const BUBBLE_RADIUS := 7
 const BOARD_FEET := Vector2(93, 160)
 const CALL_PAUSE := 4.5 # o guia chama a party de tempos em tempos enquanto tem história nova
 const NO_CELL := Vector2i(-9999, -9999)
+const PERSON_GROUND := 160 # igual a town_state.gd: onde fica o pé dos moradores no hexágono
 
 var view
 var state
@@ -48,6 +49,14 @@ func setup(p_view) -> void:
 			_add_light(building["cell"], Town.BEACON_LIGHT, false, Town.BEACON_HEIGHT * building["scale"] * Town.BiomeArt.building_scale(building["path"]))
 		elif building["art"] == "forja" and state.is_present(building):
 			_add_light(building["cell"], Town.FORGE_LIGHT, true)
+	for person in Town.people(): # lanterna na mão de quem carrega uma
+		if Town.PERSON_LIGHT.has(person["art"]) and state.is_present(person):
+			var spec: Array = Town.PERSON_LIGHT[person["art"]]
+			var hand: Vector2 = spec[1] * person["scale"]
+			# A luz parte do pé do desenho (que fica mais à frente que o pé das tochas).
+			var foot_y: float = view.cell_origin(person["cell"]).y + PERSON_GROUND + person["lift"] - view.feet_of(person["cell"]).y
+			# A altura da luz é medida na tela; o desenho fica dentro do tabuleiro, que tem escala própria.
+			_add_light(person["cell"], spec[0], false, hand.y * view.board.scale.y, person["offset"] + roundi(-hand.x if person["flip"] else hand.x), foot_y)
 	var count: int = mini(Town.WALKER_BASE + TownProgress.rescued().size() + TownProgress.beacons(), Town.WALKER_MAX)
 	for i in count:
 		_add_walker(i)
@@ -59,7 +68,7 @@ func setup(p_view) -> void:
 
 # --- Luz -----------------------------------------------------------------------
 
-func _add_light(cell: Vector2i, power: float, sparks: bool, height := FLAME_HEIGHT, offset := 0) -> void:
+func _add_light(cell: Vector2i, power: float, sparks: bool, height := FLAME_HEIGHT, offset := 0, lift := 0.0) -> void:
 	var glow := Sprite2D.new()
 	glow.texture = _glow_texture()
 	var additive := CanvasItemMaterial.new()
@@ -81,7 +90,7 @@ func _add_light(cell: Vector2i, power: float, sparks: bool, height := FLAME_HEIG
 		embers.color = Color(1.0, 0.68, 0.28)
 		embers.local_coords = true # as faíscas andam com a fogueira quando a câmera se move
 		add_child(embers)
-	lights.append({"cell": cell, "offset": offset, "power": power, "height": height, "glow": glow, "embers": embers, "phase": cell.x * 1.7 + cell.y})
+	lights.append({"cell": cell, "offset": offset, "lift": lift, "power": power, "height": height, "glow": glow, "embers": embers, "phase": cell.x * 1.7 + cell.y})
 
 
 func _glow_texture() -> GradientTexture2D:
@@ -102,7 +111,7 @@ func _glow_texture() -> GradientTexture2D:
 func _update_lights() -> void:
 	var board_transform: Transform2D = view.board.get_global_transform()
 	for light in lights:
-		var anchor: Vector2 = board_transform * (view.feet_of(light["cell"]) + Vector2(light["offset"], 0))
+		var anchor: Vector2 = board_transform * (view.feet_of(light["cell"]) + Vector2(light["offset"], light["lift"]))
 		var spot: Vector2 = camera.project(anchor, view._cell_elevation(light["cell"]))
 		var depth: float = camera.depth_at(anchor, view._cell_elevation(light["cell"]))
 		spot.y -= light["height"] * depth

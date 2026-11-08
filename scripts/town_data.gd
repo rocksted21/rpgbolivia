@@ -34,6 +34,13 @@ const LIGHT_ART := {"fogueira_a": 1.0, "fogueira_b": 1.0, "tocha": 0.6, "porto_p
 const BEACON_LIGHT := 2.2
 const BEACON_HEIGHT := 288.0 # altura da lanterna no desenho do farol; cresce com a escala dele
 const FORGE_LIGHT := 1.2
+# Moradores animados (tools/build_npc_idle.py): folha com os quadros lado a lado, cada um
+# do mesmo tamanho da arte parada. Se a folha não existir, o morador fica parado como antes.
+const IDLE_ROOT := "res://assets/town/anim/%s_idle.png"
+const IDLE_FRAMES := 24
+const IDLE_FPS := 8.0
+# Moradores que carregam luz: [força, distância do pé até a chama (x, y) na arte].
+const PERSON_LIGHT := {"morador_guarda": [0.4, Vector2(-38, 32)]}
 
 const BEACON_TEXT := "Enquanto esta chama arder, a cidade existe. Acendam os faróis das regiões e a escuridão vai recuar até quem a trouxe."
 const NO_MEMORY_TEXT := "Ninguém aqui lembra de muita coisa. Traga memórias das expedições e eu conto o que elas significam."
