@@ -12,7 +12,7 @@ if (-not $godot) { $godot = "C:\Program Files (x86)\Steam\steamapps\common\Godot
 if (-not (Test-Path $godot)) { Write-Host "Godot nao encontrado em $godot (defina a variavel GODOT)."; exit 1 }
 
 $todos = @("test_town","test_expedition","test_save","test_battle","test_world","test_battle_camera",
-           "test_audio","test_music","test_ruin_scenes","test_lanterns","test_suburbs")
+           "test_audio","test_music","test_ruin_scenes","test_lanterns","test_suburbs","test_prototipo_cenario")
 if (-not $Testes -or $Testes.Count -eq 0) { $Testes = $todos }
 
 $out = Join-Path (Get-Location) "tools\saida_testes"

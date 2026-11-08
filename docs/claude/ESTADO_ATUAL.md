@@ -1,5 +1,11 @@
 # Estado do projeto — 08/11/2026, 12:00
 
+## Protótipo (08/11) — party andando numa imagem pintada
+- Cena separada `scenes/prototipo_cenario.tscn` (abrir no Godot e apertar F6): a imagem `assets/prototipo/suburbio_pintado.jpg` é o mapa; a party de 4 anda com clique, com escadas, ponte, obstáculos e recortes que passam na frente (cerca, postes, carruagens, muro).
+- Onde dá para pisar fica em `assets/prototipo/areas.json` (polígonos em pixels). Código em `scripts/prototipo/`; teste novo `test_prototipo_cenario` (verde); capturas: `tests/prototipo_shots.gd -- <pasta>`.
+- Não mexe no jogo principal. `test_battle` falha por coisa antiga: espera o Guardião com 2 habilidades, e hoje ele tem 3 (com `resgate`).
+- Próximo passo: o Eduardo jogar o protótipo e decidir se vale para arenas especiais ou se refazemos em peças (PixelLab).
+
 ## Ajuste (08/11) — ferramentas do Claude
 - Conferido: 9 skills de Godot, atalhos /tarefa /testes /fechar e PixelLab (pixel art) funcionando. Plugin do GitHub instalado, mas sem conectar (reconectar em claude.ai → Conectores).
 - `.claude/settings.json`: as permissões agora valem também para o PowerShell (git, testes, Godot sem janela); as proibições (push forçado, reset, clean) também.
