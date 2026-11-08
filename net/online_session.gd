@@ -19,6 +19,7 @@ const TownProgress = preload("res://scripts/town_progress.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Skills = preload("res://scripts/skill_data.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
+const HeroRoster = preload("res://scripts/hero_roster.gd")
 const SaveGame = preload("res://scripts/save_game.gd")
 var relay
 var player_name := "Jogador"
@@ -185,8 +186,8 @@ func _toggle_pick(id: int, hero: int) -> void:
 	if playing or not players.has(id) or hero < 0 or hero >= hero_count(): return
 	if picks.get(hero, 0) == id:
 		picks.erase(hero)
-	elif not picks.has(hero) and picks.size() < Data.PARTY_SIZE:
-		picks[hero] = id
+	elif not picks.has(hero) and picks.size() < Data.PARTY_SIZE and HeroRoster.is_unlocked(Data.WORLD_HEROES[hero]):
+		picks[hero] = id # o roster é o do dono da sala: herói não recrutado não entra
 	else:
 		return
 	_roster()

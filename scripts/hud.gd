@@ -23,6 +23,7 @@ signal menu_pressed
 signal party_pressed(unit)
 @warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal level_up_pressed(unit) # selo LEVEL UP em cima da carta: abrir a árvore
+signal bag_pressed(unit) # botão da bolsa na carta: abrir a bolsa do herói (hud/hero_bag_ui.gd)
 @warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
 signal rotate_held(direction: int) # -1 ou 1 enquanto o botão está apertado; 0 ao soltar
 @warning_ignore("unused_signal") # quem emite é um componente em scripts/hud/
@@ -91,6 +92,7 @@ const HudCard = preload("res://scripts/hud/unit_card.gd")
 const HudActionMenu = preload("res://scripts/hud/action_menu.gd")
 const HudPartyBar = preload("res://scripts/hud/party_bar.gd")
 const HudTimeline = preload("res://scripts/hud/timeline.gd")
+const HudHeroBag = preload("res://scripts/hud/hero_bag_ui.gd")
 
 var timeline: VBoxContainer
 var hint: Label
@@ -128,6 +130,7 @@ var overview_stats := [] # os números do topo, repetidos no Diário
 var party_info := {} # herói -> {level, fraction, points, mine}, para o Diário
 var group_button: Button
 var group_layer: CanvasLayer
+var legend_layer: CanvasLayer # legenda da bússola, aberta ao clicar nela
 var dock: VBoxContainer # coluna de botões à direita, espelhando a fila de turnos à esquerda
 var quest_chip: PanelContainer
 var zoom_button: Button
@@ -158,6 +161,7 @@ var card_ui := HudCard.new(self) # ficha da unidade
 var menu_ui := HudActionMenu.new(self) # menu de ações em cima da casa
 var party_ui := HudPartyBar.new(self) # barra da party e botões do canto
 var timeline_ui := HudTimeline.new(self) # fila de turnos à esquerda
+var bag_ui := HudHeroBag.new(self) # bolsa de cada herói (Orbe de Talento)
 
 
 func setup(p_meta: Dictionary) -> void:
@@ -507,6 +511,72 @@ func show_group(data: Dictionary) -> void:
 	options_ui._center(box)
 
 
+## Cada símbolo da bússola: ícone, cor e o que significa. As cores seguem expedition_data.LANDMARKS.
+const COMPASS_LEGEND := [
+	{"icon": "lighthouse", "color": Color(1.0, 0.85, 0.35), "name": "Farol", "text": "Objetivo final."},
+	{"icon": "lantern", "color": Color("ffd36b"), "name": "Lanterna", "text": "Acenda para achar o farol."},
+	{"icon": "shield", "color": Color("ff6858"), "name": "Forte", "text": "Luta dura, cofre grande."},
+	{"icon": "house", "color": Color("7fb6ff"), "name": "Vila", "text": "Salve e ganhe um morador."},
+	{"icon": "ruin", "color": Color("f2ca76"), "name": "Ruínas", "text": "Brasas. Pode ter emboscada."},
+	{"icon": "drop", "color": Color("7ff0c8"), "name": "Fonte", "text": "Cura a party."},
+	{"icon": "star", "color": Color("d6a6ff"), "name": "Memória", "text": "Dá experiência."},
+	{"icon": "chest", "color": Color("f5b52e"), "name": "Baú", "text": "Brasas e poção."},
+	{"icon": "swords", "color": Color("ff9d5c"), "name": "Desafio", "text": "Arena. Dá Chama Viva."},
+	{"icon": "tent", "color": Color(0.85, 0.7, 0.5), "name": "Acampamento", "text": "Inimigos e brasas."},
+	{"icon": "eye_off", "color": Color("b9a8e6"), "name": "Névoa Densa", "text": "Alguém se esconde ali."},
+]
+
+
+func show_compass_legend() -> void:
+	hide_compass_legend()
+	legend_layer = CanvasLayer.new()
+	legend_layer.layer = layer + 5
+	add_child(legend_layer)
+	var shade := ColorRect.new()
+	shade.color = Color(0, 0, 0, 0.6)
+	shade.size = SCREEN
+	shade.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.pressed:
+			hide_compass_legend())
+	legend_layer.add_child(shade)
+	var box := options_ui._options_box(1100)
+	legend_layer.add_child(box)
+	var column: VBoxContainer = box.get_child(0)
+	column.add_theme_constant_override("separation", 14)
+	column.add_child(options_ui._options_title("Bússola"))
+	var intro := _label("Cada ícone aponta para o lugar. Anel dourado = XP.", 24, PANEL_MUTED)
+	intro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(intro)
+	var grid := GridContainer.new() # 2 colunas: letra grande e tudo cabe na tela
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 40)
+	grid.add_theme_constant_override("v_separation", 14)
+	column.add_child(grid)
+	for entry in COMPASS_LEGEND:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		row.custom_minimum_size.x = 500
+		var icon := _icon(entry["icon"], entry["color"], 52)
+		icon.custom_minimum_size = Vector2(58, 58)
+		row.add_child(icon)
+		var words := VBoxContainer.new()
+		words.add_theme_constant_override("separation", 0)
+		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		words.add_child(_title(entry["name"], 30, entry["color"]))
+		words.add_child(_label(entry["text"], 24, PANEL_TEXT))
+		row.add_child(words)
+		grid.add_child(row)
+	var back := options_ui._options_button(column, "Fechar")
+	back.pressed.connect(hide_compass_legend)
+	options_ui._center(box)
+
+
+func hide_compass_legend() -> void:
+	if legend_layer != null:
+		legend_layer.queue_free()
+		legend_layer = null
+
+
 func _group_row(hero: Dictionary, players: Dictionary, is_host: bool) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -618,6 +688,12 @@ func _build_overview() -> void:
 	overview_radar.position = Vector2(RADAR_LEFT, RADAR_TOP)
 	overview.add_child(overview_radar)
 	_ignore_mouse(overview)
+	overview_radar.mouse_filter = Control.MOUSE_FILTER_STOP # clicar na bússola abre a legenda
+	overview_radar.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	overview_radar.tooltip_text = "Bússola: clique para ver a legenda"
+	overview_radar.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			show_compass_legend())
 
 
 func _chip_box(edge: Color) -> PanelContainer:
@@ -688,6 +764,7 @@ func _layout_overview(stats: Array, medallion: bool) -> void:
 	var margin: MarginContainer = overview_left.get_child(0)
 	margin.add_theme_constant_override("margin_left", int(RADAR_LEFT + RADAR_SIZE + 14) if medallion else 18)
 	_ignore_mouse(overview)
+	overview_radar.mouse_filter = Control.MOUSE_FILTER_STOP # a bússola continua clicável (legenda)
 
 
 ## Radar redondo: o grupo no meio e os alvos em volta, na direção certa da tela.
@@ -980,6 +1057,21 @@ func hide_menu() -> void:
 
 func setup_party(heroes: Array, owners: Dictionary) -> void:
 	party_ui.setup_party(heroes, owners)
+	bag_ui.refresh_buttons()
+
+
+## Bolsa do herói. `free`: fora de combate (só assim dá para passar itens).
+func show_hero_bag(unit, party: Array, free: bool) -> void:
+	bag_ui.show_bag(unit, party, free)
+
+
+func hide_hero_bag() -> void:
+	bag_ui.hide_bag()
+
+
+## Atualiza os selos das bolsas nas cartas (um Orbe foi achado, usado ou passado).
+func refresh_bags() -> void:
+	bag_ui.refresh_buttons()
 
 
 func show_end_turn(on: bool) -> void:

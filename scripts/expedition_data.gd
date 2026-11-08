@@ -23,7 +23,7 @@ const COMPASS_RADIUS := 25 # além disso a bússola só mostra o farol
 const DEFAULT_BIOME := "suburbios"
 # Quantos de cada local a semente escolhe entre os candidatos da planta. Fora isso, cada
 # segredo guarda um baú escondido e a Cripta dos Faroleiros guarda uma memória.
-const FIXED_COUNTS := {"vila": 2, "ruina": 3, "emboscada": 2, "fonte": 2, "memoria": 1, "bau": 3}
+const FIXED_COUNTS := {"vila": 2, "ruina": 3, "emboscada": 2, "fonte": 2, "memoria": 1, "bau": 3, "desafio": 2}
 const FIXED_SPACING := 4 # dois locais sorteados nunca ficam colados
 const FIXED_DANGER_DISTANCE := 13 # a cada tantas casas do início o perigo sobe (o mapa é menor)
 const SECRET_RADIUS := 2 # chegando a essa distância de um segredo da planta, ele conta como achado
@@ -38,8 +38,12 @@ const LANDMARKS := {
 	"memoria": {"label": "Memória", "count": 2, "color": Color("d6a6ff"), "xp": 30},
 	# hidden: quantos deles não têm trilha nem aparecem na bússola, para quem sair do caminho.
 	"bau": {"label": "Baú", "count": 6, "hidden": 2, "color": Color("f5b52e"), "brasas": 7, "xp": 5, "potion_chance": 0.35},
+	# Desafio de Arena: a party entra numa arena feita à mão (arena_data.gd); prêmio e regra ficam lá.
+	"desafio": {"label": "Desafio", "count": 1, "color": Color("ff9d5c")},
 	# count 0: as lanternas têm regras próprias (LANTERNS) e nascem antes dos outros locais.
 	"lanterna": {"label": "Lanterna", "count": 0, "color": Color("ffd36b")},
+	# count 0: herói que ainda não entrou no roster espera aqui (ver recruits.gd e smoke_duel.gd).
+	"andarilho": {"label": "Névoa Densa", "count": 0, "color": Color("b9a8e6"), "brasas": 15, "xp": 60},
 }
 
 # Lanternas (ver docs/MAPA_LANTERNAS.md): uma corrente até o farol. Cada uma tem uma elite

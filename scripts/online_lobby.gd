@@ -9,6 +9,7 @@ var sound_manager:
 
 ## Lista de salas e, dentro da sala, a escolha de heróis. Mesmo transporte do Raid Alien.
 const Data = preload("res://scripts/game_data.gd")
+const HeroRoster = preload("res://scripts/hero_roster.gd") # heróis não recrutados aparecem como "?"
 const Icon = preload("res://scripts/icon.gd")
 const UnitView = preload("res://scripts/unit_view.gd")
 const INK := Color("191e2a")
@@ -267,7 +268,9 @@ func _render_heroes() -> void:
 			tag_text = str(online_session.players.get(picker, "Jogador"))
 		elif online_session.picks.size() >= Data.PARTY_SIZE:
 			tag_text = "FORA DA PARTY"
-		var taken: bool = picker != 0 and picker != me
+		if picker == 0 and not HeroRoster.is_unlocked(card.type_id):
+			tag_text = "NÃO RECRUTADO"
+		var taken: bool = (picker != 0 and picker != me) or (picker == 0 and not HeroRoster.is_unlocked(card.type_id))
 		var width := 4 if picker != 0 else 2
 		var button: Button = card.button
 		button.disabled = taken
@@ -348,6 +351,13 @@ func _hero_card(hero: int) -> Dictionary:
 	tag_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	tag_label.clip_text = true
 	_ignore_mouse(margin)
+	if not HeroRoster.is_unlocked(type_id): # fora do roster: silhueta e só a dica de onde ele está
+		portrait.modulate = HeroRoster.LOCKED_TINT
+		title.text = HeroRoster.LOCKED_NAME
+		role.text = HeroRoster.hint(type_id)
+		role.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		stats.visible = false
+		abilities.text = ""
 	return {button = button, atlas = atlas, type_id = type_id, tag = tag, tag_label = tag_label, row = ANIM_IDLE, time = randf(), picker = 0}
 
 func _ignore_mouse(node: Node) -> void:

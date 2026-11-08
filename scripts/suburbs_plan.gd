@@ -827,7 +827,7 @@ const LABELS := {
 	Vector2i(5, 4): "Lampião da cidade",
 }
 
-const SITES := {"vila": [Vector2i(-29, -5), Vector2i(27, 1), Vector2i(13, -17), Vector2i(-28, -30)], "ruina": [Vector2i(-12, 1), Vector2i(24, 1), Vector2i(-17, -12), Vector2i(4, -10), Vector2i(-25, -33), Vector2i(20, -36)], "bau": [Vector2i(-28, -1), Vector2i(29, -6), Vector2i(-18, -19), Vector2i(-10, -19), Vector2i(18, -11), Vector2i(-14, -36), Vector2i(12, -37)], "emboscada": [Vector2i(-16, -6), Vector2i(8, -11), Vector2i(21, -14), Vector2i(-20, -27), Vector2i(14, -26)], "fonte": [Vector2i(18, -7), Vector2i(-24, -12), Vector2i(-4, -18), Vector2i(7, -14)], "memoria_fixa": [Vector2i(-26, -18)], "forte": [Vector2i(22, -15)], "memoria": [Vector2i(-23, -29), Vector2i(10, -28)], "farol": [Vector2i(0, -34)]}
+const SITES := {"vila": [Vector2i(-29, -5), Vector2i(27, 1), Vector2i(13, -17), Vector2i(-28, -30)], "ruina": [Vector2i(-12, 1), Vector2i(24, 1), Vector2i(-17, -12), Vector2i(4, -10), Vector2i(-25, -33), Vector2i(20, -36)], "bau": [Vector2i(-28, -1), Vector2i(29, -6), Vector2i(-18, -19), Vector2i(-10, -19), Vector2i(18, -11), Vector2i(-14, -36), Vector2i(12, -37)], "emboscada": [Vector2i(-16, -6), Vector2i(8, -11), Vector2i(21, -14), Vector2i(-20, -27), Vector2i(14, -26)], "fonte": [Vector2i(18, -7), Vector2i(-24, -12), Vector2i(-4, -18), Vector2i(7, -14)], "memoria_fixa": [Vector2i(-26, -18)], "forte": [Vector2i(22, -15)], "memoria": [Vector2i(-23, -29), Vector2i(10, -28)], "farol": [Vector2i(0, -34)], "desafio": [Vector2i(-17, 1), Vector2i(9, -5), Vector2i(2, -27), Vector2i(-10, -30)]}
 
 const LANTERN_ROUTES := [[Vector2i(-14, -3), Vector2i(7, -16), Vector2i(-16, -30)], [Vector2i(15, -3), Vector2i(-20, -15), Vector2i(16, -29)]]
 

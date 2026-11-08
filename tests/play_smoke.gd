@@ -316,7 +316,7 @@ func _test_inspect_with_mouse() -> void:
 	_click(enemy.pos)
 	await _frames(2)
 	_expect(view.menu_cell == enemy.pos and not view.busy, "clicar no inimigo fixa a inspeção dele")
-	_expect(view.menu_options.size() == view.state.active_unit().abilities.size() and view.menu_options.all(func(o): return o["kind"] == "blocked"), "inimigo longe mostra as habilidades apagadas")
+	_expect(view.menu_options.size() == view.state.active_unit().abilities.filter(func(id): return Data.ABILITIES[id]["kind"] != "revive").size() and view.menu_options.all(func(o): return o["kind"] == "blocked"), "inimigo longe mostra as habilidades apagadas")
 	_hover_at(OFF_BOARD)
 	await _frames(2)
 	_expect(view._shown_unit() == enemy, "o menu aberto continua sem o mouse")

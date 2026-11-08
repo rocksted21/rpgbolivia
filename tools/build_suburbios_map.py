@@ -714,6 +714,12 @@ def lanterns():
     lantern_routes.append([(15, -3), (-20, -15), (16, -29)])  # leste, oeste, leste
 
 
+def desafios():
+    # Desafios de Arena (scripts/arena_data.gd): a semente escolhe 2. Chão aberto, longe dos outros locais.
+    for c in [(-17, 1), (9, -5), (2, -27), (-10, -30)]:  # Vila Operária, Jardins, Tílias, Capela
+        sites.setdefault("desafio", []).append(c)
+
+
 def scatter():
     # Chão comum: entulho, montinhos e mato dão textura sem fechar caminho.
     for c, ch in list(terrain.items()):
@@ -745,6 +751,7 @@ def build():
     plaza()
     south_wall()
     lanterns()
+    desafios()
     scatter()
     # sítios precisam ser chão andável
     for kind, cells in sites.items():
@@ -837,7 +844,7 @@ def preview(path, reach):
         x, y = pos(p["cell"])
         dr.rectangle((x - 2, y - 2, x + 2, y + 2), fill=(255, 220, 120))
     marks = {"vila": (120, 180, 255), "fonte": (120, 240, 200), "ruina": (240, 200, 120), "emboscada": (255, 90, 80),
-             "bau": (255, 180, 40), "memoria": (210, 160, 255), "memoria_fixa": (210, 160, 255), "forte": (255, 100, 90), "farol": (255, 255, 255)}
+             "bau": (255, 180, 40), "memoria": (210, 160, 255), "memoria_fixa": (210, 160, 255), "forte": (255, 100, 90), "farol": (255, 255, 255), "desafio": (255, 157, 92)}
     for kind, cells in sites.items():
         for c in cells:
             x, y = pos(c)

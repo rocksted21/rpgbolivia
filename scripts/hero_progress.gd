@@ -9,6 +9,9 @@ const OWN_PATH := "user://progress.cfg"
 ## para o save próprio não mudar.
 const GUEST_PATH := "user://progress_sala.cfg"
 
+## Ramos da árvore abertos desde o começo (a partir da esquerda). Os outros pedem um Orbe de Talento.
+const START_BRANCHES := 1
+
 static var path := OWN_PATH
 static var own_path := OWN_PATH # o save de antes de entrar na sala (os testes usam outro)
 
@@ -24,8 +27,109 @@ static func earned(type_id: String) -> int:
 	return clampi(int(value) if value is int else Skills.START_POINTS, 0, Skills.MAX_POINTS)
 
 
+## Nós comprados, só dos ramos abertos (um ramo trancado não vale, mesmo vindo de fora).
 static func unlocked(type_id: String) -> Array:
+	var open := open_branches(type_id)
+	return _raw_unlocked(type_id).filter(func(node_id): return Skills.locate(type_id, node_id)["branch"] in open)
+
+
+static func _raw_unlocked(type_id: String) -> Array:
 	return Skills.sanitize(type_id, _load().get_value(type_id, "unlocked", []), earned(type_id))
+
+
+# --- Ramos trancados (Orbe de Talento) ------------------------------------------
+
+## Ramos da árvore abertos (índices). Os primeiros START_BRANCHES nascem abertos; os outros
+## abrem com um Orbe de Talento, para sempre. Save antigo sem a chave: todo ramo que já tem
+## nó comprado conta como aberto, e isso fica gravado (redistribuir não tranca de novo).
+static func open_branches(type_id: String) -> Array:
+	var saved := _load()
+	if saved.has_section_key(type_id, "branches"): # get_value sem padrão reclama da chave que falta
+		return _clean_branches(type_id, saved.get_value(type_id, "branches", []))
+	var open := _legacy_branches(type_id, _raw_unlocked(type_id))
+	if Skills.has_tree(type_id):
+		var config := _load()
+		config.set_value(type_id, "branches", open)
+		config.save(path)
+	return open
+
+
+static func locked_branches(type_id: String) -> Array:
+	var open := open_branches(type_id)
+	var out := []
+	for branch in Skills.tree(type_id).size():
+		if branch not in open:
+			out.append(branch)
+	return out
+
+
+static func is_branch_open(type_id: String, branch: int) -> bool:
+	return branch in open_branches(type_id)
+
+
+## O nó fica num ramo aberto (a tela usa para mostrar o cadeado).
+static func can_reach(type_id: String, node_id: String) -> bool:
+	var found := Skills.locate(type_id, node_id)
+	return not found.is_empty() and found["branch"] in open_branches(type_id)
+
+
+## Abre um ramo trancado. Quem gasta o orbe é hero_bag.gd; aqui só se grava.
+static func open_branch(type_id: String, branch: int) -> bool:
+	var open := open_branches(type_id)
+	if branch in open or branch < 0 or branch >= Skills.tree(type_id).size():
+		return false
+	open.append(branch)
+	open.sort()
+	var config := _load()
+	config.set_value(type_id, "branches", open)
+	var error := config.save(path)
+	if error != OK:
+		push_error("Não foi possível salvar o ramo aberto: %s" % error)
+	return true
+
+
+static func _legacy_branches(type_id: String, nodes: Array) -> Array:
+	var open := []
+	for branch in mini(START_BRANCHES, Skills.tree(type_id).size()):
+		open.append(branch)
+	for node_id in nodes:
+		var found := Skills.locate(type_id, node_id)
+		if not found.is_empty() and found["branch"] not in open:
+			open.append(found["branch"])
+	open.sort()
+	return open
+
+
+static func _clean_branches(type_id: String, value: Variant) -> Array:
+	var open := []
+	for branch in mini(START_BRANCHES, Skills.tree(type_id).size()):
+		open.append(branch)
+	if value is Array:
+		for entry in value:
+			if (entry is int or entry is float) and int(entry) >= 0 and int(entry) < Skills.tree(type_id).size() and int(entry) not in open:
+				open.append(int(entry))
+	open.sort()
+	return open
+
+
+# --- Bolsa do herói (itens únicos, como o Orbe; regras em hero_bag.gd) ----------
+
+static func bag(type_id: String) -> Array:
+	var value: Variant = _load().get_value(type_id, "bag", [])
+	var out := []
+	if value is Array:
+		for item in value:
+			if item is String or item is StringName:
+				out.append(str(item))
+	return out
+
+
+static func set_bag(type_id: String, items: Array) -> void:
+	var config := _load()
+	config.set_value(type_id, "bag", items)
+	var error := config.save(path)
+	if error != OK:
+		push_error("Não foi possível salvar a bolsa: %s" % error)
 
 
 static func available(type_id: String) -> int:
@@ -34,7 +138,7 @@ static func available(type_id: String) -> int:
 
 static func unlock(type_id: String, node_id: String) -> bool:
 	var current := unlocked(type_id)
-	if not Skills.can_unlock(type_id, current, node_id, earned(type_id)):
+	if not Skills.can_unlock(type_id, current, node_id, earned(type_id)) or not can_reach(type_id, node_id):
 		return false
 	current.append(node_id)
 	_write(type_id, earned(type_id), current)
@@ -108,11 +212,11 @@ static func all_builds() -> Dictionary:
 	return out
 
 
-## Todo o progresso, como o dono da sala manda: {tipo do herói: {xp, earned, unlocked}}.
+## Todo o progresso, como o dono da sala manda: {tipo do herói: {xp, earned, unlocked, branches, bag}}.
 static func export_all() -> Dictionary:
 	var out := {}
 	for type_id in Skills.hero_types():
-		out[type_id] = {xp = xp(type_id), earned = earned(type_id), unlocked = unlocked(type_id)}
+		out[type_id] = {xp = xp(type_id), earned = earned(type_id), unlocked = unlocked(type_id), branches = open_branches(type_id), bag = bag(type_id)}
 	return out
 
 
@@ -130,7 +234,13 @@ static func use_host(data: Variant) -> void:
 			var points: int = clampi(int(entry.get("earned", Skills.START_POINTS)) if entry.get("earned") is int else Skills.START_POINTS, 0, Skills.MAX_POINTS)
 			config.set_value(type_id, "xp", maxi(0, int(entry.get("xp", 0)) if entry.get("xp") is int else 0))
 			config.set_value(type_id, "earned", points)
-			config.set_value(type_id, "unlocked", Skills.sanitize(type_id, entry.get("unlocked", []), points))
+			var nodes := Skills.sanitize(type_id, entry.get("unlocked", []), points)
+			config.set_value(type_id, "unlocked", nodes)
+			# Dono numa versão sem ramos trancados: o que ele já comprou conta como aberto.
+			var branches: Variant = entry.get("branches")
+			config.set_value(type_id, "branches", _clean_branches(type_id, branches) if branches is Array else _legacy_branches(type_id, nodes))
+			var items: Variant = entry.get("bag", [])
+			config.set_value(type_id, "bag", (items as Array).filter(func(item): return item is String).slice(0, 4) if items is Array else [])
 	var error := config.save(path)
 	if error != OK:
 		push_error("Não foi possível guardar o progresso da sala: %s" % error)

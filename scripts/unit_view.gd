@@ -5,7 +5,7 @@ signal anim_done
 
 const Data = preload("res://scripts/game_data.gd")
 
-enum Anim { IDLE, WALK, ATTACK, HURT, STRONG }
+enum Anim { IDLE, WALK, ATTACK, HURT, STRONG, DEATH }
 enum Facing { SIDE, SOUTH, NORTH }
 
 # Folhas com direção (PixelLab): as 4 primeiras linhas são as do Anim, de lado;
@@ -50,6 +50,8 @@ var frame_pos := 0.0
 var frames := 10
 var row_frames := []
 var directional := false
+var death_row := -1 # linha da morte na folha (heróis); -1 = não tem
+var lying := false # caído: segura o último frame da morte até reerguer
 var facing := Facing.SIDE
 var visual_root: Node2D
 var shadow: Polygon2D
@@ -78,6 +80,7 @@ func setup(p_unit, p_team_color: Color, meta: Dictionary) -> void:
 	frames = int(meta["frames"])
 	row_frames = meta.get("row_frames", [])
 	directional = meta.get("directions", false)
+	death_row = int(meta.get("death_row", -1))
 	# Sombra de contato, ancorada nos pés e atrás do sprite.
 	shadow = Polygon2D.new()
 	var shadow_points := PackedVector2Array()
@@ -177,7 +180,17 @@ func _process(delta: float) -> void:
 	frame_pos += delta * FPS
 	var sheet_row := _sheet_row()
 	var count := _row_frames(sheet_row)
+	if lying:
+		row = Anim.DEATH # ninguém tira o corpo do chão sem stand_up
+		sheet_row = _sheet_row()
+		sprite.frame = sheet_row * frames + _row_frames(sheet_row) - 1
+		return
 	if frame_pos >= count:
+		if row == Anim.DEATH:
+			lying = true
+			sprite.frame = sheet_row * frames + count - 1
+			anim_done.emit()
+			return
 		if looping:
 			frame_pos = fmod(frame_pos, count)
 		else:
@@ -197,6 +210,10 @@ static func row_frame_count(meta: Dictionary, sheet_row: int) -> int:
 
 func _sheet_row() -> int:
 	var anim := row
+	if anim == Anim.DEATH:
+		if death_row >= 0:
+			return death_row
+		anim = Anim.HURT # sem a morte na folha: o tranco, parado no último frame
 	if anim == Anim.STRONG and not (directional and row_frames.size() >= STRONG_ROWS):
 		anim = Anim.ATTACK
 	return DIRECTION_ROWS[anim][facing] if directional else int(anim)
@@ -222,10 +239,30 @@ func face_toward(delta: Vector2) -> void:
 
 
 func play_once(anim: Anim) -> void:
+	if lying:
+		return # o corpo não ataca nem apanha
 	row = anim
 	looping = false
 	frame_pos = 0.0
 	await anim_done
+
+
+## Cai e fica no chão (último frame da morte) até `stand_up`.
+func lie_down(instant := false) -> void:
+	row = Anim.DEATH
+	looping = false
+	frame_pos = 0.0
+	if instant:
+		lying = true
+		return
+	await anim_done
+
+
+func stand_up() -> void:
+	lying = false
+	looping = true
+	row = Anim.IDLE
+	frame_pos = 0.0
 
 
 ## Não corta uma animação que está tocando: quem espera por ela (o turno inteiro) ficaria

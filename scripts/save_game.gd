@@ -7,6 +7,7 @@ const WorldState = preload("res://scripts/world_state.gd")
 const ExpeditionState = preload("res://scripts/expedition_state.gd")
 const TownState = preload("res://scripts/town_state.gd")
 const Unit = preload("res://scripts/unit.gd")
+const Data = preload("res://scripts/game_data.gd")
 
 const VERSION := 2 # 2: expedição de um bioma só e com borda; o mapa de um save 1 seria outro
 
@@ -214,6 +215,9 @@ static func _restore_units(state, data: Dictionary) -> Dictionary:
 		unit.def = row.def
 		unit.speed = row.speed
 		unit.abilities = row.abilities.duplicate()
+		# Saves de antes do Reerguer (2026-11-08): todo herói ganha a ação.
+		if row.team == Data.Team.PLAYER and Data.WORLD_HEROES.has(row.type) and not unit.abilities.has("reerguer"):
+			unit.abilities.append("reerguer")
 		unit.clock = row.clock
 		unit.moved = row.get("moved", 0)
 		unit.jumped = row.get("jumped", false)

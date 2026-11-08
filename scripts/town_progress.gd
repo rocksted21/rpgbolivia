@@ -4,6 +4,7 @@ extends RefCounted
 
 const Exp = preload("res://scripts/expedition_data.gd")
 const Content = preload("res://scripts/town_content.gd")
+const Data = preload("res://scripts/game_data.gd")
 
 static var path := "user://town.cfg"
 
@@ -42,6 +43,14 @@ static func rescued() -> Array:
 	return Exp.RESIDENT_ORDER.filter(func(id): return id in saved)
 
 
+## Heróis que entraram no roster numa expedição (os do começo não contam; ver hero_roster.gd).
+static func recruited_heroes() -> Array:
+	var saved: Variant = _load().get_value("heroes", "recruited", [])
+	if not saved is Array:
+		return []
+	return Data.WORLD_HEROES.filter(func(id): return id in saved)
+
+
 static func service_level(resident: String) -> int:
 	var costs: Array = Exp.RESIDENTS[resident]["costs"]
 	return clampi(int(_load().get_value("services", resident, 0)), 0, costs.size())
@@ -69,7 +78,8 @@ static func buy(resident: String) -> bool:
 static func expedition_setup() -> Dictionary:
 	var setup := {"hp": 0, "atk": 0, "def": 0, "potions": 0, "free_potions": 0, "far_compass": 0, "brasa_bonus": 0,
 		"rest_heal": 0, "maps": 0, "xp_pct": 0, "potion_pct": 0, "brasa_pct": 0,
-		"first_stage": beacons() == 0, "rescued": rescued(), "memories": memories(), "items": []}
+		"first_stage": beacons() == 0, "rescued": rescued(), "memories": memories(), "items": [],
+		"recruited": recruited_heroes()} # quem já está no roster não espera mais no mapa (recruits.gd)
 	for id in setup["rescued"]:
 		var data: Dictionary = Exp.RESIDENTS[id]
 		setup[data["stat"]] += service_level(id) * data["per_level"]
@@ -214,6 +224,11 @@ static func record(result: Dictionary) -> Array:
 			saved.append(id)
 	config.set_value("town", "brasas", brasas() + result["brasas"])
 	config.set_value("town", "rescued", saved)
+	var heroes := recruited_heroes() # herói recrutado fica, mesmo na derrota
+	for id in result.get("recruited", []):
+		if id not in heroes and Data.UNIT_TYPES.has(id):
+			heroes.append(id)
+	config.set_value("heroes", "recruited", heroes)
 	config.set_value("town", "memories", memories() + result["memories"])
 	config.set_value("town", "expeditions", expeditions() + 1)
 	config.set_value("town", "last_won", result["won"])
@@ -260,6 +275,8 @@ static func _note(result: Dictionary, finished: Array) -> String:
 	text += " +%d brasas." % result["brasas"]
 	for id in result["rescued"]:
 		text += " %s" % Exp.RESIDENTS[id]["line"]
+	for id in result.get("recruited", []):
+		text += " %s agora pode entrar na party." % Data.UNIT_TYPES[id]["name"]
 	for id in finished:
 		text += " " + Content.QUEST_READY % Content.QUESTS[id]["title"]
 	return text

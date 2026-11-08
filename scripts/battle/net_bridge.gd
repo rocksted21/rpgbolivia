@@ -87,8 +87,13 @@ func _network_packet(_packet: Dictionary) -> void:
 				battle.views[unit].z_index = battle._z(battle._row(unit.pos)) + 5
 				battle.battle_camera.set_elevation(battle._cell_elevation(unit.pos), battle.views[unit])
 			battle.views[unit].set_hp(unit.hp)
-			battle.views[unit].visible = unit.alive()
+			var corpse: bool = not unit.alive() and battle.state.is_hero(unit) # herói caído fica no chão
+			battle.views[unit].visible = unit.alive() or corpse
+			if corpse and not battle.views[unit].lying:
+				battle.views[unit].lie_down(true)
 			if unit.alive():
+				if battle.views[unit].lying:
+					battle.views[unit].stand_up()
 				battle.views[unit].rotation = 0.0
 				battle.views[unit].modulate.a = 1.0
 		battle.busy = not bool(packet.ready)

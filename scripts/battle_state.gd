@@ -11,6 +11,7 @@ const Unit = preload("res://scripts/unit.gd")
 
 const TAUNT_ACTIONS := 2 # turnos em que a IA persegue quem a provocou
 const NO_MOVE := Vector2i(-99999, -99999)
+const REVIVE := "reerguer" # todo herói tem: levanta o aliado caído colado
 
 var terrain: Array
 var elevation: Array
@@ -29,8 +30,23 @@ func add_unit(type_id: String, team: int, pos: Vector2i, build: Array = []):
 	unit.uid = next_uid
 	next_uid += 1
 	unit.clock = time_for(Data.STEP_TIME, unit)
+	if team == Data.Team.PLAYER and Data.WORLD_HEROES.has(type_id) and not unit.abilities.has(REVIVE):
+		unit.abilities.append(REVIVE)
 	units.append(unit)
 	return unit
+
+
+## Herói do jogador (o mundo troca por "está na party").
+func is_hero(unit) -> bool:
+	return unit.team == Data.Team.PLAYER and Data.WORLD_HEROES.has(unit.type_id)
+
+
+## Herói caído nesta casa: o corpo fica no chão até alguém reerguer ou a luta acabar.
+func corpse_at(cell: Vector2i):
+	for unit in units:
+		if not unit.alive() and unit.pos == cell and is_hero(unit):
+			return unit
+	return null
 
 
 ## `builds` traz os nós comprados: {índice em Data.BATTLE_UNITS: [nós]}.
@@ -517,6 +533,10 @@ func valid_targets(unit, ability_id: String) -> Array:
 					out.append(cell)
 			"guard", "charge":
 				out.append(cell)
+			"revive":
+				var body = corpse_at(cell)
+				if occupant == null and body != null and body.team == unit.team:
+					out.append(cell)
 	return out
 
 
@@ -708,6 +728,15 @@ func do_ability(unit, ability_id: String, cell: Vector2i) -> Array:
 			unit.clock += cast_time_for(unit, ability_id)
 			unit.pending = {"ability": ability_id, "tile": cell}
 			events.append({"type": "cast_start", "unit": unit, "ability": ability_id, "tile": cell})
+		"revive":
+			var body = corpse_at(cell)
+			unit.clock += action_time(ability["time"], unit)
+			body.hp = maxi(1, roundi(body.max_hp * ability["revive"]))
+			body.statuses.clear()
+			body.guarding = false
+			body.pending = {}
+			body.clock = unit.clock # volta a agir depois de quem reergueu
+			events.append({"type": "revive", "unit": body, "hp": body.hp})
 	_rush_on_kill(unit, events, now)
 	unit.moved = 0 # qualquer ação encerra o turno
 	unit.jumped = false

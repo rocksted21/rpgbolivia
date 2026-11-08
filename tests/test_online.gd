@@ -30,6 +30,8 @@ func _run() -> void:
 	# Cada lado com o próprio save: o Mago vai para o amigo e leva a build dele.
 	HeroProgress.path = "user://test_progress_host.cfg"
 	DirAccess.remove_absolute(HeroProgress.path)
+	HeroProgress.open_branch("mago", 2) # Magma e Casca nascem trancados: o Orbe abriu
+	HeroProgress.open_branch("druida", 2)
 	HeroProgress.unlock("mago", "fog_rajada")
 	HeroProgress.unlock("druida", "dru_vigor")
 	# Mago (3) vai para o amigo e Druida (5) fica com o dono.
@@ -52,6 +54,7 @@ func _run() -> void:
 	_check(await _until(func(): return not listed.is_empty()), "sala aparece na listagem HTTP")
 	HeroProgress.path = "user://test_progress_guest.cfg"
 	DirAccess.remove_absolute(HeroProgress.path)
+	HeroProgress.open_branch("mago", 1)
 	HeroProgress.unlock("mago", "fog_pavio")
 	guest.join_room(host.relay.room_code)
 	_check(await _until(func(): return host.players.size() == 2 and guest.players.size() == 2), "entrada e nomes sincronizados")

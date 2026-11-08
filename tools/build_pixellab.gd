@@ -81,6 +81,15 @@ func _build_sheet(key: String, dir: String, dst: String) -> Dictionary:
 			cell = Vector2i(maxi(cell.x, img.get_width()), maxi(cell.y, img.get_height()))
 		rows.append(row)
 
+	# Morte (só de frente): última linha, quando existe. O jogo segura o último frame (o corpo).
+	var death_row := -1
+	var death := _frames(dir, anims, "death", "south")
+	if not death.is_empty():
+		death_row = rows.size()
+		for img in death:
+			cell = Vector2i(maxi(cell.x, img.get_width()), maxi(cell.y, img.get_height()))
+		rows.append(death)
+
 	# Os canvases das animações crescem igual para os dois lados: centralizar
 	# mantém os pés no mesmo ponto em todas as linhas.
 	var columns: int = rows.map(func(r): return r.size()).max()
@@ -101,6 +110,7 @@ func _build_sheet(key: String, dir: String, dst: String) -> Dictionary:
 		"row_frames": rows.map(func(r): return r.size()),
 		"pixel": true, "directions": true,
 		"texture_scale": PIXEL_SCALE / pixel_scale,
+		"death_row": death_row,
 	}
 
 
@@ -113,7 +123,7 @@ func _frames(dir: String, anims: Dictionary, kind: String, direction: String) ->
 			var dirs: Dictionary = anims[anim]
 			if _kind_of(anim) != kind or not dirs.has(source):
 				continue
-			if complete and not (dirs.has("south") and dirs.has("east") and dirs.has("north")) and kind != "idle":
+			if complete and not (dirs.has("south") and dirs.has("east") and dirs.has("north")) and kind != "idle" and kind != "death":
 				continue
 			return dirs[source].map(func(path): return _load(dir, path, direction == "side"))
 	return []
@@ -124,6 +134,11 @@ func _kind_of(anim: String) -> String:
 		return renames[anim.to_lower()]
 	if anim.to_lower().contains("strong"): # "attack_strong", "2_attack_strong"...
 		return "strong"
+	# Morte dos heróis (2026-11-08): o PixelLab nomeia pelo começo do prompt ("Recoil_violently…",
+	# "Jolt_backward…"). Se o prompt mudar, ponha o começo novo aqui.
+	for prefix in ["recoil", "jolt", "death"]:
+		if anim.to_lower().begins_with(prefix):
+			return "death"
 	for kind in NAMES:
 		if anim.to_lower().begins_with(NAMES[kind]):
 			return kind

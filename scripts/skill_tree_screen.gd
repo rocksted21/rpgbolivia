@@ -5,8 +5,10 @@ extends Control
 const Data = preload("res://scripts/game_data.gd")
 const Skills = preload("res://scripts/skill_data.gd")
 const HeroProgress = preload("res://scripts/hero_progress.gd")
+const HeroRoster = preload("res://scripts/hero_roster.gd") # quem ainda não foi recrutado fica como "?"
 const Unit = preload("res://scripts/unit.gd")
 const Icon = preload("res://scripts/icon.gd")
+const HeroBag = preload("res://scripts/hero_bag.gd")
 
 const INK := Color("191e2a")
 const PANEL := Color("252d3e")
@@ -94,7 +96,8 @@ func _ready() -> void:
 	detail_column.add_theme_constant_override("separation", 10)
 	side.add_child(detail_column)
 
-	_select_hero(start_hero if start_hero in _heroes() else _heroes()[0])
+	var open: Array = _heroes().filter(func(type_id): return HeroRoster.is_unlocked(type_id))
+	_select_hero(start_hero if start_hero in open else (open[0] if not open.is_empty() else _heroes()[0]))
 
 
 func _heroes() -> Array:
@@ -159,6 +162,12 @@ func _hero_button(parent: Control, type_id: String) -> void:
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var points := _label(column, "", 16, GOLD)
 	hero_buttons[type_id] = {"button": button, "points": points}
+	if not HeroRoster.is_unlocked(type_id): # fora do roster: silhueta, sem árvore
+		button.disabled = true
+		button.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		button.tooltip_text = HeroRoster.hint(type_id)
+		inner.get_child(0).modulate = HeroRoster.LOCKED_TINT
+		name_label.text = HeroRoster.LOCKED_NAME
 
 
 func _style_hero_button(type_id: String) -> void:
@@ -168,9 +177,19 @@ func _style_hero_button(type_id: String) -> void:
 	var border := GOLD if current else Color.TRANSPARENT
 	for state in ["normal", "hover", "pressed"]:
 		entry["button"].add_theme_stylebox_override(state, _box(fill, border, 2, 8))
+	if not HeroRoster.is_unlocked(type_id):
+		entry["button"].add_theme_stylebox_override("disabled", _box(PANEL_DIM, Color.TRANSPARENT, 2, 8))
+		entry["points"].text = "Não recrutado"
+		entry["points"].add_theme_color_override("font_color", LOCKED)
+		return
 	var free := HeroProgress.available(type_id)
 	entry["points"].text = "Nv %d · %d %s" % [HeroProgress.level(type_id), free, "ponto" if free == 1 else "pontos"]
 	entry["points"].add_theme_color_override("font_color", GOLD if free > 0 else DIM)
+	var orbs := HeroBag.count(type_id, HeroBag.ORB)
+	if orbs > 0: # Chama Viva na bolsa: o herói pode abrir um ramo trancado
+		entry["points"].text += " · %d %s" % [orbs, "chama" if orbs == 1 else "chamas"]
+		if HeroBag.wants_orb(type_id):
+			entry["points"].add_theme_color_override("font_color", HeroBag.ORB_COLOR)
 
 
 func _face(type_id: String) -> TextureRect:
@@ -203,14 +222,23 @@ func _render_tree() -> void:
 	_label(tree_column, "%d pontos livres · %d de %d ganhos no total" % [HeroProgress.available(hero), earned, Skills.MAX_POINTS], 17, DIM)
 	var grid := Control.new()
 	var branches: Array = Skills.tree(hero)
+	var open_branches := HeroProgress.open_branches(hero)
 	grid.custom_minimum_size = Vector2(tree_column.custom_minimum_size.x, 36 + (NODE_SIZE.y + ROW_GAP) * 4)
 	tree_column.add_child(grid)
 	for b in branches.size():
 		var x: float = b * (NODE_SIZE.x + COLUMN_GAP)
-		var title := _label(grid, branches[b]["name"], 18, GOLD)
+		var reachable: bool = b in open_branches
+		var title := _label(grid, branches[b]["name"], 18, GOLD if reachable else LOCKED)
 		title.position = Vector2(x, 0)
 		title.size = Vector2(NODE_SIZE.x, 28)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		if not reachable: # ramo trancado: cadeado no título; abre com uma Chama Viva
+			var lock := Icon.new()
+			lock.setup("lock", HeroBag.ORB_COLOR if HeroBag.count(hero, HeroBag.ORB) > 0 else LOCKED, 20)
+			lock.position = Vector2(x + 8, 3)
+			lock.size = Vector2(20, 20)
+			lock.tooltip_text = "Ramo trancado: precisa de uma Chama Viva"
+			grid.add_child(lock)
 		var nodes: Array = branches[b]["nodes"]
 		for tier in nodes.size():
 			var y: float = 36 + tier * (NODE_SIZE.y + ROW_GAP)
@@ -221,7 +249,7 @@ func _render_tree() -> void:
 				link.position = Vector2(x + NODE_SIZE.x / 2 - 2, y - ROW_GAP)
 				link.size = Vector2(4, ROW_GAP)
 				grid.add_child(link)
-			_node_button(grid, nodes[tier], Vector2(x, y), tier, unlocked, earned)
+			_node_button(grid, nodes[tier], Vector2(x, y), tier, unlocked, earned, reachable)
 
 
 ## Nível e barra de experiência do herói, em cima da árvore.
@@ -246,11 +274,12 @@ func _level_row(parent: Control) -> void:
 		_label(row, "%d / %d XP" % [HeroProgress.xp(hero), Skills.HERO_LEVEL_XP[level["level"]]], 17, DIM)
 
 
-func _node_button(parent: Control, node: Dictionary, at: Vector2, tier: int, unlocked: Array, earned: int) -> void:
+## `reachable`: o ramo está aberto (trancado: nó apagado, "Trancado", ainda dá para ler).
+func _node_button(parent: Control, node: Dictionary, at: Vector2, tier: int, unlocked: Array, earned: int, reachable := true) -> void:
 	var id: String = node["id"]
 	var owned: bool = id in unlocked
-	var can_buy := Skills.can_unlock(hero, unlocked, id, earned)
-	var open := Skills.requirement_met(hero, unlocked, id)
+	var can_buy := reachable and Skills.can_unlock(hero, unlocked, id, earned)
+	var open := reachable and Skills.requirement_met(hero, unlocked, id)
 	var button := Button.new()
 	button.position = at
 	button.size = NODE_SIZE
@@ -286,6 +315,8 @@ func _node_button(parent: Control, node: Dictionary, at: Vector2, tier: int, unl
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var tag: Array = TAGS.get(node.get("tag", ""), ["", "", GOLD])
 	var status := "comprado" if owned else ("%d pt" % Skills.TIER_COST[tier])
+	if not reachable and not owned:
+		status = "Trancado"
 	if tag[0] != "":
 		status = "%s · %s" % [tag[0], status]
 	var cost := _label(inner, status, 13, INK if owned else (GOLD if can_buy else LOCKED))
@@ -337,8 +368,6 @@ func _render_detail() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	detail_column.add_child(spacer)
-	var note := _label(detail_column, "Cada nível dá 1 ponto. Os heróis ganham experiência derrotando inimigos e no fim de cada luta ou jornada." + (" Redistribuir: fora da partida." if live else " Redistribuir é grátis."), 16, DIM)
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	if live:
 		return
 	var reset := _button(detail_column, "Redistribuir pontos", false)
@@ -364,6 +393,9 @@ func _render_selected(unlocked: Array, preview) -> void:
 	if selected in unlocked:
 		_label(detail_column, "Comprado", 16, GOLD)
 		return
+	if not HeroProgress.can_reach(hero, selected):
+		_render_locked_branch(found["branch"])
+		return
 	var cost: int = Skills.TIER_COST[found["tier"]]
 	var buy := _button(detail_column, "Comprar · %d %s" % [cost, "ponto" if cost == 1 else "pontos"], true)
 	if not Skills.requirement_met(hero, unlocked, selected):
@@ -378,6 +410,27 @@ func _render_selected(unlocked: Array, preview) -> void:
 		if HeroProgress.unlock(hero, selected):
 			bought.emit(hero, selected)
 			_render())
+
+
+## Nó de um ramo trancado: diz como abrir e, com Chama Viva na bolsa, abre aqui mesmo.
+func _render_locked_branch(branch: int) -> void:
+	var branch_name: String = Skills.tree(hero)[branch]["name"]
+	_label(detail_column, "Ramo %s trancado" % branch_name, 17, HeroBag.ORB_COLOR)
+	var orbs := HeroBag.count(hero, HeroBag.ORB)
+	var flame := HeroBag.item_icon(HeroBag.ORB, 56)
+	flame.modulate.a = 1.0 if orbs > 0 else 0.35
+	detail_column.add_child(flame)
+	var use := _button(detail_column, "Usar Chama Viva (%d)" % orbs, true)
+	use.disabled = orbs <= 0 or not HeroBag.editable()
+	use.pressed.connect(func():
+		if HeroBag.use_first_orb(hero, branch):
+			sound_manager.play_ui(&"switch3")
+			_render())
+	var how := "Abre o ramo para sempre." if orbs > 0 else "Ache uma Chama Viva: Forte, Farol, Desafios."
+	if orbs > 0 and not HeroBag.editable():
+		how = "Online, só o dono da sala usa as Chamas Vivas."
+	var note := _label(detail_column, how, 20, DIM)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 ## Números da habilidade com os atributos atuais do herói.

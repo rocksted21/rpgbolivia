@@ -14,7 +14,7 @@ const HeroProgress = preload("res://scripts/hero_progress.gd")
 const COMPASS_ARROWS := ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"]
 const DANGER_HOT := Color(1.0, 0.42, 0.32)
 const CAMP_ICONS := {"camp": "tent", "garden": "ruin", "shrine": "candle", "crossing": "house"}
-const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest", "lanterna": "lantern"}
+const LANDMARK_ICONS := {"vila": "house", "ruina": "ruin", "emboscada": "ruin", "fonte": "drop", "memoria": "star", "bau": "chest", "lanterna": "lantern", "andarilho": "eye_off", "desafio": "swords"}
 const DANGER_CALM := Color(0.62, 0.9, 0.55)
 
 var battle: BattleView # a tela dona deste módulo
@@ -88,6 +88,9 @@ func _show_result(result: int) -> void:
 	for id in battle.quests_finished:
 		note += "%sMissão cumprida: %s" % ["\n" if note != "" else "", TownContent.QUESTS[id]["title"]]
 	battle.quests_finished = []
+	if battle.expedition: # heróis novos no roster (recruits.gd)
+		for id in battle.state.result().get("recruited", []):
+			note += "%sNovo herói: %s" % ["\n" if note != "" else "", Data.UNIT_TYPES[id]["name"]]
 	if battle.expedition and won and battle.state.boss != null: # as últimas palavras do guardião
 		var farewell: String = Exp.BOSS_FAREWELL.get(battle.state.boss.type_id, "")
 		if farewell != "":

@@ -207,6 +207,7 @@ const NetBridge = preload("res://scripts/battle/net_bridge.gd")
 const RoamControl = preload("res://scripts/battle/roam_control.gd")
 const TownMode = preload("res://scripts/battle/town_mode.gd")
 const JourneyUi = preload("res://scripts/battle/journey_ui.gd")
+const ArenaChallenge = preload("res://scripts/battle/arena_challenge.gd")
 
 var hex_poly := PackedVector2Array([Vector2(93, 0), Vector2(185, 53), Vector2(185, 160), Vector2(93, 213), Vector2(0, 160), Vector2(0, 53)])
 var state
@@ -312,6 +313,7 @@ var net_bridge := NetBridge.new(self) # comandos e pacotes do online
 var roam_ctl := RoamControl.new(self) # caminhada livre e fila da party
 var town_mode := TownMode.new(self) # Cidade-Farol
 var journey_ui := JourneyUi.new(self) # objetivo, missão, poção e fim da expedição
+var challenge := ArenaChallenge.new(self) # Desafios de Arena: troca a expedição pela arena e volta
 
 
 func _ready() -> void:
@@ -423,6 +425,10 @@ func _start_battle() -> void:
 	expedition = false
 	if online_session.playing: # online: o mapa vem da sala
 		town = online_session.state is TownState
+	var swap: Dictionary = challenge.take_swap() # desafio de arena: entra ou volta sem passar pelo menu
+	if not swap.is_empty():
+		exploring = swap["exploring"]
+		town = false
 	if town:
 		music_manager.play_menu()
 	else:
@@ -430,7 +436,10 @@ func _start_battle() -> void:
 	level_layers = LAYERS_PER_LEVEL
 	if exploring:
 		level_layers = TOWN_LAYERS_PER_LEVEL if town else WORLD_LAYERS_PER_LEVEL
-	if online_session.playing:
+	if not swap.is_empty():
+		state = swap["state"]
+		expedition = swap["expedition"]
+	elif online_session.playing:
 		state = online_session.state
 		expedition = state is ExpeditionState
 	elif not loaded.is_empty():
@@ -591,6 +600,7 @@ func _start_battle() -> void:
 			_open_group())
 		hud.party_pressed.connect(input_ctl._on_party_pick)
 		hud.level_up_pressed.connect(input_ctl._on_level_up_pick)
+		hud.bag_pressed.connect(func(unit): hud.show_hero_bag(unit, state.party, not state.in_combat())) # bolsa: passar itens só fora de combate
 		hud.rotate_held.connect(func(direction): turn_hold = direction)
 		hud.together_toggled.connect(func(on): together = on)
 		if town:
@@ -753,6 +763,9 @@ func _advance() -> void:
 		var result: int = state.winner()
 		if result >= 0:
 			online_session.publish([], true)
+			if challenge.active: # desafio de arena: o fim leva de volta ao mapa (battle/arena_challenge.gd)
+				challenge.finish(result)
+				return
 			sound_manager.play_sfx(&"victory" if result == Data.Team.PLAYER else &"defeat")
 			journey_ui._show_result(result)
 			return
@@ -1087,6 +1100,7 @@ func _open_tree(unit) -> void:
 	screen.closed.connect(func():
 		tree_layer.queue_free()
 		tree_layer = null
+		hud.refresh_bags() # um Orbe pode ter sido usado na árvore
 		_update_party_progress())
 	tree_layer.add_child(screen)
 
@@ -1124,6 +1138,9 @@ func _back_to_menu() -> void:
 # --- Menu de opções ------------------------------------------------------------
 
 func _save_game() -> void:
+	if challenge.active: # a expedição está guardada em memória: salva de novo depois, no mapa
+		hud.show_options_note("Não dá para salvar durante um desafio.")
+		return
 	if (online_session.playing and not online_session.relay.is_master) or state.winner() >= 0:
 		return
 	if SaveGame.save(state):

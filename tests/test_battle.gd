@@ -47,6 +47,7 @@ func _initialize() -> void:
 	test_skills()
 	test_new_abilities()
 	test_passives()
+	test_revive()
 	print("%d verificações, %d falhas" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -240,6 +241,26 @@ func test_skills() -> void:
 	junk.set_value("mago", "unlocked", ["fog_fenix", 3])
 	junk.save(HeroProgress.path)
 	check(HeroProgress.earned("mago") == Skills.START_POINTS and HeroProgress.unlocked("mago").is_empty(), "save estranho não quebra")
+	# Ramos trancados e Chama Viva (hero_bag.gd).
+	var HeroBag = preload("res://scripts/hero_bag.gd")
+	DirAccess.remove_absolute(HeroProgress.path)
+	check(HeroProgress.open_branches("mago") == [0], "só o primeiro ramo nasce aberto")
+	check(not HeroProgress.unlock("mago", "fog_pavio"), "ramo trancado não compra")
+	check(HeroBag.add("mago", HeroBag.ORB) and HeroBag.count("mago", HeroBag.ORB) == 1, "Chama Viva vai para a bolsa")
+	check(HeroBag.give("mago", 0, "druida") and HeroBag.count("druida", HeroBag.ORB) == 1, "Chama Viva passa de um herói para outro")
+	check(HeroBag.give("druida", 0, "mago"), "e volta")
+	check(HeroBag.use_first_orb("mago", 1) and HeroProgress.is_branch_open("mago", 1) and HeroBag.items("mago").is_empty(), "usar a Chama Viva abre o ramo e gasta a Chama Viva")
+	check(HeroProgress.unlock("mago", "fog_pavio"), "ramo aberto compra")
+	HeroProgress.reset("mago")
+	check(HeroProgress.is_branch_open("mago", 1), "redistribuir não tranca de novo")
+	for i in HeroBag.SIZE + 1:
+		HeroBag.add("guardiao", HeroBag.ORB)
+	check(HeroBag.items("guardiao").size() == HeroBag.SIZE, "bolsa tem limite")
+	var legacy := ConfigFile.new()
+	legacy.set_value("mago", "earned", 6)
+	legacy.set_value("mago", "unlocked", ["fog_rajada", "fog_passo"])
+	legacy.save(HeroProgress.path)
+	check(HeroProgress.open_branches("mago") == [0, 2] and HeroProgress.unlocked("mago").size() == 2, "save antigo: ramo já comprado continua aberto")
 	DirAccess.remove_absolute(HeroProgress.path)
 	HeroProgress.path = "user://progress.cfg"
 
@@ -262,6 +283,22 @@ func test_skills() -> void:
 
 
 ## Habilidades novas: empurrão, investida, efeitos com duração, roubo de vida e ajuda em aliado.
+## Herói caído fica no chão; um aliado colado reergue com 30% da vida.
+func test_revive() -> void:
+	var state := flat()
+	var tank = state.add_unit("guardiao", PLAYER, Vector2i(1, 2))
+	var healer = state.add_unit("druida", PLAYER, Vector2i(2, 2))
+	state.add_unit("esqueleto", ENEMY, Vector2i(6, 2))
+	check(BattleState.REVIVE in tank.abilities, "todo herói tem Reerguer")
+	check(state.valid_targets(healer, BattleState.REVIVE).is_empty(), "sem corpo, nada para reerguer")
+	tank.hp = 0
+	check(state.corpse_at(tank.pos) == tank and state.unit_at(tank.pos) == null, "corpo fica na casa, sem ocupar")
+	check(tank.pos in state.valid_targets(healer, BattleState.REVIVE), "aliado colado pode reerguer")
+	var events := state.do_ability(healer, BattleState.REVIVE, tank.pos)
+	check(tank.alive() and tank.hp == maxi(1, roundi(tank.max_hp * 0.3)), "volta com 30% da vida")
+	check(events.any(func(e): return e["type"] == "revive"), "evento de reerguer")
+
+
 func test_new_abilities() -> void:
 	var Skills = preload("res://scripts/skill_data.gd")
 	# Toda árvore tem pelo menos 2 habilidades novas e todo nó renomeado existe.

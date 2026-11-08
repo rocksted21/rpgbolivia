@@ -23,6 +23,10 @@ const JUMP_ARC := 150.0
 const CAST_INK := Color(1.0, 0.62, 0.15)
 const PROJECTILE_SCALE := 2.0
 const FX_FPS := 16.0
+const HeroBag = preload("res://scripts/hero_bag.gd")
+const ORB_LIFT := 150.0 # altura da Chama Viva voando, acima do chão
+const ORB_ARC := 220.0 # quanto o voo sobe no meio do caminho
+const ORB_FLY_SCALE := 3.0
 
 var battle: BattleView # a tela dona deste módulo
 
@@ -107,6 +111,10 @@ func _play(events: Array, roam := false) -> void:
 				await _play_landmark(event)
 			"secret":
 				await _play_secret(event)
+			"challenge": # Desafio de Arena: janela perguntando se a party entra (battle/arena_challenge.gd)
+				battle.challenge.offer(event)
+			"orb":
+				await _play_orb(event)
 			"level_up":
 				_play_level_up(event)
 	battle.hit_ctx = {}
@@ -252,7 +260,10 @@ func _play_revive(event: Dictionary) -> void:
 	view.visible = true
 	view.rotation = 0.0
 	view.modulate.a = 1.0
+	view.stand_up()
+	view.set_status("")
 	view.set_hp(event["hp"])
+	view.flash(Color(1.6, 3.0, 1.6), 0.4)
 	battle.sound_manager.play_sfx(&"heal")
 	_float_text(view.position + Vector2(-60, -200), "de pé!", Color(0.4, 1.0, 0.5))
 
@@ -287,6 +298,88 @@ func _play_secret(event: Dictionary) -> void:
 		battle.world_light.flash(battle.feet_of(event["cell"]) + Vector2(0, -60), "agua/segredo", 1.6)
 	battle.journey_ui._update_journey()
 	await battle.get_tree().create_timer(0.4).timeout
+
+
+## Chama Viva achada (expedition_state.grant_talent_orb). Todos veem (online, o evento vai a
+## todos): a chama irrompe do local num clarão, voa em arco até o herói deixando um rastro de
+## faíscas e explode nele (tremor, anel, runa girando, luz no chão). O herói fica brilhando
+## roxo um tempo, e só então vem o aviso grande. Sem herói na tela, só o aviso.
+func _play_orb(event: Dictionary) -> void:
+	var color: Color = event["color"]
+	var unit = event.get("unit")
+	if unit == null or not battle.views.has(unit) or battle.board == null:
+		battle.sound_manager.play_sfx(&"heal")
+		_orb_announce(event)
+		await battle.get_tree().create_timer(0.6).timeout
+		return
+	var to: Vector2 = battle.feet_of(unit.pos)
+	var from: Vector2 = battle.feet_of(event["cell"]) if event.has("cell") else to
+	# 1. Irrompe do local.
+	battle.sound_manager.play_sfx(&"heal")
+	battle.hero_fx._play_fx_layers(_orb_burst(color, 1.0), from)
+	battle.juice.shake(0.15)
+	if battle.world_light != null:
+		battle.world_light.flash(from + Vector2(0, -120), "agua/chama", 1.6)
+	await battle.get_tree().create_timer(0.3).timeout
+	# 2. Voa em arco até o herói, com rastro.
+	var flame := HeroBag.flame_sprite()
+	if flame != null and from.distance_to(to) > 8.0:
+		var time := clampf(from.distance_to(to) / 900.0, 0.7, 1.5)
+		flame.scale = Vector2.ONE * ORB_FLY_SCALE
+		flame.position = from + Vector2(0, -ORB_LIFT)
+		flame.z_index = 950
+		battle.board.add_child(flame)
+		battle._add_effect_billboard(flame, Vector2(0, ORB_LIFT), true)
+		HeroBag.play_flame(flame)
+		battle.hero_fx._trail_embers(from + Vector2(0, -ORB_LIFT), to + Vector2(0, -ORB_LIFT), color, time)
+		var start_height: float = battle._height_at_point(from)
+		var end_height: float = battle._height_at_point(to)
+		var step := func(t: float) -> void:
+			if not is_instance_valid(flame):
+				return
+			flame.position = from.lerp(to, t) + Vector2(0, -ORB_LIFT - sin(t * PI) * ORB_ARC)
+			flame.scale = Vector2.ONE * ORB_FLY_SCALE * (1.0 + 0.35 * sin(t * PI))
+			battle.battle_camera.set_elevation(lerpf(start_height, end_height, t), flame)
+		var fly := battle.create_tween()
+		fly.tween_method(step, 0.0, 1.0, time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		await fly.finished
+		flame.queue_free()
+	elif flame != null:
+		flame.queue_free()
+	# 3. Explode no herói.
+	battle.juice.hitstop(0.07)
+	battle.juice.shake(0.35)
+	battle.hero_fx._play_fx_layers(_orb_burst(color, 1.7), to)
+	if battle.world_light != null:
+		battle.world_light.flash(to + Vector2(0, -120), "agua/chama", 2.6)
+	battle.sound_manager.play_sfx(&"victory")
+	if battle.views.has(unit):
+		var view = battle.views[unit]
+		view.set_aura(color)
+		battle.get_tree().create_timer(2.4).timeout.connect(func():
+			if is_instance_valid(view) and battle.views.has(unit):
+				_show_status(unit)) # devolve a aura de costume (ou nenhuma)
+	_orb_announce(event)
+	await battle.get_tree().create_timer(0.9).timeout
+
+
+func _orb_announce(event: Dictionary) -> void:
+	battle.hud.show_banner(event["title"], event["color"])
+	battle.hud.show_detail(event["detail"])
+	battle.hud.refresh_bags()
+
+
+## Clarão da Chama Viva (camadas no formato de hero_juice): anel no chão, luz, runa girando
+## e faíscas subindo. `power` 1 = saída do local; maior = chegada no herói.
+func _orb_burst(color: Color, power: float) -> Array:
+	var bright := color.lightened(0.35)
+	return [
+		{"kind": "ring", "tex": "circle_03", "color": color, "size": 1.3 * power, "life": 0.8, "add": true},
+		{"kind": "flash", "tex": "light_01", "color": Color(bright, 0.85), "size": 0.8 * power, "life": 0.6, "grow": 0.3, "add": true, "height": 120},
+		{"kind": "flash", "tex": "magic_04", "color": color, "size": 0.6 * power, "life": 1.0, "grow": 0.4, "spin": 1.6, "add": true, "height": 120},
+		{"kind": "burst", "tex": "star_06", "color": bright, "amount": int(12 * power), "speed": [80, 240 * power], "size": 0.12, "life": 1.0, "gravity": -160, "add": true, "height": 110},
+		{"kind": "burst", "tex": "spark_04", "color": color, "amount": int(10 * power), "speed": [120, 320 * power], "size": 0.08, "life": 0.6, "add": true, "height": 110, "delay": 0.08},
+	]
 
 
 func _play_level_up(event: Dictionary) -> void:

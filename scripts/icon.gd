@@ -27,6 +27,13 @@ func _draw() -> void:
 			_line(0.3, 0.7, 0.88, 0.12, w)
 			_line(0.16, 0.56, 0.44, 0.84, w)
 			_line(0.3, 0.7, 0.1, 0.9, w * 1.3)
+		"swords": # Desafio de Arena: duas espadas cruzadas
+			_line(0.14, 0.14, 0.66, 0.66, w)
+			_line(0.56, 0.76, 0.76, 0.56, w)
+			_line(0.68, 0.68, 0.88, 0.88, w * 1.3)
+			_line(0.86, 0.14, 0.34, 0.66, w)
+			_line(0.44, 0.76, 0.24, 0.56, w)
+			_line(0.32, 0.68, 0.12, 0.88, w * 1.3)
 		"shield":
 			_outline([0.5, 0.08, 0.88, 0.22, 0.84, 0.56, 0.5, 0.92, 0.16, 0.56, 0.12, 0.22], w)
 		"bolt":
@@ -148,6 +155,24 @@ func _draw() -> void:
 			for spot in [Vector2(0.2, 0.24), Vector2(0.76, 0.36), Vector2(0.4, 0.66)]:
 				draw_circle(_p(spot.x, spot.y), size.x * 0.1, color)
 				_half_oval(spot.x, spot.y + 0.38, 0.12, 0.24, color)
+		"orb": # Orbe de Talento: esfera com brilho e uma faísca dentro, num pezinho
+			draw_circle(_p(0.5, 0.44), size.x * 0.36, color)
+			draw_circle(_p(0.5, 0.44), size.x * 0.26, color.lightened(0.35))
+			draw_circle(_p(0.39, 0.33), size.x * 0.08, Color(1, 1, 1, 0.85)) # reflexo
+			_fill([0.5, 0.3, 0.56, 0.44, 0.5, 0.58, 0.44, 0.44]) # faísca
+			_fill([0.3, 0.92, 0.7, 0.92, 0.62, 0.8, 0.38, 0.8]) # pé
+		"bag": # bolsa do herói: saco amarrado
+			_fill([0.22, 0.92, 0.78, 0.92, 0.86, 0.66, 0.74, 0.42, 0.26, 0.42, 0.14, 0.66])
+			_fill([0.34, 0.42, 0.66, 0.42, 0.62, 0.32, 0.38, 0.32]) # gargalo
+			_fill([0.3, 0.32, 0.4, 0.12, 0.5, 0.26, 0.6, 0.12, 0.7, 0.32]) # boca aberta
+			_line(0.3, 0.42, 0.7, 0.42, w * 0.8) # cordão
+		"lock": # cadeado: alça e corpo com o buraco da chave
+			draw_arc(_p(0.5, 0.42), size.x * 0.2, PI, TAU, 12, color, w * 1.2, true)
+			_line(0.3, 0.42, 0.3, 0.5, w * 1.2)
+			_line(0.7, 0.42, 0.7, 0.5, w * 1.2)
+			_fill([0.2, 0.5, 0.8, 0.5, 0.8, 0.92, 0.2, 0.92])
+			draw_circle(_p(0.5, 0.66), size.x * 0.07, HOLE)
+			draw_colored_polygon(_points([0.47, 0.68, 0.53, 0.68, 0.55, 0.82, 0.45, 0.82]), HOLE)
 		"turn_left", "turn_right":
 			_turn_arrow(kind == "turn_left", w)
 		"zoom_in", "zoom_out":

@@ -84,6 +84,8 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		level_box.visible = false
 		level_box.add_child(level)
 		top.add_child(level_box)
+		var bag := _bag_button(unit) # bolsa do herói (hud/hero_bag_ui.gd)
+		top.add_child(bag)
 		var back := ColorRect.new()
 		back.color = Brass.WINE_DEEP
 		back.custom_minimum_size = Vector2(150, 10)
@@ -126,7 +128,8 @@ func setup_party(heroes: Array, owners: Dictionary) -> void:
 		xp_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		xp_back.add_child(xp_fill)
 		var level_up := _level_up_badge(unit, index)
-		hud.party_cards[unit] = {"panel": panel, "medal": medal, "fill": fill, "status": status, "level": level, "xp": xp_fill, "points": points, "name": name_label, "level_up": level_up}
+		hud.party_cards[unit] = {"panel": panel, "medal": medal, "fill": fill, "status": status, "level": level, "xp": xp_fill, "points": points, "name": name_label, "level_up": level_up,
+			"bag": bag, "bag_icon": bag.get_meta("icon"), "bag_count": bag.get_meta("count")}
 	# Coluna da direita: girar, aproximar, girar, fila. No celular, dois dedos também giram
 	# (torcendo) e aproximam (abrindo); no teclado, Q/E, Z e G.
 	var rotate_left := hud._icon_button("turn_left")
@@ -183,6 +186,38 @@ func _level_up_badge(unit, index: int) -> Button:
 	bounce.tween_property(badge, "position:y", top.y - 5, 0.4).set_trans(Tween.TRANS_SINE)
 	bounce.tween_property(badge, "position:y", top.y, 0.4).set_trans(Tween.TRANS_SINE)
 	return badge
+
+
+## Botãozinho da bolsa no topo da carta: ícone (roxo com Orbe) e quantos itens tem.
+## Fica por cima do clique da carta: tocar nele abre a bolsa, não seleciona o herói.
+func _bag_button(unit) -> Button:
+	var button := Button.new()
+	button.focus_mode = Control.FOCUS_NONE
+	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	button.custom_minimum_size = Vector2(34, 22)
+	button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	button.tooltip_text = "Bolsa"
+	var flat := Brass.panel(Brass.WINE_DEEP, Brass.BRASS_DIM, 1, 4, 0, 0)
+	var lit := Brass.panel(Brass.WINE_LIFT, Brass.BRASS, 1, 4, 0, 0)
+	button.add_theme_stylebox_override("normal", flat)
+	button.add_theme_stylebox_override("hover", lit)
+	button.add_theme_stylebox_override("pressed", lit)
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 1)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(row)
+	var icon: Control = hud._icon("bag", Brass.MUTED, 16)
+	row.add_child(icon)
+	var count := Brass.label("", 11, Brass.TEXT_LIT, 700)
+	count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(count)
+	button.set_meta("icon", icon)
+	button.set_meta("count", count)
+	button.pressed.connect(func(): hud.bag_pressed.emit(unit))
+	hud.sound_manager.bind_button(button, &"click3")
+	return button
 
 
 func show_end_turn(on: bool) -> void:

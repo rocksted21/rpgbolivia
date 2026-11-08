@@ -102,6 +102,8 @@ const ABILITIES := {
 	"casca": {"name": "Casca", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
 	"agua_vital": {"name": "Água Vital", "kind": "heal", "min_range": 0, "range": 3, "heal": 9, "time": 170},
 	"manto_agua": {"name": "Manto d'Água", "kind": "guard", "min_range": 0, "range": 0, "time": 80},
+	# Todo herói: levanta o aliado caído colado com essa fração da vida (o corpo fica no chão).
+	"reerguer": {"name": "Reerguer", "kind": "revive", "min_range": 1, "range": 1, "time": 160, "revive": 0.3},
 	# Mecânicas próprias (regras em battle_state.gd):
 	#   push: empurra o alvo colado N casas · dash: salta até colar no alvo antes do golpe
 	#   status: {"id", "turns", "amount"} aplica um efeito de STATUS · lifesteal: fração do dano que volta em vida
@@ -196,6 +198,10 @@ const UNIT_TYPES := {
 	"boss_farao": {"name": "Faraó Eclipse", "role": "Chefe · deserto", "hp": 38, "atk": 12, "def": 2, "speed": 9, "abilities": ["golpe", "decreto"]},
 	# O faroleiro dos subúrbios: a folha do Rei Cervo, em cinza de cinzas (falta arte própria).
 	"boss_acendedor": {"name": "O Acendedor Apagado", "role": "Chefe · subúrbios", "hp": 42, "atk": 12, "def": 3, "speed": 8, "abilities": ["golpe", "esmagar"], "art": "boss_cervo", "tint": Color(0.72, 0.78, 1.0)},
+	# O Andarilho da Fumaça antes de entrar no roster: elite da Névoa Densa (ver smoke_duel.gd).
+	# A ilusão tem o mesmo nome e a mesma folha, só um pouco transparente: quem presta atenção percebe.
+	"fumaca_rival": {"name": "Andarilho da Fumaça", "role": "Controle · cega e esconde", "hp": 26, "atk": 12, "def": 1, "speed": 12, "abilities": ["baforada", "sufocar", "passo_fumaca", "nuvem_cega", "veu_fumaca"], "art": "fumaca"},
+	"fumaca_ilusao": {"name": "Andarilho da Fumaça", "role": "Controle · cega e esconde", "hp": 26, "atk": 7, "def": 0, "speed": 11, "abilities": ["baforada"], "art": "fumaca", "tint": Color(0.86, 0.84, 1.0, 0.8)},
 }
 
 ## Folha de sprite do tipo (variações reaproveitam a de outro tipo).
@@ -232,6 +238,8 @@ static func effect_text(ability: Dictionary) -> String:
 		parts.append("aliado em Guarda")
 	if ability.has("haste"):
 		parts.append("aliado age %d antes" % ability["haste"])
+	if ability["kind"] == "revive":
+		parts.append("levanta aliado caído com %d%% da vida" % roundi(ability["revive"] * 100))
 	if ability["kind"] == "buff" and ability.get("heal", 0) > 0:
 		parts.append("cura %d" % ability["heal"])
 	if ability.get("pierce", false):

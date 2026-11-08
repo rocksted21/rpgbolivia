@@ -26,6 +26,8 @@ func check(ok: bool, text: String) -> void:
 
 
 func _initialize() -> void:
+	var progress = load("res://scripts/hero_progress.gd")
+	progress.path = "user://test_progress_orbes.cfg" # Orbes achados não vão para o save de verdade
 	test_default()
 	test_landmarks()
 	test_routes()

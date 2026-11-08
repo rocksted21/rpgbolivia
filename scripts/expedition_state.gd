@@ -9,6 +9,9 @@ const Layout = preload("res://scripts/expedition_layout.gd")
 const AbandonedCamp = preload("res://scripts/abandoned_camp.gd")
 const SuburbsGen = preload("res://scripts/suburbs_map.gd")
 const SuburbsLayout = preload("res://scripts/suburbs_layout.gd")
+const HeroBag = preload("res://scripts/hero_bag.gd")
+const Recruits = preload("res://scripts/recruits.gd") # heróis por recrutar que esperam no mapa
+const SmokeDuel = preload("res://scripts/smoke_duel.gd") # a luta da Névoa Densa
 
 const SPOT_WALK := 1200 # pontos de movimento até onde os guardas podem nascer
 
@@ -16,6 +19,7 @@ var layout # zonas, passagens e platôs do mapa
 var fort = preload("res://scripts/expedition_fort.gd").new()
 var camps = AbandonedCamp.new()
 var landmarks := {} # casa: {kind, state ("idle", "fighting" ou "done"), guards, resident}
+var orbs_found := 0 # Chamas Vivas achados nesta expedição (já guardados nas bolsas)
 var terrain_override := {}
 var beacon_cell: Vector2i
 var boss = null
@@ -74,6 +78,7 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 		layout = Layout.new(gen, start_cell, _route_radius())
 		_place_landmarks()
 		layout.check_map(landmarks.keys())
+	Recruits.place(self)
 	for cell in landmarks:
 		if landmarks[cell]["kind"] == "emboscada":
 			camps.place(self, cell)
@@ -85,6 +90,24 @@ func _init(heroes: Variant, world_seed: int, builds: Variant = {}, town: Diction
 			_place_fixed_fort()
 		else:
 			fort.place(self)
+	_roll_flames()
+
+
+## Quais locais guardam uma Chama Viva, sorteado ao criar o mapa: ela aparece flutuando
+## em cima deles (board_art), para o jogador ver de longe. Forte e farol sempre têm;
+## lanternas e baús secretos, pela chance de hero_bag. RNG à parte: o resto do mapa não muda.
+func _roll_flames() -> void:
+	var dice := RandomNumberGenerator.new()
+	dice.seed = hash(rng.seed + 7919)
+	for cell in landmarks:
+		var entry: Dictionary = landmarks[cell]
+		match entry["kind"]:
+			"forte", "farol":
+				entry["flame"] = true
+			"lanterna":
+				entry["flame"] = dice.randf() < HeroBag.ORB_CHANCE["lanterna"]
+			"bau":
+				entry["flame"] = entry.has("secret") and dice.randf() < HeroBag.ORB_CHANCE["segredo"]
 
 
 ## Ruínas continuam com seus prêmios; a travessia usa uma ponte real e alcançável.
@@ -629,6 +652,7 @@ func result() -> Dictionary:
 		"items": items.duplicate(),
 		"bag_potions_used": maxi(potions_used - free_potions, 0),
 		"tally": counted,
+		"recruited": Recruits.recruited(self), # heróis novos no roster (ficam mesmo na derrota)
 	}
 
 
@@ -646,8 +670,11 @@ func use_potion() -> Array:
 # --- Experiência ---------------------------------------------------------------
 
 func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void:
+	amount = SmokeDuel.cap_damage(self, target, amount) # o Andarilho da Fumaça não cai: ele se rende
 	var was_alive: bool = target.alive()
 	super(target, amount, events, info)
+	if SmokeDuel.after_damage(self, target, events): # ilusão desfeita: não conta como abate
+		return
 	if not was_alive or target.alive() or is_hero(target):
 		return
 	if target == boss:
@@ -655,6 +682,7 @@ func _apply_damage(target, amount: int, events: Array, info: Dictionary) -> void
 		landmarks[beacon_cell]["state"] = "done"
 		brasas += Exp.BOSS["brasas"] + Exp.DARK_BRASAS * dark_lanterns() # prêmio de quem foi sem acender
 		_gain_xp(Exp.BOSS["xp"], events)
+		grant_talent_orb(events, target.pos) # o guardião sempre deixa uma Chama Viva
 		return
 	_gain_xp(Exp.KILL_XP, events)
 
@@ -686,6 +714,7 @@ func tick() -> Array:
 	if fixed_map:
 		_check_secrets(events)
 	_check_fights(events)
+	SmokeDuel.tick(self, events) # o Andarilho some na fumaça ou se rende
 	if not in_combat():
 		_check_visits(events)
 	return events
@@ -711,6 +740,9 @@ func _check_visits(events: Array) -> void:
 		var entry: Dictionary = landmarks[cell]
 		if entry["state"] != "idle":
 			continue
+		if entry["kind"] == "desafio": # Desafio de Arena: a tela pergunta se a party entra (arena_data.gd)
+			preload("res://scripts/arena_data.gd").check_visit(self, cell, entry, events)
+			continue
 		var radius: int = Exp.BEACON_VISIT_RADIUS if cell == beacon_cell else Exp.VISIT_RADIUS
 		if party_distance(cell) > radius:
 			continue
@@ -720,6 +752,8 @@ func _check_visits(events: Array) -> void:
 			_wake_fort(cell, entry, events)
 		elif entry["kind"] == "lanterna":
 			_wake_lantern(cell, entry, events)
+		elif entry["kind"] == "andarilho":
+			SmokeDuel.wake(self, cell, entry, events)
 		elif Exp.LANDMARKS[entry["kind"]].has("guards"):
 			_wake_guards(cell, entry, Exp.LANDMARKS[entry["kind"]]["guards"], events)
 		else:
@@ -861,7 +895,40 @@ func _complete(cell: Vector2i, events: Array) -> void:
 				detail = Exp.EMPTY_MEMORY
 	brasas += data.get("brasas", 0)
 	events.append({"type": "landmark", "cell": cell, "title": title, "detail": detail, "done": true, "color": data["color"]})
+	Recruits.on_complete(self, cell, events) # vila que guardava um herói preso avisa que ele está livre
 	_gain_xp(data.get("xp", 0), events)
+	if entry.get("flame", kind == "forte"): # a Chama Viva que flutuava em cima do local (_roll_flames; save antigo: só o forte)
+		entry["flame"] = false
+		grant_talent_orb(events, cell)
+
+
+## Chama Viva: vai para a bolsa de um herói da party, sorteado entre os vivos que ainda
+## têm ramo trancado (hero_bag.gd). Fica guardado na hora, mesmo se a expedição cair depois.
+## Público: qualquer recompensa pode chamar (Desafios de Arena, por exemplo).
+## Devolve o tipo de quem ficou com ele ("" = todas as bolsas cheias).
+## `from_cell`: de onde a chama sai voando até o herói (sem ela, a chama nasce em cima dele).
+func grant_talent_orb(events: Array, from_cell := Vector2i(-99999, -99999)) -> String:
+	var alive_types := alive_party().map(func(member): return member.type_id)
+	var party_types := party.map(func(member): return member.type_id)
+	var holder := HeroBag.pick_holder(alive_types, party_types, rng)
+	if holder == "":
+		events.append({"type": "orb", "type_id": "", "title": "Chama Viva perdida", "detail": "As bolsas da party estão cheias.", "color": HeroBag.ORB_COLOR})
+		return ""
+	HeroBag.add(holder, HeroBag.ORB)
+	orbs_found += 1
+	var detail := "Guardado na bolsa. Use para abrir um ramo trancado da árvore."
+	if not HeroBag.wants_orb(holder):
+		detail = "Guardado na bolsa. Fora de combate, passe para quem ainda tem ramo trancado."
+	var event := {"type": "orb", "type_id": holder, "title": "Chama Viva → %s" % HeroBag.hero_name(holder), "detail": detail, "color": HeroBag.ORB_COLOR}
+	var carriers := alive_party().filter(func(member): return member.type_id == holder)
+	if carriers.is_empty():
+		carriers = party.filter(func(member): return member.type_id == holder)
+	if not carriers.is_empty():
+		event["unit"] = carriers[0] # a tela voa a chama até ele (online: vira uid para todos)
+	if from_cell != Vector2i(-99999, -99999):
+		event["cell"] = from_cell
+	events.append(event)
+	return holder
 
 
 func _heal_party(share: float, events: Array) -> void:

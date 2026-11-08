@@ -14,7 +14,7 @@ const TURN_DRAG := 0.007 # radianos por pixel ao arrastar com o botão do meio
 const ABILITY_ICONS := {
 	"golpe": "sword", "rapido": "sword", "giro": "sword", "golpe_pesado": "sword", "estocada": "sword", "adaga": "sword", "coronhada": "sword",
 	"tiro": "arrow", "virote_pesado": "arrow", "tiro_longo": "arrow", "perfurante": "arrow", "tiro_rapido": "arrow", "saraivada": "arrow", "chuva_virotes": "arrow",
-	"cura": "heart", "clareira": "heart", "agua_vital": "heart",
+	"cura": "heart", "clareira": "heart", "agua_vital": "heart", "reerguer": "heart",
 	"guarda": "shield", "escudo_fogo": "shield", "provocar": "shield", "aparar": "shield", "casca": "shield", "manto_agua": "shield",
 	"escudada": "shield", "interpor": "shield", "carga": "bolt", "marcar": "sword", "investida": "bolt", "sangria": "heart", "chute": "sword",
 	"virote_marcador": "arrow", "tiro_perna": "arrow", "espinhos_venenosos": "star", "bencao": "star",
@@ -242,6 +242,9 @@ func _card_ability(unit, id: String) -> Dictionary:
 		"buff":
 			out["amount"] = "aliado"
 			out["amount_icon"] = "heart"
+		"revive":
+			out["amount"] = "%d%%" % roundi(ability["revive"] * 100)
+			out["amount_icon"] = "heart"
 		_:
 			out["amount"] = str(roundi(unit.atk * ability["power"]))
 			out["amount_icon"] = "star"
@@ -412,6 +415,9 @@ func _ability_option(unit, id: String, cell: Vector2i) -> Dictionary:
 			return option
 		"buff":
 			return {"detail": Data.effect_text(ability), "tone": "heal"}
+		"revive":
+			var body = battle.state.corpse_at(cell)
+			return {"detail": "volta com %d de vida" % maxi(1, roundi(body.max_hp * ability["revive"])), "tone": "heal"}
 		"heal":
 			var amount: int = mini(ability["heal"], target.max_hp - target.hp)
 			var detail := "+%d" % amount

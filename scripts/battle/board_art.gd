@@ -26,6 +26,8 @@ const BiomeArt = preload("res://scripts/biome_art.gd")
 
 const BOSS_SCALE := 1.35
 const ELITE_SCALE := 1.15 # a Sentinela da Lanterna fica entre o inimigo comum e o guardião
+const HeroBag = preload("res://scripts/hero_bag.gd")
+const FLAME_SCALE := 2.6 # Chama Viva (48 px) flutuando em cima dos locais que a guardam
 const TILE_FRONT := 213.0 # ponta da frente do topo do hexágono, na textura (igual ao shader)
 const TILE_SLOPE := 53.0 # quanto as bordas inclinadas descem do centro até o lado
 const TILE_WALL := 31.0 # altura da parede abaixo da borda da frente
@@ -833,6 +835,9 @@ func _add_unit_view(unit) -> void:
 	view.position = battle.feet_of(unit.pos)
 	view.z_index = battle._z(battle._row(unit.pos)) + 5
 	battle.views[unit] = view
+	if not unit.alive() and battle.state.is_hero(unit):
+		view.lie_down(true) # jogo salvo com herói caído: o corpo continua no chão
+		view.set_status("caído", Color(1.0, 0.45, 0.45))
 	if battle.expedition and battle.state.is_boss(unit):
 		view.scale *= BOSS_SCALE
 		view.self_modulate = Color(0.75, 0.6, 1.0)
@@ -898,3 +903,29 @@ func _add_landmark(cell: Vector2i, row: int) -> void:
 	battle.building.append(name_label)
 	battle.battle_camera.add_billboard(name_label, Vector2(110, lift), battle._cell_elevation(cell))
 	battle.landmark_nodes[cell] = [ring, name_label]
+	if battle.state.landmarks[cell].get("flame", false):
+		_add_flame(cell, row, lift)
+
+
+## Chama Viva flutuando em cima do nome do local que guarda uma (expedition_state._roll_flames):
+## sobe e desce devagar e pulsa, para o jogador ver de longe e querer ir lá.
+func _add_flame(cell: Vector2i, row: int, lift: float) -> void:
+	var flame := HeroBag.flame_sprite()
+	if flame == null:
+		return
+	var height := lift + 70.0
+	flame.scale = Vector2.ONE * FLAME_SCALE
+	flame.position = battle.feet_of(cell) + Vector2(0, -height)
+	flame.z_index = battle._z(row) + 8
+	battle.board.add_child(flame)
+	battle.building.append(flame)
+	battle.battle_camera.add_billboard(flame, Vector2(0, height), battle._cell_elevation(cell))
+	HeroBag.play_flame(flame)
+	# Tween no offset (desenho), não na posição: a câmera ancora a posição do billboard.
+	var bob := flame.create_tween().set_loops()
+	bob.tween_property(flame, "offset:y", -6.0, 0.9).set_trans(Tween.TRANS_SINE)
+	bob.tween_property(flame, "offset:y", 0.0, 0.9).set_trans(Tween.TRANS_SINE)
+	var glow := flame.create_tween().set_loops()
+	glow.tween_property(flame, "self_modulate", Color(1.5, 1.3, 1.7), 0.7).set_trans(Tween.TRANS_SINE)
+	glow.tween_property(flame, "self_modulate", Color.WHITE, 0.7).set_trans(Tween.TRANS_SINE)
+	battle.landmark_nodes[cell].append(flame)

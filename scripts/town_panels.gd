@@ -14,6 +14,7 @@ const TownProgress = preload("res://scripts/town_progress.gd")
 const Content = preload("res://scripts/town_content.gd")
 const Brass = preload("res://scripts/hud/brass.gd") # latão e vinho, como o HUD e o Diário
 const Icon = preload("res://scripts/icon.gd")
+const HeroRoster = preload("res://scripts/hero_roster.gd") # heróis ainda não recrutados ficam como "?"
 
 const SCREEN := Vector2(1280, 720)
 const WINDOW_WIDTH := 720
@@ -545,6 +546,8 @@ func open_party_setup() -> void:
 	for id in Data.WORLD_HEROES:
 		var button := _button(grid, "")
 		_fill_hero(button, id, units_meta[id])
+		if not HeroRoster.is_unlocked(id):
+			_lock_hero(button, id)
 		hero_buttons[id] = button
 	var buttons := _row(body)
 	_close_button(buttons, "Cancelar")
@@ -656,7 +659,22 @@ func _fill_hero(button: Button, id: String, _info: Dictionary) -> void:
 
 
 ## Tocar num herói da lista: entra no fim da fila, ou sai dela.
+## Herói fora do roster: silhueta, "???" e só a dica de onde ele está. Não entra na party.
+func _lock_hero(button: Button, id: String) -> void:
+	button.disabled = true
+	button.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	button.tooltip_text = HeroRoster.hint(id)
+	var row: Control = button.get_child(0)
+	row.get_child(0).modulate = HeroRoster.LOCKED_TINT
+	var words: Array = row.get_child(1).get_children()
+	words[0].text = HeroRoster.LOCKED_NAME
+	words[1].text = HeroRoster.hint(id)
+	words[1].add_theme_color_override("font_color", Brass.DIM)
+
+
 func _toggle(id: String) -> void:
+	if not HeroRoster.is_unlocked(id):
+		return
 	if id in draft:
 		draft.erase(id)
 	elif draft.size() < Data.PARTY_SIZE:
@@ -706,6 +724,9 @@ func close_window() -> void:
 ## Abre uma janela centralizada, que bloqueia os cliques no mapa. Devolve onde pôr o conteúdo.
 func _open(title: String) -> Control:
 	close_window()
+	# z_index só muda o desenho; o clique segue a ordem na árvore. Sem isto, o HUD
+	# criado depois (cartas da party, faixa do topo) rouba os cliques da janela.
+	move_to_front()
 	window = ColorRect.new()
 	(window as ColorRect).color = Color(0, 0, 0, 0.55)
 	window.size = SCREEN

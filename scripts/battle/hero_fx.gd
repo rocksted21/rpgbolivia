@@ -272,6 +272,11 @@ func _play_hero_death(event: Dictionary) -> void:
 	else:
 		battle.juice.shake(0.22)
 	_play_fx_layers(HeroJuice.death_fx(hero_died), view.position, Vector2.UP)
+	if hero_died and target.team == Data.Team.PLAYER:
+		# O corpo fica no chão: um aliado colado pode reerguer (Reerguer), e o fim da luta levanta.
+		view.set_status("caído", Color(1.0, 0.45, 0.45))
+		await view.lie_down()
+		return
 	var tween := battle.create_tween()
 	tween.tween_method(view.set_jump_height, 0.0, 36.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_method(view.set_jump_height, 36.0, 0.0, 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
