@@ -432,6 +432,15 @@ func test_new_abilities() -> void:
 	check(friend.pos in state.valid_targets(tank, "interpor") and not tank.pos in state.valid_targets(tank, "interpor"), "Interpor mira aliado, não ele mesmo")
 	state.do_ability(tank, "interpor", friend.pos)
 	check(friend.guarding and not tank.guarding, "Interpor põe o aliado em Guarda")
+	# Kit básico: Resgate troca de lugar com o aliado colado.
+	state = flat()
+	tank = state.add_unit("guardiao", PLAYER, Vector2i(1, 2))
+	friend = state.add_unit("mago", PLAYER, Hex.neighbor(tank.pos, 0))
+	var tank_cell: Vector2i = tank.pos
+	var friend_cell: Vector2i = friend.pos
+	check("resgate" in tank.abilities and friend_cell in state.valid_targets(tank, "resgate"), "Guardião começa com Resgate")
+	state.do_ability(tank, "resgate", friend_cell)
+	check(tank.pos == friend_cell and friend.pos == tank_cell, "Resgate troca de lugar com o aliado")
 	state = flat()
 	var water = state.add_unit("mago_agua", PLAYER, Vector2i(1, 2), ["agu_corrente"])
 	friend = state.add_unit("guardiao", PLAYER, Vector2i(3, 2))

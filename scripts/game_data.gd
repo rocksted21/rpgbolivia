@@ -123,6 +123,12 @@ const ABILITIES := {
 	"corrente": {"name": "Corrente", "kind": "buff", "min_range": 1, "range": 3, "time": 140, "haste": 60},
 	"espinhos_venenosos": {"name": "Espinhos Venenosos", "kind": "attack", "min_range": 2, "range": 3, "power": 0.4, "time": 150, "shot": "kit/magic", "status": {"id": "poison", "turns": 3, "amount": 3}},
 	"bencao": {"name": "Bênção da Mata", "kind": "buff", "min_range": 0, "range": 3, "time": 140, "status": {"id": "might", "turns": 2}},
+	# Kit básico: uma ajuda simples que todo herói tem desde o começo (fim da lista em UNIT_TYPES).
+	#   swap: troca de lugar com o aliado (tira ele de perto do inimigo)
+	"resgate": {"name": "Resgate", "kind": "buff", "min_range": 1, "range": 1, "time": 110, "swap": true},
+	"casca_viva": {"name": "Casca Viva", "kind": "buff", "min_range": 0, "range": 2, "time": 110, "guard_ally": true},
+	"transfusao": {"name": "Transfusão", "kind": "heal", "min_range": 1, "range": 3, "heal": 8, "time": 150},
+	"troca_fumaca": {"name": "Troca de Fumaça", "kind": "buff", "min_range": 1, "range": 3, "time": 120, "swap": true},
 	# Mago de Fogo: uma magia por animação do pack de fogo (ver SPELL_FX na battle_view).
 	"faisca": {"name": "Faísca", "kind": "attack", "min_range": 1, "range": 3, "power": 0.5, "time": 100},
 	"labareda": {"name": "Labareda", "kind": "attack", "min_range": 1, "range": 2, "power": 1.0, "time": 150},
@@ -175,14 +181,14 @@ const ABILITIES := {
 }
 
 const UNIT_TYPES := {
-	"guardiao": {"name": "Guardião", "role": "Tanque · segura a linha", "hp": 46, "atk": 11, "def": 5, "speed": 9, "abilities": ["golpe", "guarda"]},
-	"duelista": {"name": "Duelista", "role": "Ágil · age mais vezes", "hp": 28, "atk": 12, "def": 2, "speed": 14, "abilities": ["golpe", "rapido", "giro"]},
-	"besteiro": {"name": "Besteiro", "role": "Atirador · ataca de longe", "hp": 26, "atk": 13, "def": 1, "speed": 10, "abilities": ["tiro", "virote_pesado"]},
+	"guardiao": {"name": "Guardião", "role": "Tanque · segura a linha", "hp": 46, "atk": 11, "def": 5, "speed": 9, "abilities": ["golpe", "guarda", "resgate"]},
+	"duelista": {"name": "Duelista", "role": "Ágil · age mais vezes", "hp": 28, "atk": 12, "def": 2, "speed": 14, "abilities": ["golpe", "rapido", "giro", "aparar"]},
+	"besteiro": {"name": "Besteiro", "role": "Atirador · ataca de longe", "hp": 26, "atk": 13, "def": 1, "speed": 10, "abilities": ["tiro", "virote_pesado", "virote_marcador"]},
 	"mago": {"name": "Mago de Fogo", "role": "Magia · fogo em área", "hp": 24, "atk": 15, "def": 1, "speed": 9, "move": 2, "abilities": ["faisca", "bola_fogo", "flor_fogo", "escudo_fogo"]},
-	"druida": {"name": "Druida Élfica", "role": "Suporte · cura aliados", "hp": 26, "atk": 10, "def": 1, "speed": 11, "abilities": ["vinha", "cura"]},
-	"mago_agua": {"name": "Mago de Sangue", "role": "Magia · sangue", "hp": 24, "atk": 14, "def": 1, "speed": 10, "move": 2, "abilities": ["gota", "bola_agua", "floco_neve"]},
+	"druida": {"name": "Druida Élfica", "role": "Suporte · cura aliados", "hp": 26, "atk": 10, "def": 1, "speed": 11, "abilities": ["vinha", "cura", "casca_viva"]},
+	"mago_agua": {"name": "Mago de Sangue", "role": "Magia · sangue", "hp": 24, "atk": 14, "def": 1, "speed": 10, "move": 2, "abilities": ["gota", "bola_agua", "floco_neve", "transfusao"]},
 	# Sprite: Heroi Smoke 3 do PixelLab (pixellab/fumaca, ver tools/build_pixellab.gd).
-	"fumaca": {"name": "Andarilho da Fumaça", "role": "Controle · cega e esconde", "hp": 26, "atk": 12, "def": 1, "speed": 12, "abilities": ["baforada", "sufocar", "nuvem_cega"]},
+	"fumaca": {"name": "Andarilho da Fumaça", "role": "Controle · cega e esconde", "hp": 26, "atk": 12, "def": 1, "speed": 12, "abilities": ["baforada", "sufocar", "nuvem_cega", "troca_fumaca"]},
 	"esqueleto": {"name": "Esqueleto", "role": "Soldado · morto-vivo comum", "hp": 22, "atk": 10, "def": 1, "speed": 10, "abilities": ["golpe"]},
 	"mumia": {"name": "Múmia", "role": "Tanque · lenta e resistente", "hp": 40, "atk": 11, "def": 3, "speed": 7, "abilities": ["golpe"]},
 	"diabrete": {"name": "Diabrete", "role": "Ágil · fraco, mas age muito", "hp": 16, "atk": 8, "def": 0, "speed": 15, "abilities": ["golpe"]},
@@ -236,6 +242,8 @@ static func effect_text(ability: Dictionary) -> String:
 		parts.append("atrasa %d" % ability["delay"])
 	if ability.get("guard_ally", false):
 		parts.append("aliado em Guarda")
+	if ability.get("swap", false):
+		parts.append("troca de lugar")
 	if ability.has("haste"):
 		parts.append("aliado age %d antes" % ability["haste"])
 	if ability["kind"] == "revive":
