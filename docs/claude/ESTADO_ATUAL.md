@@ -1,5 +1,11 @@
 # Estado do projeto — 08/11/2026, 12:00
 
+## Protótipo (08/11) — luta do elevador
+- Cena nova `scenes/luta_elevador.tscn` (F6 no Godot): os 4 heróis chegam pela ponte, o elevador do meio sobe do poço com 5 inimigos (tremor, vapor, baque) e a luta começa. Regras de combate e IA são as do jogo; a imagem é `assets/prototipo/arena_elevador.jpg`.
+- Grade de hexágonos deitada no chão pintado; chão, bloqueios, recortes da frente, posições e inimigos ficam em `assets/prototipo/arena_elevador.json`. Código em `scripts/prototipo/arena_elevador.gd` (regras) e `luta_elevador.gd` (tela). Teclas: 1-5 habilidade, Espaço encerra, A automático, M mostra a grade.
+- Teste novo `test_luta_elevador` (verde, entrou no `rodar_testes.ps1`); capturas: `tests/luta_elevador_shots.gd -- <pasta>`. Na luta de robôs a party venceu.
+- Próximo passo: o Eduardo jogar e dizer se a dificuldade, o tamanho dos bonecos e a subida do elevador estão bons.
+
 ## Protótipo (08/11) — party andando numa imagem pintada
 - Cena separada `scenes/prototipo_cenario.tscn` (abrir no Godot e apertar F6): a imagem `assets/prototipo/suburbio_pintado.jpg` é o mapa; a party de 4 anda com clique, com escadas, ponte, obstáculos e recortes que passam na frente (cerca, postes, carruagens, muro).
 - Onde dá para pisar fica em `assets/prototipo/areas.json` (polígonos em pixels). Código em `scripts/prototipo/`; teste novo `test_prototipo_cenario` (verde); capturas: `tests/prototipo_shots.gd -- <pasta>`.

@@ -1,0 +1,61 @@
+{
+	"imagem": "res://assets/prototipo/arena_elevador.jpg",
+	"grade": {
+		"comentario": "Hexágonos deitados no chão isométrico. origem = canto esquerdo do buraco do elevador; u sobe para a direita, v desce para a direita (pixels de x).",
+		"origem": [590, 630],
+		"inclinacao": 0.48,
+		"lado": 94,
+		"u0": -232,
+		"v0": -226,
+		"colunas": 9,
+		"linhas": 10
+	},
+	"chao": {
+		"praca": [[43, 631], [907, 1046], [1838, 600], [974, 184]]
+	},
+	"bloqueios": {
+		"escada": [[420, 400], [560, 325], [800, 385], [700, 445], [600, 500]],
+		"maquina_esquerda": [[250, 520], [330, 465], [420, 515], [340, 580]],
+		"andaime_esquerdo": [[140, 575], [250, 520], [265, 605], [170, 615]],
+		"borda_esquerda": [[60, 615], [230, 580], [300, 640], [445, 720], [455, 795], [360, 775], [60, 650]],
+		"carroca_baixo": [[630, 905], [740, 850], [905, 900], [905, 990], [800, 1005]],
+		"caixas_baixo": [[850, 960], [930, 905], [1035, 955], [1035, 1045], [920, 1055], [850, 1015]],
+		"guindaste_fundo": [[810, 320], [900, 260], [1110, 300], [1060, 345], [930, 360]],
+		"carrinho_fundo": [[1090, 320], [1200, 265], [1295, 330], [1200, 385]],
+		"andaime_direito": [[1280, 385], [1360, 330], [1475, 400], [1410, 450]],
+		"caixas_guindaste": [[1420, 470], [1560, 415], [1845, 555], [1845, 625], [1720, 690], [1560, 700], [1440, 570]]
+	},
+	"elevador": {
+		"comentario": "buraco = boca do poço (a plataforma pintada); aro = borda de ferro em volta; profundidade = quantos pixels a plataforma começa abaixo do chão.",
+		"buraco": [[632, 630], [970, 466], [1308, 630], [970, 798]],
+		"aro": [[590, 630], [970, 445], [1360, 630], [970, 820]],
+		"engrenagens": [[808, 702], [1137, 702], [1140, 538]],
+		"profundidade": 260
+	},
+	"ponte": [[-90, 1095], [70, 1010], [250, 925], [430, 848]],
+	"herois": [
+		["guardiao", [4, 1]],
+		["duelista", [3, 1]],
+		["mago", [4, 0]],
+		["druida", [5, 0]]
+	],
+	"inimigos": [
+		["esqueleto", [4, 4]],
+		["esqueleto", [5, 5]],
+		["diabrete_brasa", [3, 5]],
+		["mumia", [4, 6]],
+		["esqueleto_arqueiro", [5, 7]]
+	],
+	"frente": {
+		"carroca_baixo": {"base": 990, "pontos": [[640, 905], [700, 855], [790, 832], [880, 858], [905, 900], [900, 988], [810, 1002], [650, 932]]},
+		"caixas_baixo": {"base": 1040, "pontos": [[850, 985], [905, 913], [962, 910], [1032, 955], [1036, 1046], [930, 1056], [850, 1022]]},
+		"guindaste_direito": {"base": 655, "pontos": [[1620, 642], [1660, 400], [1700, 330], [1792, 330], [1832, 600], [1800, 652]]},
+		"caixas_direita": {"base": 600, "pontos": [[1440, 520], [1530, 470], [1600, 428], [1642, 480], [1642, 600], [1560, 612], [1450, 562]]},
+		"andaime_direito": {"base": 440, "pontos": [[1290, 390], [1320, 168], [1460, 168], [1476, 430], [1420, 446]]},
+		"guindaste_fundo": {"base": 340, "pontos": [[950, 330], [960, 140], [1000, 40], [1100, 40], [1110, 330], [1050, 346]]},
+		"carrinho_esquerda": {"base": 770, "pontos": [[290, 690], [330, 640], [420, 670], [432, 760], [380, 776], [290, 722]]},
+		"correntes_esquerda": {"base": 700, "pontos": [[150, 650], [190, 595], [270, 590], [300, 640], [290, 702], [200, 706]]},
+		"maquina_esquerda": {"base": 575, "pontos": [[260, 540], [280, 420], [350, 405], [392, 470], [402, 540], [340, 580]]},
+		"andaime_esquerdo": {"base": 612, "pontos": [[155, 600], [160, 385], [255, 385], [262, 600]]}
+	}
+}
