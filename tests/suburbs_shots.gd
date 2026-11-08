@@ -42,7 +42,15 @@ func _run() -> void:
 	var names: Array = args.slice(1) if args.size() > 1 else PLACES.keys()
 	var state = view.state
 	state.steps_until_spawn = 9999.0
-	for place in names:
+	for item in names:
+		# "lugar@graus" gira a câmera antes da captura
+		var place: String = item.split("@")[0].trim_suffix("+")
+		if "+" in item: # todas as lanternas acesas: os lampiões das ruas acendem
+			for lantern in state.lantern_cells():
+				state.landmarks[lantern]["state"] = "done"
+		var degrees := float(item.split("@")[1]) if "@" in item else 0.0
+		view.view_target = deg_to_rad(degrees)
+		view._set_view_angle(deg_to_rad(degrees))
 		var center: Vector2i = PLACES[place]
 		var spots: Array = state.area_of(center, 3).filter(func(cell): return state.tile_at(cell)["walkable"] and Hex.distance(cell, center) >= 1)
 		spots.sort_custom(func(a, b): return Hex.distance(a, center) < Hex.distance(b, center) or (Hex.distance(a, center) == Hex.distance(b, center) and a < b))
@@ -56,10 +64,13 @@ func _run() -> void:
 		view.board.position = view._camera_target(center)
 		view._set_camera(center)
 		view._sync_world(center)
+		if "+" in item:
+			for cell in state.gen.lamps.keys() + state.lantern_cells():
+				view.board_art._rebuild_cell(cell)
 		view._update_journey()
 		for i in 40:
 			await process_frame
 		await RenderingServer.frame_post_draw
-		root.get_texture().get_image().save_png("%s/%s.png" % [dir, place])
+		root.get_texture().get_image().save_png("%s/%s.png" % [dir, item.replace("@", "_").replace("+", "_acesa")])
 		print("captura: ", place, " ", center, " ", state.tile_name_at(center))
 	quit()

@@ -167,19 +167,23 @@ def ring(cells):
     return [c for c in cells if any(n not in s for n in neighbors(c))]
 
 
-def building(center, art, label, radius=1, dist=None):
+# Para onde a frente de um prédio olha (o "turn" do modelo de 16 ângulos).
+SOUTH, NORTH, WEST, EAST = 0.0, 3.14159, 1.5708, -1.5708
+
+
+def building(center, art, label, radius=1, dist=None, turn=SOUTH):
     cells = disc(center, radius)
     put(cells, "#", dist=dist)
-    pieces.append({"cell": center, "art": art, "label": label, "solid": True})
+    pieces.append({"cell": center, "art": art, "label": label, "solid": True, "turn": turn})
     for c in cells:
         labels[c] = label
     return cells
 
 
-def prop(cell, art, label="", solid=True, ch="#"):
+def prop(cell, art, label="", solid=True, ch="#", turn=SOUTH):
     if solid:
         put([cell], ch)
-    pieces.append({"cell": cell, "art": art, "label": label, "solid": solid})
+    pieces.append({"cell": cell, "art": art, "label": label, "solid": solid, "turn": turn})
     if label:
         labels[cell] = label
 
@@ -237,7 +241,7 @@ def south_wall():
     for c in list(terrain):
         if c[1] >= 4:
             terrain[c] = "w"
-    prop((0, 4), "portao_cidade", "Portão da Cidade-Farol", ch="w")
+    prop((0, 4), "portao_cidade", "Portão da Cidade-Farol", ch="w", turn=NORTH)
     for x in (-5, 5):
         prop((x, 4), "lampiao_aceso", "Lampião da cidade", ch="w")
 
@@ -273,7 +277,7 @@ def avenue():
             elif row % 4 == 2:
                 prop(c, "lampiao", "Lampião apagado", solid=False)
     # Bonde descarrilado atravessado na avenida: passa-se pelos lados.
-    prop((-1, -12), "bonde", "Bonde descarrilado", ch="#")
+    prop((-1, -12), "bonde", "Bonde descarrilado", ch="#", turn=WEST + 0.3)
     put([(-2, -12)], "#")
     labels[(-2, -12)] = "Bonde descarrilado"
     prop((1, -13), "caixas", "Carga espalhada", solid=False)
@@ -306,7 +310,7 @@ def vila_operaria():
     for i, col in enumerate(north):
         building((col, -6), arts[i % 3], "Casa operária", 1, d)
     for i, col in enumerate(south):
-        building((col, 0), arts[(i + 1) % 3], "Casa operária", 1, d)
+        building((col, 0), arts[(i + 1) % 3], "Casa operária", 1, d, NORTH)
     # Quintais cercados entre as casas do norte e a Rua das Tílias.
     for col in north:
         for c in [(col - 1, -8), (col + 1, -8)]:
@@ -354,13 +358,13 @@ def jardins():
             labels[c] = "Grade dos Jardins Aurélio"
     # Portão do jardim, na Rua do Jardim (que sai da praça para o leste).
     put(area(lambda c, x, y: c[1] == -3 and 3 <= c[0] <= 9), "=", 1, d)
-    prop((5, -4), "portao_jardim", "Portão dos Jardins Aurélio", ch="f")
+    prop((5, -4), "portao_jardim", "Portão dos Jardins Aurélio", ch="f", turn=WEST)
     put([(5, -2)], "f")
     labels[(5, -2)] = "Grade dos Jardins Aurélio"
     # Alameda interna até a mansão.
     put(area(lambda c, x, y: c[1] == -3 and 9 <= c[0] <= 18), "-", 1, d)
     put(disc((10, -3), 1), ":", 1, d)  # pátio do portão (lanterna 1, rota leste)
-    building((22, -4), "mansao_aurelio", "Mansão Aurélio", 2, d)
+    building((22, -4), "mansao_aurelio", "Mansão Aurélio", 2, d, WEST)
     # Sebes ornamentais e estátuas ao longo da alameda.
     for col in range(12, 19, 2):
         for row in (-5,):
@@ -415,7 +419,7 @@ def cemiterio():
         labels[c] = "Grade do cemitério"
     # Portão a leste, para o parque; e uma brecha a sul, na Rua das Tílias.
     gate = (-13, -15)
-    prop(gate, "portao_cemiterio", "Portão do Cemitério", solid=False)
+    prop(gate, "portao_cemiterio", "Portão do Cemitério", solid=False, turn=WEST)
     put([gate, (-13, -16)], ":", 2, d)
     labels[(-13, -16)] = "Portão do Cemitério"
     put([(-22, -11), (-21, -11)], ".", 2, d)
@@ -507,7 +511,7 @@ def mercado():
     for i, col in enumerate([4, 7, 10]):
         for row in (-18, -12):
             c = (col, row)
-            prop(c, "barraca_" + "abc"[(i + (row == -12)) % 3], "Barraca da feira", ch="#")
+            prop(c, "barraca_" + "abc"[(i + (row == -12)) % 3], "Barraca da feira", ch="#", turn=NORTH if row == -12 else SOUTH)
     building((11, -20), "pensao", "Pensão Estrela", 1, d)
     prop((5, -20), "carroca", "Carroça de flores", ch="#")
     prop((12, -12), "caixas", "Caixotes da feira", ch="c")
@@ -530,8 +534,8 @@ def quartel():
     for c in [(16, -15), (16, -14), (16, -16)]:
         put([c], ":")
         labels[c] = "Portão do Quartel"
-    prop((16, -17), "guarita", "Guarita", ch="w")
-    prop((16, -13), "guarita", "Guarita", ch="w")
+    prop((16, -17), "guarita", "Guarita", ch="w", turn=WEST)
+    prop((16, -13), "guarita", "Guarita", ch="w", turn=WEST)
     building((23, -19), "alojamento", "Alojamento", 0, d)
     building((19, -19), "alojamento", "Alojamento", 0, d)
     building((27, -18), "torre_vigia", "Torre de vigia", 0, d)
@@ -596,7 +600,7 @@ def capela():
     for c in zone:
         if terrain[c] == ".":
             district[c] = d
-    building((-21, -31), "capela_canal", "Capela do Canal", 1, d)
+    building((-21, -31), "capela_canal", "Capela do Canal", 1, d, EAST)
     put(disc((-16, -30), 1), ":", 1, d)  # adro da capela (lanterna 3, rota oeste)
     put(polyline([(-18, -25), (-16, -29)]), "=", 1, d)
     building((-12, -33), "casa_suburbio_b", "Casa do eclusário", 1, d)
@@ -641,7 +645,7 @@ def usina():
     put(disc((16, -29), 1), ":", 1, d)  # pátio da usina (lanterna 3, rota leste)
     building((22, -31), "gasometro", "Gasômetro", 2, d)
     building((13, -33), "gasometro_pequeno", "Gasômetro menor", 1, d)
-    building((27, -27), "galpao", "Galpão do bonde", 1, d)
+    building((27, -27), "galpao", "Galpão do bonde", 1, d, WEST)
     prop((24, -26), "bonde", "Bonde no depósito", ch="#")
     put([(25, -26)], "#")
     # Passarela da usina: plataforma alta atrás dos gasômetros. Os caixotes viram escada.
@@ -720,6 +724,36 @@ def desafios():
         sites.setdefault("desafio", []).append(c)
 
 
+def street_lamps():
+    """Lampiões em volta de cada lanterna e ao longo da Rua das Tílias: quando a lanterna
+    do bairro acende, eles acendem junto (expedition_state.lamp_lit)."""
+    taken = {p["cell"] for p in pieces}
+    free = lambda c: terrain.get(c) in (".", ",", ":", "^") and c not in taken and not any(
+        c in r for r in lantern_routes) and all(c not in v for v in sites.values())
+    for route in lantern_routes:
+        for center in route:
+            ring_cells = [c for c in disc(center, 3) if distance(c, center) == 3]
+            ring_cells.sort(key=lambda c: math_angle(center, c))
+            for c in ring_cells[::3]:
+                if free(c):
+                    prop(c, "lampiao", "Lampião apagado", solid=False)
+                    taken.add(c)
+    for col in range(-27, 28, 6):
+        for row in (-10, -8):
+            c = (col + (1 if row == -8 else 0), row)
+            if free(c) and distance(c, (0, -9)) > 2:
+                prop(c, "lampiao", "Lampião apagado", solid=False)
+                taken.add(c)
+                break
+
+
+def math_angle(a, b):
+    import math
+    ax, ay = flat(a)
+    bx, by = flat(b)
+    return math.atan2(by - ay, bx - ax)
+
+
 def scatter():
     # Chão comum: entulho, montinhos e mato dão textura sem fechar caminho.
     for c, ch in list(terrain.items()):
@@ -752,6 +786,7 @@ def build():
     south_wall()
     lanterns()
     desafios()
+    street_lamps()
     scatter()
     # sítios precisam ser chão andável
     for kind, cells in sites.items():

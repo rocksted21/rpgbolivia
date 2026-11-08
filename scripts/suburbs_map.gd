@@ -23,14 +23,31 @@ const ART_SCALE := {
 	"lapides_b": 1.0, "pedras_vau": 1.0, "telescopio": 1.0,
 }
 const RENAME := {"telescopio": "coluna"} # peças da planta sem arte própria
+# Peças que são modelos de 16 ângulos (giram com a câmera, como os prédios da cidade).
+# nome na planta: [modelo, pasta]. tools/build_suburbios_models.py gera os da pasta dos Subúrbios.
+const MODEL_ROOT := "res://assets/biomes/suburbios/modelos/%s.png"
+const TOWN_MODEL_ROOT := "res://assets/town/modelos/%s.png"
+const MODEL_GROUND := 107 # centro do hexágono, como na cidade
+const OWN_MODELS := ["casa_suburbio_a", "casa_suburbio_b", "casa_suburbio_c", "pensao", "mansao_aurelio",
+	"capela_canal", "mausoleu", "cripta", "barracao", "alojamento", "galpao", "torre_vigia", "guarita",
+	"barraca_a", "barraca_b", "barraca_c", "coreto", "gasometro", "gasometro_pequeno", "bonde",
+	"portao_cidade", "lapides", "lapides_b"]
+const TOWN_MODELS := {"carroca": "camp_carroca", "caixas": "camp_caixas", "banco": "shrine_bench",
+	"fonte_luz": "fonte", "fonte_seca": "garden_fountain", "portao_jardim": "garden_gate",
+	"portao_cemiterio": "garden_gate", "barco": "porto_barco", "casa": "casa_a"}
+# Cercas, muros e sebes: um trecho de meia casa para cada vizinho da mesma linha, virado na
+# direção dele. Assim a linha fica certa de qualquer ângulo da câmera.
+const BARRIERS := {"f": "grade", "w": "muro", "h": "sebe"}
+const JOINS := {"f": ["f", "w"], "w": ["w", "f"], "h": ["h"]}
 # O que cada letra da planta vira. Os sólidos sem peça própria ganham a arte do tipo.
 const LEGEND := {
 	".": FIELD_A, ",": FIELD_B, ":": FIELD_A, "=": ROAD, "-": PATH, "~": WATER, "o": STONES,
 	"H": BRIDGE, "#": HOUSE, "T": TREE, "t": FOREST, "h": HOUSE, "f": HOUSE, "w": HOUSE,
 	"g": ROCKS, "r": ROCKS, "^": HILLS, "M": MOUNTAIN, "c": HOUSE,
 }
-const AUTO_ART := {"h": ["sebe", "sebe_b"], "f": ["grade"], "w": ["muro"], "g": ["lapides", "lapides_b"], "c": ["caixas"], "o": ["pedras_vau"]}
+const AUTO_ART := {"g": ["lapides", "lapides_b"], "c": ["caixas"], "o": ["pedras_vau"]}
 const PAVED := [":", "="]
+const CITY_ROW := 5 # daqui para o sul, fora da planta, é a cidade
 const ROADS := ["=", "H"]
 const TRAILS := ["-"]
 
@@ -40,6 +57,7 @@ var paved := {} # casas calçadas (praças, cais, ruas)
 var art := {} # casa: [peças desenhadas pela planta]; vazio = nada em pé
 var labels := {}
 var districts := {}
+var lamps := {} # casas com lampião de rua: acendem com a lanterna do bairro
 
 
 func _init(p_seed: int) -> void:
@@ -75,7 +93,8 @@ func _read_plan() -> void:
 				districts[cell] = zones[col]
 			if AUTO_ART.has(mark):
 				var options: Array = AUTO_ART[mark]
-				art[cell] = [_piece(options[int(roll * 7.0) % options.size()], cell)]
+				var turn := floorf(fmod(roll * 53.0, 1.0) * 6.0) * PI / 3.0 if mark == "g" else 0.0
+				art[cell] = [_piece(options[int(roll * 7.0) % options.size()], cell, turn)]
 			elif mark == "#":
 				art[cell] = [] # parte de um prédio: a arte fica no centro dele
 	for piece in Plan.PIECES:
@@ -83,15 +102,54 @@ func _read_plan() -> void:
 		if not cells.has(cell):
 			continue
 		# Peça em cima de uma letra com arte própria (portão no muro) toma o lugar dela.
-		var list: Array = [] if AUTO_ART.has(marks[cell]) else art.get(cell, [])
-		list.append(_piece(piece["art"], cell))
+		var list: Array = [] if AUTO_ART.has(marks[cell]) or BARRIERS.has(marks[cell]) else art.get(cell, [])
+		list.append(_piece(piece["art"], cell, piece.get("turn", 0.0)))
 		art[cell] = list
+		if piece["art"] == "lampiao":
+			lamps[cell] = true
+	_build_barriers()
 	labels = Plan.LABELS
 	_carve_streets()
 
 
+## Trechos de cerca, muro e sebe. Casas com peça própria (portões, guaritas) ficam como estão.
+func _build_barriers() -> void:
+	for cell in marks:
+		var mark: String = marks[cell]
+		if not BARRIERS.has(mark) or (art.has(cell) and not art[cell].is_empty()):
+			continue
+		var list: Array = []
+		for dir in 6:
+			var next := Hex.neighbor(cell, dir)
+			if marks.get(next, " ") in JOINS[mark]:
+				list.append(_model(BARRIERS[mark], MODEL_ROOT, _angle(cell, next)))
+		if list.is_empty():
+			if mark == "h":
+				list.append(_model("sebe_bloco", MODEL_ROOT, 0.0))
+			else: # pedaço solto: um trecho inteiro, de lado a lado
+				list.append(_model(BARRIERS[mark], MODEL_ROOT, 0.0))
+				list.append(_model(BARRIERS[mark], MODEL_ROOT, PI))
+		art[cell] = list
+
+
+## Ângulo da casa até a vizinha, no plano do tabuleiro (y para baixo), como o "turn" dos modelos.
+func _angle(from: Vector2i, to: Vector2i) -> float:
+	var a := Vector2(from.x + (from.y & 1) * 0.5, from.y * 0.866)
+	var b := Vector2(to.x + (to.y & 1) * 0.5, to.y * 0.866)
+	return (b - a).angle()
+
+
+func _model(key: String, root: String, turn: float) -> Dictionary:
+	return {"path": root % key, "model": key, "turn": turn, "ground_y": MODEL_GROUND, "depth": 3,
+		"layer": "main", "fixed": true, "bob": key == "porto_barco"}
+
+
 ## Peça desenhada pela planta, no formato de BiomeArt (path, ground_y, depth, layer).
-func _piece(name: String, cell: Vector2i) -> Dictionary:
+func _piece(name: String, cell: Vector2i, turn := 0.0) -> Dictionary:
+	if name in OWN_MODELS:
+		return _model(name, MODEL_ROOT, turn)
+	if TOWN_MODELS.has(name):
+		return _model(TOWN_MODELS[name], TOWN_MODEL_ROOT, turn)
 	var file: String = RENAME.get(name, name)
 	var roll := _roll(cell)
 	var prop := {"path": ART % file, "ground_y": GROUND_Y, "depth": 3, "layer": "main", "fixed": true,
@@ -133,11 +191,19 @@ func _generate(cell: Vector2i) -> Dictionary:
 	return spot
 
 
-## Fora da planta: muralha de árvores mortas e entulho. No sul, a muralha da Cidade-Farol.
+## Fora da planta: um bosque morto fechado. Atrás da muralha do sul fica a Cidade-Farol, com as
+## janelas acesas: o lugar de onde a party saiu.
 func _wall(cell: Vector2i) -> Dictionary:
 	var roll := _roll(cell)
-	var terrain := TREE if fmod(roll * 37.0, 1.0) < 0.55 and cell.y < 4 else MOUNTAIN
-	return {"terrain": terrain, "elevation": 1 if cell.y < 4 else 2, "biome": BIOME, "detail": DECOR_DETAIL + fmod(roll * 97.0, 1.0) * 0.9, "wall": true}
+	var terrain := HOUSE if cell.y >= CITY_ROW else TREE
+	return {"terrain": terrain, "elevation": 1, "biome": BIOME, "detail": DECOR_DETAIL + fmod(roll * 97.0, 1.0) * 0.9, "wall": true}
+
+
+func _city_art(cell: Vector2i) -> Array:
+	if cell.y % 2 == 0 and posmod(cell.x + cell.y, 3) == 0 and cell.y <= CITY_ROW + 6:
+		var house: String = ["casa_a", "casa_b", "casa_c", "taverna"][posmod(cell.x * 7 + cell.y, 4)]
+		return [_model(house, TOWN_MODEL_ROOT, PI if posmod(cell.x, 2) == 0 else PI * 0.9)]
+	return []
 
 
 func outside_bounds(cell: Vector2i) -> bool:
@@ -162,11 +228,28 @@ func find_start() -> Vector2i:
 
 ## Peças da planta nesta casa: null se a planta não diz nada (vale a arte do terreno).
 func art_at(cell: Vector2i) -> Variant:
+	if not cells.has(cell) and cell.y >= CITY_ROW:
+		return _city_art(cell)
 	return art.get(cell)
 
 
 func fountain_art(cell: Vector2i) -> Dictionary:
 	return _piece("fonte_luz", cell)
+
+
+## Lampião desta casa, aceso: a peça da planta trocada pela versão com luz.
+func lit_lamp_art(cell: Vector2i) -> Array:
+	var out: Array = []
+	for prop in art.get(cell, []):
+		var lit: Dictionary = prop.duplicate()
+		lit["path"] = String(prop["path"]).replace("/lampiao.png", "/lampiao_aceso.png")
+		out.append(lit)
+	return out
+
+
+## A casa de quem resiste: o modelo da cidade, com as janelas acesas.
+func village_art(cell: Vector2i) -> Dictionary:
+	return _piece("casa", cell, PI if fmod(_roll(cell) * 17.0, 1.0) < 0.5 else 0.0)
 
 
 func label_at(cell: Vector2i) -> String:

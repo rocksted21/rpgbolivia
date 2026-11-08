@@ -76,7 +76,9 @@ static func prop_tint(biome: String, path: String) -> Color:
 static func light_of(biome: String, path: String) -> String:
 	if "farol_aceso" in path:
 		return "farol"
-	if "lanterna_acesa" in path or "lampiao_aceso" in path:
+	if "lampiao_aceso" in path:
+		return "lampiao"
+	if "lanterna_acesa" in path:
 		return "lanterna"
 	if "bau_fechado" in path:
 		return "bau"

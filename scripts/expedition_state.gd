@@ -186,11 +186,34 @@ func paved_at(cell: Vector2i) -> bool:
 
 ## Arte que a planta põe nesta casa; null quando vale a arte do terreno (BiomeArt.props).
 func map_art(cell: Vector2i) -> Variant:
-	if not fixed_map or terrain_override.has(cell):
+	if not fixed_map:
+		return null
+	if landmarks.has(cell) and landmarks[cell]["kind"] == "vila":
+		return [gen.village_art(cell)]
+	if terrain_override.has(cell):
 		return null
 	if landmarks.has(cell) and landmarks[cell]["kind"] == "fonte":
 		return [gen.fountain_art(cell)] # a Fonte de luz: a única com água em todo o subúrbio
+	if gen.lamps.has(cell) and lamp_lit(cell):
+		return gen.lit_lamp_art(cell)
 	return gen.art_at(cell)
+
+
+## Lampião de rua aceso: há uma lanterna acesa perto (a luz volta ao bairro).
+func lamp_lit(cell: Vector2i) -> bool:
+	for lantern in lantern_cells():
+		if landmarks[lantern]["state"] == "done" and Hex.distance(lantern, cell) <= Exp.LAMP_RADIUS:
+			return true
+	return false
+
+
+## Lampiões que uma lanterna acende, do mais perto ao mais longe.
+func lamps_near(cell: Vector2i) -> Array:
+	if not fixed_map:
+		return []
+	var out: Array = gen.lamps.keys().filter(func(lamp): return Hex.distance(lamp, cell) <= Exp.LAMP_RADIUS)
+	out.sort_custom(func(a, b): return Hex.distance(a, cell) < Hex.distance(b, cell))
+	return out
 
 
 ## No mapa fixo o perigo sobe mais depressa: ele é menor que o sorteado e o farol fica mais perto.

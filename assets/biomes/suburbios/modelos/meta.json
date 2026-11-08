@@ -1,0 +1,218 @@
+{
+	"alojamento": {
+		"columns": 4,
+		"foot_x": 64,
+		"foot_y": 105,
+		"h": 145,
+		"views": 16,
+		"w": 128
+	},
+	"barraca_a": {
+		"columns": 4,
+		"foot_x": 53,
+		"foot_y": 101,
+		"h": 135,
+		"views": 16,
+		"w": 106
+	},
+	"barraca_b": {
+		"columns": 4,
+		"foot_x": 53,
+		"foot_y": 101,
+		"h": 135,
+		"views": 16,
+		"w": 106
+	},
+	"barraca_c": {
+		"columns": 4,
+		"foot_x": 53,
+		"foot_y": 101,
+		"h": 135,
+		"views": 16,
+		"w": 106
+	},
+	"barracao": {
+		"columns": 4,
+		"foot_x": 64,
+		"foot_y": 105,
+		"h": 145,
+		"views": 16,
+		"w": 128
+	},
+	"bonde": {
+		"columns": 4,
+		"foot_x": 88,
+		"foot_y": 137,
+		"h": 192,
+		"views": 16,
+		"w": 176
+	},
+	"capela_canal": {
+		"columns": 4,
+		"foot_x": 102,
+		"foot_y": 269,
+		"h": 332,
+		"views": 16,
+		"w": 204
+	},
+	"casa_suburbio_a": {
+		"columns": 4,
+		"foot_x": 69,
+		"foot_y": 155,
+		"h": 198,
+		"views": 16,
+		"w": 138
+	},
+	"casa_suburbio_b": {
+		"columns": 4,
+		"foot_x": 67,
+		"foot_y": 180,
+		"h": 222,
+		"views": 16,
+		"w": 134
+	},
+	"casa_suburbio_c": {
+		"columns": 4,
+		"foot_x": 76,
+		"foot_y": 126,
+		"h": 174,
+		"views": 16,
+		"w": 152
+	},
+	"coreto": {
+		"columns": 4,
+		"foot_x": 64,
+		"foot_y": 186,
+		"h": 226,
+		"views": 16,
+		"w": 128
+	},
+	"cripta": {
+		"columns": 4,
+		"foot_x": 67,
+		"foot_y": 146,
+		"h": 188,
+		"views": 16,
+		"w": 134
+	},
+	"galpao": {
+		"columns": 4,
+		"foot_x": 122,
+		"foot_y": 241,
+		"h": 316,
+		"views": 16,
+		"w": 244
+	},
+	"gasometro": {
+		"columns": 4,
+		"foot_x": 168,
+		"foot_y": 290,
+		"h": 393,
+		"views": 16,
+		"w": 336
+	},
+	"gasometro_pequeno": {
+		"columns": 4,
+		"foot_x": 114,
+		"foot_y": 208,
+		"h": 278,
+		"views": 16,
+		"w": 228
+	},
+	"grade": {
+		"columns": 4,
+		"foot_x": 53,
+		"foot_y": 97,
+		"h": 131,
+		"views": 16,
+		"w": 106
+	},
+	"guarita": {
+		"columns": 4,
+		"foot_x": 38,
+		"foot_y": 102,
+		"h": 126,
+		"views": 16,
+		"w": 76
+	},
+	"lapides": {
+		"columns": 4,
+		"foot_x": 48,
+		"foot_y": 81,
+		"h": 111,
+		"views": 16,
+		"w": 96
+	},
+	"lapides_b": {
+		"columns": 4,
+		"foot_x": 47,
+		"foot_y": 81,
+		"h": 111,
+		"views": 16,
+		"w": 94
+	},
+	"mansao_aurelio": {
+		"columns": 4,
+		"foot_x": 130,
+		"foot_y": 241,
+		"h": 321,
+		"views": 16,
+		"w": 260
+	},
+	"mausoleu": {
+		"columns": 4,
+		"foot_x": 51,
+		"foot_y": 126,
+		"h": 158,
+		"views": 16,
+		"w": 102
+	},
+	"muro": {
+		"columns": 4,
+		"foot_x": 54,
+		"foot_y": 87,
+		"h": 121,
+		"views": 16,
+		"w": 108
+	},
+	"pensao": {
+		"columns": 4,
+		"foot_x": 120,
+		"foot_y": 246,
+		"h": 320,
+		"views": 16,
+		"w": 240
+	},
+	"portao_cidade": {
+		"columns": 4,
+		"foot_x": 95,
+		"foot_y": 217,
+		"h": 276,
+		"views": 16,
+		"w": 190
+	},
+	"sebe": {
+		"columns": 4,
+		"foot_x": 55,
+		"foot_y": 74,
+		"h": 109,
+		"views": 16,
+		"w": 110
+	},
+	"sebe_bloco": {
+		"columns": 4,
+		"foot_x": 33,
+		"foot_y": 63,
+		"h": 84,
+		"views": 16,
+		"w": 66
+	},
+	"torre_vigia": {
+		"columns": 4,
+		"foot_x": 69,
+		"foot_y": 233,
+		"h": 276,
+		"views": 16,
+		"w": 138
+	}
+}

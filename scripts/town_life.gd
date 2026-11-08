@@ -32,6 +32,8 @@ var call_wait := 1.0
 var calling := false
 var guide_cell := NO_CELL
 var time := 0.0
+var beams := [] # facho do farol: {light, sprites, length}
+const BEAM_TEXTURE := Vector2i(512, 64)
 
 
 func setup(p_view) -> void:
@@ -46,9 +48,13 @@ func setup(p_view) -> void:
 			_add_light(decor["cell"], Town.LIGHT_ART[decor["art"]], flame, FLAME_HEIGHT, decor.get("offset", 0))
 	for building in Town.buildings():
 		if building["art"] == "farol":
-			_add_light(building["cell"], Town.BEACON_LIGHT, false, Town.BEACON_HEIGHT * building["scale"] * Town.BiomeArt.building_scale(building["path"]))
+			_add_light(building["cell"], Town.beacon_power(state.beacons), false, Town.BEACON_HEIGHT * building["scale"] * Town.BiomeArt.building_scale(building["path"]) * view.board.scale.y)
+			if state.beacons >= Town.BEAM_FROM:
+				_add_beam(lights.back(), Town.beam_length(state.beacons))
 		elif building["art"] == "forja" and state.is_present(building):
 			_add_light(building["cell"], Town.FORGE_LIGHT, true)
+	for lamp in state.lit_lamps: # lampiões que o progresso já acendeu
+		_add_light(lamp["cell"], Town.LAMP_LIGHT, false, Town.LAMP_HEIGHT * view.board.scale.y, lamp["offset"], lamp["lift"])
 	for person in Town.people(): # lanterna na mão de quem carrega uma
 		if Town.PERSON_LIGHT.has(person["art"]) and state.is_present(person):
 			var spec: Array = Town.PERSON_LIGHT[person["art"]]
@@ -93,6 +99,54 @@ func _add_light(cell: Vector2i, power: float, sparks: bool, height := FLAME_HEIG
 	lights.append({"cell": cell, "offset": offset, "lift": lift, "power": power, "height": height, "glow": glow, "embers": embers, "phase": cell.x * 1.7 + cell.y})
 
 
+## O facho do farol: dois feixes opostos girando no céu, como a lente de um farol de verdade.
+## O giro é achatado na vertical para parecer deitado no mesmo ângulo da câmera.
+func _add_beam(light: Dictionary, length: float) -> void:
+	var texture := _beam_texture()
+	var sprites := []
+	for i in 2:
+		var sprite := Sprite2D.new()
+		sprite.texture = texture
+		sprite.centered = false
+		sprite.offset = Vector2(0, -BEAM_TEXTURE.y / 2.0)
+		var additive := CanvasItemMaterial.new()
+		additive.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		sprite.material = additive
+		add_child(sprite)
+		sprites.append(sprite)
+	beams.append({"light": light, "sprites": sprites, "length": length})
+
+
+## Cone de luz: estreito na lente, largo e apagado na ponta.
+func _beam_texture() -> ImageTexture:
+	var image := Image.create(BEAM_TEXTURE.x, BEAM_TEXTURE.y, false, Image.FORMAT_RGBA8)
+	for x in BEAM_TEXTURE.x:
+		var t := float(x) / BEAM_TEXTURE.x
+		var half := 3.0 + 26.0 * t
+		var strength := pow(1.0 - t, 1.4) * 0.75
+		for y in BEAM_TEXTURE.y:
+			var edge := absf(y - BEAM_TEXTURE.y / 2.0) / half
+			var alpha := strength * clampf(1.0 - edge * edge, 0.0, 1.0)
+			image.set_pixel(x, y, Color(1.0, 0.84, 0.52, alpha))
+	return ImageTexture.create_from_image(image)
+
+
+func _update_beams() -> void:
+	for beam in beams:
+		var glow: Sprite2D = beam["light"]["glow"]
+		var turn: float = time * Town.BEAM_SPEED
+		for i in beam["sprites"].size():
+			var sprite: Sprite2D = beam["sprites"][i]
+			var angle: float = turn + PI * i
+			var dir := Vector2(cos(angle), sin(angle) * 0.42) # achatado como o chão visto de cima
+			sprite.position = beam["light"].get("spot", glow.position)
+			sprite.rotation = dir.angle()
+			sprite.scale = Vector2(beam["length"] * dir.length() / BEAM_TEXTURE.x, 1.6 + 0.9 * absf(cos(angle)))
+			# mais forte quando aponta para a câmera (para baixo na tela)
+			sprite.modulate.a = 0.55 + 0.45 * clampf(sin(angle), 0.0, 1.0)
+			sprite.visible = true
+
+
 func _glow_texture() -> GradientTexture2D:
 	var gradient := Gradient.new()
 	gradient.set_color(0, Color(1.0, 0.72, 0.36, 0.6))
@@ -115,6 +169,7 @@ func _update_lights() -> void:
 		var spot: Vector2 = camera.project(anchor, view._cell_elevation(light["cell"]))
 		var depth: float = camera.depth_at(anchor, view._cell_elevation(light["cell"]))
 		spot.y -= light["height"] * depth
+		light["spot"] = spot
 		var seen := Rect2(-SCREEN_MARGIN, -SCREEN_MARGIN, 1280 + SCREEN_MARGIN * 2, 720 + SCREEN_MARGIN * 2).has_point(spot)
 		var glow: Sprite2D = light["glow"]
 		glow.visible = seen
@@ -132,9 +187,14 @@ func _update_lights() -> void:
 
 func _add_walker(index: int) -> void:
 	var sprite := Sprite2D.new()
-	sprite.texture = load(Town.TOWN_ROOT % Town.WALKER_ART[index % Town.WALKER_ART.size()])
+	var art: String = Town.WALKER_ART[index % Town.WALKER_ART.size()]
+	sprite.texture = load(Town.TOWN_ROOT % art)
 	sprite.centered = false
-	var foot: Vector2 = sprite.texture.get_size() / 2.0
+	if ResourceLoader.exists(Town.IDLE_ROOT % art): # respira e pisca enquanto anda
+		sprite.texture = load(Town.IDLE_ROOT % art)
+		sprite.hframes = Town.IDLE_FRAMES
+		_play_idle(sprite, index * 5)
+	var foot: Vector2 = sprite.get_rect().size / 2.0
 	var route: Array = Town.walk_route().filter(func(cell): return state.tile_at(cell)["walkable"])
 	var cell: Vector2i = route[index * 3 % route.size()]
 	view.board.add_child(sprite)
@@ -142,6 +202,16 @@ func _add_walker(index: int) -> void:
 	var walker := {"sprite": sprite, "foot": foot, "cell": cell, "next": cell, "path": [], "route": route, "goal": index * 3, "step": 1.0, "rest": randf_range(REST_TIME.x, REST_TIME.y)}
 	walkers.append(walker)
 	_place_walker(walker)
+
+
+## Toca a folha em loop, começando num quadro diferente para cada um.
+func _play_idle(sprite: Sprite2D, start: int) -> void:
+	var count: int = sprite.hframes
+	start = posmod(start, count)
+	sprite.frame = start
+	var loop := sprite.create_tween().set_loops()
+	loop.tween_method(func(step: float): sprite.frame = (start + mini(int(step), count - 1)) % count,
+		0.0, float(count), count / Town.IDLE_FPS)
 
 
 func _place_walker(walker: Dictionary) -> void:
@@ -260,6 +330,7 @@ func _process(delta: float) -> void:
 	if view.board == null:
 		return
 	_update_lights()
+	_update_beams()
 	for walker in walkers:
 		_update_walker(walker, delta)
 	bubble_wait -= delta

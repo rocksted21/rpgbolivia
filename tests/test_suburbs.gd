@@ -38,6 +38,7 @@ func _initialize() -> void:
 	test_save()
 	test_danger()
 	test_secret_events()
+	test_lamps()
 	print("regras: %d verificações, %d falhas" % [checks, failures])
 	if not OS.has_environment("SKIP_SIM"):
 		test_simulation()
@@ -253,7 +254,7 @@ func test_art() -> void:
 		check(ResourceLoader.exists(BiomeArt.solo("suburbios", kind)), "chão %s dos Subúrbios" % kind)
 	check(ResourceLoader.exists(BiomeArt.soil("suburbios")), "chão dos Subúrbios")
 	check(ResourceLoader.exists(BiomeArt.wall("suburbios")), "muro de arrimo dos penhascos")
-	check(BiomeArt.light_of("suburbios", "res://assets/biomes/suburbios/lampiao_aceso.png") == "lanterna", "o lampião aceso do portão brilha")
+	check(BiomeArt.light_of("suburbios", "res://assets/biomes/suburbios/lampiao_aceso.png") == "lampiao", "o lampião aceso brilha")
 	check(Data.UNIT_TYPES.has(Exp.BOSS_BY_BIOME["suburbios"]), "o guardião dos Subúrbios existe")
 
 
@@ -381,3 +382,18 @@ func test_secret_events() -> void:
 	check(not state.tick().any(func(e): return e["type"] == "secret"), "o aviso vem uma vez só")
 	var restored = SaveGame.restore(SaveGame.capture(state))
 	check(restored.secrets_found() == 1, "o save lembra os segredos achados")
+
+
+func test_lamps() -> void:
+	var state = _new(8)
+	check(state.gen.lamps.size() >= 10, "as ruas têm lampiões (%d)" % state.gen.lamps.size())
+	var lantern: Vector2i = state.lantern_cells()[0]
+	var near: Array = state.lamps_near(lantern)
+	check(not near.is_empty(), "há lampiões perto da primeira lanterna")
+	check(not near.any(func(lamp): return state.lamp_lit(lamp)), "com a lanterna apagada, os lampiões ficam apagados")
+	state.landmarks[lantern]["state"] = "done"
+	check(near.all(func(lamp): return state.lamp_lit(lamp)), "acender a lanterna acende os lampiões em volta")
+	var art: Array = state.map_art(near[0])
+	check("lampiao_aceso" in art[0]["path"], "o lampião aceso troca a arte")
+	var far: Array = state.gen.lamps.keys().filter(func(lamp): return Hex.distance(lamp, lantern) > Exp.LAMP_RADIUS and not state.lamp_lit(lamp))
+	check(not far.is_empty(), "os lampiões longe continuam apagados")
